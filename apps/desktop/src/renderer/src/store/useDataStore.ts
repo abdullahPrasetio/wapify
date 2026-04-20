@@ -10,6 +10,8 @@ import type {
   RequestHistory
 } from '../types'
 import { toast } from 'sonner'
+import moment from 'moment'
+import _ from 'lodash'
 
 /**
  * Ensures a request object has a string body for the Monaco Editor.
@@ -40,7 +42,9 @@ const normalizeRequest = (req: ApiRequest): ApiRequest => {
     ...req,
     body,
     headers: req.headers || {},
-    auth_config: req.auth_config || { type: 'No Auth' }
+    auth_config: req.auth_config || { type: 'No Auth' },
+    pre_request_script: req.pre_request_script || '',
+    post_request_script: req.post_request_script || ''
   }
 }
 
@@ -61,6 +65,16 @@ export interface WorkingRequest {
   headers: Record<string, string>
   body: string
   auth_config: AuthConfig
+  pre_request_script: string
+  post_request_script: string
+}
+
+export interface LogEntry {
+  id: string
+  timestamp: string
+  level: 'log' | 'info' | 'warn' | 'error'
+  message: string
+  requestId?: number
 }
 
 export interface RequestTab {
@@ -71,6 +85,7 @@ export interface RequestTab {
   lastResponse: IpcResponse | null
   isSending: boolean
   isDirty: boolean
+  testResults: { name: string; status: 'passed' | 'failed'; error?: string }[]
 }
 
 interface DataState {
@@ -91,6 +106,7 @@ interface DataState {
   // Requests (keyed by collection id)
   requestsByCollection: Record<number, ApiRequest[]>
   requestsByFolder: Record<number, ApiRequest[]>
+  requests: ApiRequest[]
 
   // History
   history: RequestHistory[]
@@ -103,6 +119,7 @@ interface DataState {
   // Environments (for active team)
   environments: Environment[]
   activeEnvironmentId: number | null
+  logs: LogEntry[]
 
   // Actions
   fetchTeams: () => Promise<void>
@@ -121,12 +138,12 @@ interface DataState {
   saveActiveRequest: () => Promise<void>
   createCollection: (name: string) => Promise<void>
   importCollection: (jsonContent: string) => Promise<void>
-  createRequest: (collectionId: number, folderId: number | null, name: string) => Promise<void>
+  createRequest: (collectionId: number, folderId: number | null, name: string, data?: Partial<ApiRequest>) => Promise<void>
   createFolder: (collectionId: number, parentFolderId: number | null, name: string) => Promise<void>
 
   // Environment Actions
   fetchEnvironments: (teamId: number) => Promise<void>
-  setActiveEnvironment: (envId: number) => void
+  setActiveEnvironment: (envId: number | null) => void
   createEnvironment: (name: string) => Promise<void>
   updateEnvironment: (id: number, name: string, variables: Record<string, string>) => Promise<void>
   deleteEnvironment: (id: number) => Promise<void>
@@ -138,13 +155,31 @@ interface DataState {
   // Execution Actions
   executeActiveRequest: () => Promise<void>
   clearResponse: () => void
+  updateActiveEnvironmentVariable: (key: string, value: string) => Promise<void>
+  deleteCollection: (id: number) => Promise<void>
+  deleteFolder: (id: number) => Promise<void>
+  deleteRequest: (id: number) => Promise<void>
+  exportCollection: (id: number) => Promise<void>
+  clearHistory: () => Promise<void>
+  clearLogs: () => void
 }
 
 const replaceVariables = (text: string, variables: Record<string, string>): string => {
   if (typeof text !== 'string') return text
+  
+  // Buat map versi lowercase untuk pencarian case-insensitive
+  const lowerVars = Object.keys(variables).reduce((acc, key) => {
+    acc[key.toLowerCase()] = String(variables[key])
+    return acc
+  }, {} as Record<string, string>)
+
   return text.replace(/\{\{(.+?)\}\}/g, (match, key) => {
-    const trimmedKey = key.trim()
-    return variables[trimmedKey] !== undefined ? String(variables[trimmedKey]) : match
+    const trimmedKey = key.trim().toLowerCase()
+    const resolved = lowerVars[trimmedKey]
+    
+    console.log(`[Wapify] Matching variable: "${key.trim()}" -> ${resolved !== undefined ? 'FOUND' : 'NOT FOUND'}`)
+    
+    return resolved !== undefined ? resolved : match
   })
 }
 
@@ -186,14 +221,17 @@ export const useDataStore = create<DataState>((set, get) => ({
   foldersByCollection: {},
   requestsByCollection: {},
   requestsByFolder: {},
+  requests: [],
+
   history: [],
   historyLoading: false,
 
   tabs: [],
   activeTabId: null,
-
+  
   environments: [],
   activeEnvironmentId: null,
+  logs: [],
 
   fetchTeams: async () => {
     set({ teamsLoading: true })
@@ -285,7 +323,8 @@ export const useDataStore = create<DataState>((set, get) => ({
       set((state) => ({
         foldersByCollection: { ...state.foldersByCollection, [collectionId]: folders },
         requestsByCollection: { ...state.requestsByCollection, [collectionId]: rootRequests },
-        requestsByFolder: { ...state.requestsByFolder, ...folderRequests }
+        requestsByFolder: { ...state.requestsByFolder, ...folderRequests },
+        requests: [...state.requests.filter(r => r.collection_id !== collectionId), ...allRequests]
       }))
     } catch {
       // silent fail
@@ -311,11 +350,14 @@ export const useDataStore = create<DataState>((set, get) => ({
         url: normalizedRequest.url,
         headers: normalizedRequest.headers || {},
         body: normalizedRequest.body as string,
-        auth_config: (normalizedRequest.auth_config as AuthConfig) || { type: 'No Auth' }
+        auth_config: (normalizedRequest.auth_config as AuthConfig) || { type: 'No Auth' },
+        pre_request_script: normalizedRequest.pre_request_script || '',
+        post_request_script: normalizedRequest.post_request_script || ''
       },
       lastResponse: null,
+      isSending: false,
       isDirty: false,
-      isSending: false
+      testResults: []
     }
     set({
       tabs: [...tabs, newTab],
@@ -382,7 +424,9 @@ export const useDataStore = create<DataState>((set, get) => ({
         url: workingRequest.url,
         headers: workingRequest.headers,
         body: bodyObj,
-        auth_config: workingRequest.auth_config
+        auth_config: workingRequest.auth_config,
+        pre_request_script: workingRequest.pre_request_script,
+        post_request_script: workingRequest.post_request_script
       })
 
       if (response.status === 200) {
@@ -418,7 +462,12 @@ export const useDataStore = create<DataState>((set, get) => ({
         description: ''
       })
       if (response.status === 201) {
-        await get().fetchCollections(activeTeamId)
+        const newCol = response.data as Collection
+        set((state) => ({ 
+          collections: [...state.collections, newCol],
+          requestsByCollection: { ...state.requestsByCollection, [newCol.id]: [] },
+          foldersByCollection: { ...state.foldersByCollection, [newCol.id]: [] }
+        }))
         toast.success('Collection created')
       }
     } catch {
@@ -445,27 +494,65 @@ export const useDataStore = create<DataState>((set, get) => ({
     }
   },
 
-  createRequest: async (collectionId: number, folderId: number | null, name: string) => {
+  createRequest: async (collectionId: number, folderId: number | null, name: string, data?: Partial<ApiRequest>) => {
     try {
-      const response = await apiClient.post(`/api/v1/collections/${collectionId}/requests`, {
+      const url = folderId 
+        ? `/api/v1/folders/${folderId}/requests` 
+        : `/api/v1/collections/${collectionId}/requests`
+      
+      const payload = {
         name,
-        collection_id: collectionId,
+        description: data?.description || '',
+        method: data?.method || 'GET',
+        url: data?.url || 'https://api.example.com',
+        headers: data?.headers || {},
+        body: data?.body || {},
+        auth_config: data?.auth_config || { type: 'No Auth' },
         folder_id: folderId,
-        method: 'GET',
-        url: 'https://api.example.com',
-        headers: {},
-        body: {},
-        auth_config: { type: 'No Auth' }
-      })
+        order_index: data?.order_index || 0,
+        pre_request_script: data?.pre_request_script || '',
+        post_request_script: data?.post_request_script || ''
+      }
+
+      const response = await apiClient.post(url, payload)
 
       if (response.status === 201) {
-        await get().fetchCollectionContents(collectionId)
         const newReq = response.data as ApiRequest
+        
+        set((state) => {
+          const colId = collectionId
+          const fId = folderId
+          
+          // Update global state
+          const updatedRequests = [...state.requests, newReq]
+          
+          // Update collection mapping
+          const colReqs = state.requestsByCollection[colId] || []
+          const updatedByCol = {
+            ...state.requestsByCollection,
+            [colId]: [...colReqs, newReq]
+          }
+          
+          // Update folder mapping
+          const updatedByFolder = { ...state.requestsByFolder }
+          if (fId) {
+            const fReqs = state.requestsByFolder[fId] || []
+            updatedByFolder[fId] = [...fReqs, newReq]
+          }
+
+          return {
+            requests: updatedRequests,
+            requestsByCollection: updatedByCol,
+            requestsByFolder: updatedByFolder
+          }
+        })
+
         get().openRequestInTab(newReq)
-        toast.success('Request created')
+        toast.success(`Request "${name}" created successfully`)
       }
-    } catch {
-      toast.error('Failed to create request')
+    } catch (err: any) {
+      const msg = err.response?.data?.error || err.message || 'Unknown network error'
+      toast.error(`Failed to create request: ${msg}`)
     }
   },
 
@@ -477,7 +564,17 @@ export const useDataStore = create<DataState>((set, get) => ({
       })
 
       if (response.status === 201) {
-        await get().fetchCollectionContents(collectionId)
+        const newFolder = response.data as Folder
+        set((state) => {
+          const colId = collectionId
+          const colFolders = state.foldersByCollection[colId] || []
+          return {
+            foldersByCollection: {
+              ...state.foldersByCollection,
+              [colId]: [...colFolders, newFolder]
+            }
+          }
+        })
         toast.success('Folder created')
       }
     } catch {
@@ -491,13 +588,11 @@ export const useDataStore = create<DataState>((set, get) => ({
       if (response.status === 200) {
         const envs = response.data as Environment[]
         const currentActiveId = get().activeEnvironmentId
+        const stillExists = envs.some(e => e.id === currentActiveId)
         
         set({
           environments: envs,
-          // Preserve active ID if it still exists in the new list, otherwise default to first or null
-          activeEnvironmentId: envs.some(e => e.id === currentActiveId) 
-            ? currentActiveId 
-            : (envs.length > 0 ? envs[0].id : null)
+          activeEnvironmentId: stillExists ? currentActiveId : (currentActiveId === null ? null : (envs.length > 0 ? envs[0].id : null))
         })
       }
     } catch {
@@ -505,7 +600,7 @@ export const useDataStore = create<DataState>((set, get) => ({
     }
   },
 
-  setActiveEnvironment: (envId: number) => {
+  setActiveEnvironment: (envId: number | null) => {
     set({ activeEnvironmentId: envId })
   },
 
@@ -532,15 +627,20 @@ export const useDataStore = create<DataState>((set, get) => ({
     if (!activeTeamId) return
 
     try {
+      console.log(`[Store] Updating environment ${id}...`, variables)
       const response = await apiClient.put(`/api/v1/environments/${id}`, {
         name,
         variables
       })
       if (response.status === 200) {
         await get().fetchEnvironments(activeTeamId)
-        toast.success('Environment updated')
+        console.log(`[Store] Environment ${id} updated successfully`)
+      } else {
+        console.error(`[Store] Failed to update environment ${id}:`, response)
+        toast.error('Failed to update environment')
       }
-    } catch {
+    } catch (err) {
+      console.error(`[Store] Error updating environment ${id}:`, err)
       toast.error('Failed to update environment')
     }
   },
@@ -588,21 +688,195 @@ export const useDataStore = create<DataState>((set, get) => ({
     }
   },
 
+  updateActiveEnvironmentVariable: async (key: string, value: string) => {
+    const { activeEnvironmentId, environments, updateEnvironment } = get()
+    const activeEnv = environments.find(e => e.id === activeEnvironmentId)
+    if (!activeEnv) return
+
+    const newVars = { ...activeEnv.variables, [key]: value }
+    
+    // Update state lokal secara instan agar panggilan berikutnya mendapat data terbaru
+    set((state) => ({
+      environments: state.environments.map(e => 
+        e.id === activeEnvironmentId ? { ...e, variables: newVars } : e
+      )
+    }))
+
+    // Kirim ke DB di background
+    await updateEnvironment(activeEnv.id, activeEnv.name, newVars)
+  },
+
+  deleteCollection: async (id: number) => {
+    try {
+      await apiClient.delete(`/api/v1/collections/${id}`)
+      set((state) => ({ collections: state.collections.filter((c) => c.id !== id) }))
+      toast.success('Collection deleted')
+    } catch (err: any) {
+      toast.error('Failed to delete collection')
+    }
+  },
+
+  deleteFolder: async (id: number) => {
+    try {
+      await apiClient.delete(`/api/v1/folders/${id}`)
+      toast.success('Folder deleted')
+      const { collections } = get()
+      const col = collections.find(c => get().requests.some(r => r.collection_id === c.id && r.folder_id === id))
+      if (col) get().fetchCollectionContents(col.id)
+    } catch (err: any) {
+      toast.error('Failed to delete folder')
+    }
+  },
+
+  deleteRequest: async (id: number) => {
+    try {
+      await apiClient.delete(`/api/v1/requests/${id}`)
+      set((state) => ({ 
+        requests: state.requests.filter((r) => r.id !== id),
+        tabs: state.tabs.filter(t => t.requestId !== id)
+      }))
+      toast.success('Request deleted')
+    } catch (err: any) {
+      toast.error('Failed to delete request')
+    }
+  },
+
+  exportCollection: async (id: number) => {
+    try {
+      const res = await apiClient.get<ApiRequest[]>(`/api/v1/collections/${id}/requests`)
+      const collection = get().collections.find(c => c.id === id)
+      if (!collection) return
+
+      const exportData = {
+        info: {
+          name: collection.name,
+          description: collection.description,
+          schema: "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+        },
+        item: res.data.map(r => ({
+          name: r.name,
+          request: {
+            method: r.method,
+            url: r.url,
+            header: Object.entries(r.headers || {}).map(([key, value]) => ({ key, value })),
+            body: {
+              mode: "raw",
+              raw: typeof r.body === 'string' ? r.body : JSON.stringify(r.body)
+            }
+          }
+        }))
+      }
+
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${collection.name}.wapify_collection.json`
+      a.click()
+      URL.revokeObjectURL(url)
+      toast.success('Collection exported successfully')
+    } catch (err) {
+      toast.error('Failed to export collection')
+    }
+  },
+
   executeActiveRequest: async () => {
-    const { tabs, activeTabId, environments, activeEnvironmentId } = get()
+    const { tabs, activeTabId, environments, activeEnvironmentId, updateActiveEnvironmentVariable } = get()
     const activeTab = tabs.find((t) => t.requestId === activeTabId)
     if (!activeTab || activeTab.isSending || !activeTab.workingRequest.url) return
 
     const { workingRequest } = activeTab
     const activeEnv = environments.find((e) => e.id === activeEnvironmentId)
-    const vars = activeEnv?.variables || {}
+    // Gunakan shallow copy agar tidak mutasi state langsung
+    let vars = { ...(activeEnv?.variables || {}) }
+
+    // --- 1. Pre-request Script Execution ---
+    if (workingRequest.pre_request_script) {
+      try {
+        const addLog = (level: LogEntry['level'], ...args: any[]) => {
+          const message = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ')
+          set(state => ({
+            logs: [{
+              id: Math.random().toString(36).substr(2, 9),
+              timestamp: new Date().toLocaleTimeString(),
+              level,
+              message,
+              requestId: activeTab.requestId
+            }, ...state.logs].slice(0, 100)
+          }))
+        }
+
+        const wap = {
+          // Local/Temporary set (Inject without saving to DB)
+          set: (key: string, val: any) => {
+            vars[key] = String(val)
+          },
+          environment: {
+            set: (key: string, val: any) => {
+              const strVal = String(val)
+              vars[key] = strVal // Update local copy for immediate use
+              updateActiveEnvironmentVariable(key, strVal) // Async DB update
+            },
+            get: (key: string) => vars[key]
+          },
+          collectionVariables: {
+            set: (key: string, val: any) => {
+              const strVal = String(val)
+              vars[key] = strVal
+              updateActiveEnvironmentVariable(key, strVal)
+            },
+            get: (key: string) => vars[key]
+          },
+          request: workingRequest,
+          variables: {
+            set: (key: string, val: any) => {
+              const strVal = String(val)
+              vars[key] = strVal
+              updateActiveEnvironmentVariable(key, strVal)
+            }
+          },
+          setEnvironmentVariable: (key: string, val: any) => {
+            const strVal = String(val)
+            console.log(`[Wapify] Pre-script setting env: ${key}=${strVal}`)
+            vars[key] = strVal
+            updateActiveEnvironmentVariable(key, strVal)
+          },
+          setEnv: (key: string, val: any) => {
+            const strVal = String(val)
+            console.log(`[Wapify] Pre-script setting env: ${key}=${strVal}`)
+            vars[key] = strVal
+            updateActiveEnvironmentVariable(key, strVal)
+          }
+        }
+        
+        const mockConsole = {
+          log: (...args: any[]) => { console.log(...args); addLog('log', ...args) },
+          info: (...args: any[]) => { console.info(...args); addLog('info', ...args) },
+          warn: (...args: any[]) => { console.warn(...args); addLog('warn', ...args) },
+          error: (...args: any[]) => { console.error(...args); addLog('error', ...args) },
+        }
+
+        // Context with libraries
+        const context = { wap, pm: wap, moment, _, console: mockConsole }
+        
+        // Use AsyncFunction to support await in scripts
+        const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor
+        const fn = new AsyncFunction('wap', 'pm', 'moment', '_', 'console', workingRequest.pre_request_script)
+        await fn(context.wap, context.pm, context.moment, context._, context.console)
+      } catch (err: any) {
+        toast.error(`Pre-request Error: ${err.message}`)
+      }
+    }
+    
+    // variables are already updated in 'vars' by the script
 
     // Substitusi variabel di URL
+    console.log('[Wapify] Current vars for replacement:', vars)
     let substitutedUrl = replaceVariables(workingRequest.url, vars)
     
+    // Jangan blokir jika ada {{, biarkan saja agar user bisa debug sendiri (seperti Postman)
     if (substitutedUrl.includes('{{')) {
-      toast.error('Gagal memproses variabel URL. Pastikan Environment sudah dipilih dan variabel tersedia.')
-      return
+      console.warn('[Wapify] Some variables in URL could not be resolved:', substitutedUrl)
     }
 
     // Inject Auth into Headers
@@ -611,10 +885,10 @@ export const useDataStore = create<DataState>((set, get) => ({
     // Substitusi variabel di Headers
     const substitutedHeaders: Record<string, string> = {}
     Object.entries(finalHeaders).forEach(([key, value]) => {
-      substitutedHeaders[key] = replaceVariables(value, vars)
+      const resolved = replaceVariables(value, vars)
+      substitutedHeaders[key] = resolved
     })
 
-    // Substitusi variabel di Body
     const substitutedBody = replaceVariables(workingRequest.body, vars)
 
     // Inject Auth into URL if type is API Key and addTo is query
@@ -650,6 +924,141 @@ export const useDataStore = create<DataState>((set, get) => ({
         substitutedBody
       )
 
+      // --- 2. Post-request Script (Tests) Execution ---
+      if (workingRequest.post_request_script) {
+        try {
+          console.log('[Wapify] Starting post-request script execution...')
+          console.log('[Wapify] Response Data:', response.data)
+          const testResults: { name: string; status: 'passed' | 'failed'; error?: string }[] = []
+          
+          const wap = {
+            set: (key: string, val: any) => {
+              const strVal = String(val)
+              console.log(`[Wapify] Script setting env: ${key}=${strVal}`)
+              vars[key] = strVal
+              updateActiveEnvironmentVariable(key, strVal)
+            },
+            environment: {
+              set: (key: string, val: any) => {
+                const strVal = String(val)
+                console.log(`[Wapify] Script setting env: ${key}=${strVal}`)
+                vars[key] = strVal
+                updateActiveEnvironmentVariable(key, strVal)
+              },
+              get: (key: string) => vars[key]
+            },
+            collectionVariables: {
+              set: (key: string, val: any) => {
+                const strVal = String(val)
+                vars[key] = strVal
+                updateActiveEnvironmentVariable(key, strVal)
+              },
+              get: (key: string) => vars[key]
+            },
+            setEnvironmentVariable: (key: string, val: any) => {
+              const strVal = String(val)
+              console.log(`[Wapify] Script setting env (alias): ${key}=${strVal}`)
+              vars[key] = strVal
+              updateActiveEnvironmentVariable(key, strVal)
+            },
+            setEnv: (key: string, val: any) => {
+              const strVal = String(val)
+              console.log(`[Wapify] Script setting env (alias): ${key}=${strVal}`)
+              vars[key] = strVal
+              updateActiveEnvironmentVariable(key, strVal)
+            },
+            response: {
+              status: response.status,
+              data: response.data,
+              headers: {
+                get: (key: string) => {
+                  const h = response.headers[key.toLowerCase()]
+                  return Array.isArray(h) ? h[0] : h
+                }
+              },
+              json: () => response.data,
+              to: {
+                have: {
+                  status: (code: number) => {
+                    if (response.status !== code) throw new Error(`Expected status ${code} but got ${response.status}`)
+                  }
+                }
+              }
+            },
+            expect: (val: any) => ({
+              to: {
+                equal: (expected: any) => {
+                  if (val !== expected) throw new Error(`Expected ${expected} but got ${val}`)
+                },
+                be: {
+                  a: (type: string) => {
+                    if (typeof val !== type) throw new Error(`Expected type ${type} but got ${typeof val}`)
+                  }
+                },
+                include: (substring: string) => {
+                   if (typeof val === 'string' && !val.includes(substring)) throw new Error(`Expected "${val}" to include "${substring}"`)
+                }
+              },
+              not: {
+                to: {
+                  be: {
+                    null: () => {
+                      if (val === null || val === undefined) throw new Error(`Expected value to not be null`)
+                    }
+                  }
+                }
+              }
+            }),
+            test: (name: string, fn: () => void) => {
+              try {
+                fn()
+                testResults.push({ name, status: 'passed' })
+              } catch (err: any) {
+                testResults.push({ name, status: 'failed', error: err.message })
+              }
+            }
+          }
+
+          const addLog = (level: LogEntry['level'], ...args: any[]) => {
+            const message = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ')
+            set(state => ({
+              logs: [{
+                id: Math.random().toString(36).substr(2, 9),
+                timestamp: new Date().toLocaleTimeString(),
+                level,
+                message,
+                requestId: activeTab.requestId
+              }, ...state.logs].slice(0, 100)
+            }))
+          }
+
+          const mockConsole = {
+            log: (...args: any[]) => { console.log(...args); addLog('log', ...args) },
+            info: (...args: any[]) => { console.info(...args); addLog('info', ...args) },
+            warn: (...args: any[]) => { console.warn(...args); addLog('warn', ...args) },
+            error: (...args: any[]) => { console.error(...args); addLog('error', ...args) },
+          }
+
+          const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor
+          const fn = new AsyncFunction('wap', 'pm', 'moment', '_', 'console', workingRequest.post_request_script)
+          await fn(wap, wap, moment, _, mockConsole)
+          
+          // Update tab with results
+          set((state) => ({
+            tabs: state.tabs.map((t) =>
+              t.requestId === activeTabId ? { ...t, testResults } : t
+            )
+          }))
+
+          // Log results (future: show in UI)
+          testResults.forEach(r => {
+            if (r.status === 'failed') toast.error(`Test Failed: ${r.name} - ${r.error}`)
+          })
+        } catch (err: any) {
+          toast.error(`Test Script Error: ${err.message}`)
+        }
+      }
+
       // Update tab with response
       set((state) => ({
         tabs: state.tabs.map((t) =>
@@ -663,6 +1072,10 @@ export const useDataStore = create<DataState>((set, get) => ({
         request_id: activeTab.requestId,
         method: workingRequest.method,
         url: substitutedUrl,
+        request_headers: substitutedHeaders,
+        request_body: substitutedBody,
+        response_headers: response.headers,
+        response_body: typeof response.data === 'string' ? response.data : JSON.stringify(response.data),
         status_code: response.status,
         response_time: Math.round(response.timing)
       })
@@ -704,5 +1117,19 @@ export const useDataStore = create<DataState>((set, get) => ({
     set({
       tabs: tabs.map((t) => (t.requestId === activeTabId ? { ...t, lastResponse: null } : t))
     })
-  }
+  },
+
+  clearHistory: async () => {
+    const { activeTeamId } = get()
+    if (!activeTeamId) return
+    try {
+      await apiClient.delete(`/api/v1/history?team_id=${activeTeamId}`)
+      set({ history: [] })
+      toast.success('History cleared')
+    } catch {
+      toast.error('Failed to clear history')
+    }
+  },
+
+  clearLogs: () => set({ logs: [] })
 }))

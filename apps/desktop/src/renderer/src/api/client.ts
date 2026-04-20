@@ -8,6 +8,7 @@ interface RequestConfig {
   url: string
   headers?: Record<string, string>
   body?: string
+  skipAuth?: boolean
 }
 
 // Token disimpan di memory (bukan localStorage) — lebih aman
@@ -33,8 +34,8 @@ async function ipcRequest<T>(config: RequestConfig): Promise<IpcResponse<T>> {
     headers['Content-Type'] = 'application/json'
   }
 
-  // Hanya tambahkan Authorization Wapify jika merequest ke backend Wapify
-  if (authToken && config.url.startsWith(BASE_URL)) {
+  // Hanya tambahkan Authorization Wapify jika merequest ke backend Wapify dan tidak skipAuth
+  if (authToken && config.url.startsWith(BASE_URL) && !config.skipAuth) {
     headers['Authorization'] = `Bearer ${authToken}`
   }
 
@@ -111,5 +112,5 @@ export const apiClient = {
     url: string,
     headers?: Record<string, string>,
     body?: string
-  ) => ipcRequest<T>({ method, url, headers, body })
+  ) => ipcRequest<T>({ method, url, headers, body, skipAuth: true })
 }

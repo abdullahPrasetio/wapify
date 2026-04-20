@@ -1,5 +1,6 @@
 import { Plus, Trash2, CheckSquare, Square } from 'lucide-react'
-import { useState } from 'react'
+import { useState, useRef } from 'react'
+import { useDataStore } from '../../store/useDataStore'
 
 interface KeyValueRow {
   id: string
@@ -18,6 +19,12 @@ export const KeyValueEditor = ({
   initialData = {},
   onChange
 }: KeyValueEditorProps): React.JSX.Element => {
+  const { environments, activeEnvironmentId } = useDataStore()
+  const activeEnv = environments.find((e) => e.id === activeEnvironmentId)
+  const envVars = activeEnv?.variables || {}
+
+  const [hoverVar, setHoverVar] = useState<{ name: string; value: string; x: number; y: number } | null>(null)
+
   // Initialize rows directly from initialData
   const getInitialRows = (): KeyValueRow[] => {
     const data = initialData || {}
@@ -64,6 +71,35 @@ export const KeyValueEditor = ({
     notifyChange(newRows)
   }
 
+  const handleMouseMove = (e: React.MouseEvent<HTMLInputElement>, value: string): void => {
+    const input = e.currentTarget
+    const rect = input.getBoundingClientRect()
+    const x = e.clientX - rect.left
+    
+    // mono text-sm is typically around 8.4px per char
+    const charWidth = 8.4
+    const padding = 12
+    const pos = Math.floor((x - padding) / charWidth)
+    
+    const regex = /\{\{([^}]+)\}\}/g
+    let match
+    let found = false
+    while ((match = regex.exec(value)) !== null) {
+      const start = match.index
+      const end = start + match[0].length
+      if (pos >= start && pos < end) { // Precise check
+        const varName = match[1].trim()
+        const val = envVars[varName]
+        if (val !== undefined) {
+          setHoverVar({ name: varName, value: String(val), x: e.clientX, y: e.clientY })
+          found = true
+          break
+        }
+      }
+    }
+    if (!found) setHoverVar(null)
+  }
+
   const removeRow = (id: string): void => {
     if (rows.length <= 1) return
     const newRows = rows.filter((row) => row.id !== id)
@@ -83,7 +119,37 @@ export const KeyValueEditor = ({
   }
 
   return (
-    <div className="w-full border border-border rounded-md overflow-hidden bg-background">
+    <div className="w-full border border-border rounded-md overflow-hidden bg-background relative">
+      {/* Tooltip */}
+      {hoverVar && (
+        <div 
+          className="fixed z-[100] bg-surface/95 backdrop-blur-md text-text px-3 py-2 rounded-lg shadow-2xl border border-primary/40 text-[11px] pointer-events-none animate-in fade-in zoom-in duration-150 min-w-[160px]"
+          style={{ 
+            left: hoverVar.x, 
+            top: hoverVar.y - 18,
+            transform: 'translate(-50%, -100%)' 
+          }}
+        >
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-center justify-between border-b border-border/50 pb-1 mb-1">
+              <span className="font-black text-primary uppercase tracking-tighter">
+                {hoverVar.name}
+              </span>
+              <span className="text-[9px] text-muted opacity-50 font-mono italic">
+                {activeEnv?.name || 'Env'}
+              </span>
+            </div>
+            <div className="font-mono text-text/90 break-all leading-relaxed whitespace-pre-wrap max-h-[150px] overflow-y-auto">
+              {hoverVar.value}
+            </div>
+          </div>
+          {/* Pointer Arrow */}
+          <div 
+            className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2.5 h-2.5 bg-surface rotate-45 border-r border-b border-primary/40"
+          />
+        </div>
+      )}
+
       <table className="w-full text-xs text-left border-collapse">
         <thead>
           <tr className="bg-surface/50 border-b border-border text-muted uppercase tracking-wider font-semibold">
@@ -119,8 +185,10 @@ export const KeyValueEditor = ({
                   type="text"
                   value={row.value}
                   onChange={(e) => handleRowChange(row.id, 'value', e.target.value)}
+                  onMouseMove={(e) => handleMouseMove(e, row.value)}
+                  onMouseLeave={() => setHoverVar(null)}
                   placeholder="Value"
-                  className="w-full bg-transparent px-3 py-2 focus:outline-none text-text placeholder:text-muted/50"
+                  className="w-full bg-transparent px-3 py-2 focus:outline-none text-text placeholder:text-muted/50 font-mono"
                 />
               </td>
               <td className="p-0">

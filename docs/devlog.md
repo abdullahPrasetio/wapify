@@ -315,3 +315,71 @@
 ### Langkah Selanjutnya
 - Monitor performa editor pada koleksi besar.
 - Persiapan transisi ke kolaborasi real-time (Fase 2).
+
+---
+
+## [2026-04-20] — Implementasi Scripting Engine (Wapify SDK v1.0)
+
+**Fase:** Fase 4 — Automated Testing
+**Dikerjakan oleh:** Antigravity
+**Status:** ✅ Selesai (Early Delivery)
+
+### Yang Dikerjakan
+- **Scripting Engine (JavaScript)**: 
+    - Implementasi Pre-request Script (sebelum request) dan Tests Script (setelah response).
+    - Eksekusi script dilakukan di sisi Renderer menggunakan `new Function` sandbox untuk interaksi langsung dengan state.
+- **Wapify SDK (`wap` object)**:
+    - Objek global `wap` (dan alias `pm` untuk kompatibilitas Postman) untuk manajemen environment dan testing.
+    - `wap.set(key, value)`: Inject variabel temporary untuk request saat ini (tanpa simpan ke DB).
+    - `wap.setEnv(key, value)`: Update variabel environment permanen di database.
+    - `wap.test()` & `wap.expect()`: Framework testing sederhana untuk validasi response.
+    - `wap.response.json()`: Helper untuk memproses data response.
+- **Library Integration (Offline First)**:
+    - Bundling `moment` dan `lodash` (`_`) ke dalam context script agar bisa digunakan tanpa internet.
+- **Visual Feedback**:
+    - Penambahan tab **Scripts** dengan Monaco Editor (JS syntax highlighting).
+    - Indikator titik hijau pada tab **Body**, **Headers**, **Auth**, dan **Scripts** jika terdapat konfigurasi/isi aktif.
+- **Backend & Migration**:
+    - Migration `000004_add_scripts_to_requests`: Menambahkan kolom `pre_request_script` dan `post_request_script` (TEXT) pada tabel `requests`.
+    - Update Go models dan API handlers untuk mendukung sinkronisasi script.
+
+### Keputusan & Catatan
+- Keputusan menggunakan `wap` sebagai objek utama bertujuan untuk branding, namun alias `pm` tetap disertakan agar user bisa langsung menggunakan script dari Postman tanpa edit manual.
+- Fitur ini (Fase 4) ditarik maju karena urgensi otomatisasi variabel token yang diminta pengguna.
+- Library `moment` dan `lodash` dipilih karena merupakan standar industri dalam scripting API client.
+
+### Perubahan File Utama
+- `backend/internal/repository/models.go` — Schema update.
+- `apps/desktop/src/renderer/src/store/useDataStore.ts` — Core execution logic.
+- `apps/desktop/src/renderer/src/components/layout/MainArea.tsx` — UI & Indicators.
+---
+
+## [2026-04-20] — Refinement Scripting Engine & Premium UI Polish
+
+**Fase:** Fase 1 → Fase 4 — MVP & Testing
+**Dikerjakan oleh:** Antigravity
+**Status:** ✅ Selesai
+
+### Yang Dikerjakan
+- **Fix Persistence Bug**: 
+    - Memperbaiki *race condition* pada `wap.setEnv` yang menyebabkan variabel gagal tersimpan ke database saat script berjalan cepat. 
+    - Implementasi sinkronisasi state instan sebelum melakukan API call asinkron.
+- **Enhanced Variable Substitution**:
+    - **Case-Insensitive Match**: Substitusi variabel `{{baseUrl}}` kini tidak lagi sensitif terhadap huruf besar/kecil, meningkatkan toleransi kesalahan penulisan user.
+    - **Loosened Validation**: Menghilangkan pemblokiran request jika variabel belum ditemukan (sekarang hanya muncul peringatan di konsol, mirip perilaku Postman).
+- **Premium UI/UX Polish**:
+    - **Hover Tooltips**: Implementasi tooltip variabel yang lebih "premium" dengan gaya glassmorphism, backdrop-blur, dan animasi transisi yang halus.
+    - **Navbar Environment Selector**: Penambahan pemilih environment langsung di baris URL (Navbar) untuk kemudahan kontrol dan sinkronisasi status environment yang lebih jelas.
+    - **Precise Character Detection**: Peningkatan akurasi deteksi posisi kursor pada font mono untuk memunculkan hover tepat di atas variabel.
+- **Scripting SDK Debugging**:
+    - Penambahan logging detail (`[Wapify] ...`) pada konsol browser untuk memantau siklus hidup pre-request dan post-request script.
+    - Penambahan alias `wap.set` dan perbaikan `wap.response.json()` agar lebih tangguh.
+
+### Perubahan File Utama
+- `apps/desktop/src/renderer/src/store/useDataStore.ts` — Perbaikan logika substitusi dan sinkronisasi variabel.
+- `apps/desktop/src/renderer/src/components/layout/MainArea.tsx` — Penambahan Navbar Selector dan perbaikan hover URL.
+- `apps/desktop/src/renderer/src/components/ui/KeyValueEditor.tsx` — Perbaikan hover pada Header/Params editor.
+
+### Keputusan & Catatan
+- Keputusan untuk meletakkan environment selector di Navbar bertujuan untuk mengurangi kebingungan user saat bekerja dengan banyak tab dan environment yang berbeda.
+- Penanganan variabel yang tidak lagi memblokir request memberikan kebebasan bagi user untuk melakukan debug manual di sisi server jika diperlukan.

@@ -7,12 +7,16 @@ import (
 )
 
 type CreateHistoryRequest struct {
-	TeamID       uint   `json:"team_id"`
-	RequestID    *uint  `json:"request_id"`
-	Method       string `json:"method"`
-	URL          string `json:"url"`
-	StatusCode   int    `json:"status_code"`
-	ResponseTime int    `json:"response_time"`
+	TeamID          uint             `json:"team_id"`
+	RequestID       uint             `json:"request_id"`
+	Method          string           `json:"method"`
+	URL             string           `json:"url"`
+	RequestHeaders  repository.JSONB `json:"request_headers"`
+	RequestBody     string           `json:"request_body"`
+	ResponseHeaders repository.JSONB `json:"response_headers"`
+	ResponseBody    string           `json:"response_body"`
+	StatusCode      int              `json:"status_code"`
+	ResponseTime    int              `json:"response_time"`
 }
 
 func SetupHistoryRoutes(app *fiber.App) {
@@ -52,13 +56,17 @@ func CreateHistory(c *fiber.Ctx) error {
 	}
 
 	history := repository.RequestHistory{
-		UserID:       uint(userId),
-		TeamID:       req.TeamID,
-		RequestID:    req.RequestID,
-		Method:       req.Method,
-		URL:          req.URL,
-		StatusCode:   req.StatusCode,
-		ResponseTime: req.ResponseTime,
+		UserID:          uint(userId),
+		TeamID:          req.TeamID,
+		RequestID:       req.RequestID,
+		Method:          req.Method,
+		URL:             req.URL,
+		RequestHeaders:  req.RequestHeaders,
+		RequestBody:     req.RequestBody,
+		ResponseHeaders: req.ResponseHeaders,
+		ResponseBody:    req.ResponseBody,
+		StatusCode:      req.StatusCode,
+		ResponseTime:    req.ResponseTime,
 	}
 
 	if err := repository.DB.Create(&history).Error; err != nil {

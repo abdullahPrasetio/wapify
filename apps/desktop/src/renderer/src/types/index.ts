@@ -79,6 +79,8 @@ export interface ApiRequest {
   folder_id: number | null
   created_by: number | null
   order_index: number
+  pre_request_script: string
+  post_request_script: string
   created_at: string
   updated_at: string
 }
@@ -86,9 +88,14 @@ export interface ApiRequest {
 export interface RequestHistory {
   id: number
   user_id: number
+  team_id: number
   request_id: number | null
   method: string
   url: string
+  request_headers: Record<string, string | string[]>
+  request_body: string
+  response_headers: Record<string, string[]>
+  response_body: string
   status_code: number
   response_time: number
   created_at: string

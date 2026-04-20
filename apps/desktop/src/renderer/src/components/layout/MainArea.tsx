@@ -3,6 +3,7 @@ import { useDataStore, AuthConfig } from '../../store/useDataStore'
 import { KeyValueEditor } from '../ui/KeyValueEditor'
 import { Shield, Eye, EyeOff, X, RefreshCw, Send, Save } from 'lucide-react'
 import { ResponseArea } from './ResponseArea'
+import { HistoryDetailView } from './HistoryDetailView'
 import Editor, { loader } from '@monaco-editor/react'
 import * as monaco from 'monaco-editor'
 import { useState, useRef, useEffect } from 'react'
@@ -10,7 +11,65 @@ import { useState, useRef, useEffect } from 'react'
 // Configure Monaco to use the bundled version (OFFLINE)
 loader.config({ monaco })
 
-const TABS = ['Params', 'Headers', 'Body', 'Auth'] as const
+// Register Hover Provider for variables
+monaco.languages.registerHoverProvider('json', {
+  provideHover: (model, position) => {
+    const word = model.getWordAtPosition(position)
+    if (!word) return null
+    
+    // Check if current line has {{ }} around the word
+    const lineContent = model.getLineContent(position.lineNumber)
+    const vars = useDataStore.getState().environments.find(e => e.id === useDataStore.getState().activeEnvironmentId)?.variables || {}
+    
+    const regex = /\{\{([^}]+)\}\}/g
+    let match
+    while ((match = regex.exec(lineContent)) !== null) {
+      const start = match.index + 1
+      const end = start + match[0].length
+      if (position.column >= start && position.column <= end) {
+        const varName = match[1].trim()
+        const value = vars[varName]
+        return {
+          range: new monaco.Range(position.lineNumber, start, position.lineNumber, end),
+          contents: [
+            { value: `**Variable:** ${varName}` },
+            { value: value !== undefined ? `**Value:** ${value}` : '*Variable not found in active environment*' }
+          ]
+        }
+      }
+    }
+    return null
+  }
+})
+
+// Same for javascript (scripts)
+monaco.languages.registerHoverProvider('javascript', {
+  provideHover: (model, position) => {
+    const lineContent = model.getLineContent(position.lineNumber)
+    const vars = useDataStore.getState().environments.find(e => e.id === useDataStore.getState().activeEnvironmentId)?.variables || {}
+    const regex = /\{\{([^}]+)\}\}/g
+    let match
+    while ((match = regex.exec(lineContent)) !== null) {
+      const start = match.index + 1
+      const end = start + match[0].length
+      if (position.column >= start && position.column <= end) {
+        const varName = match[1].trim()
+        const value = vars[varName]
+        return {
+          range: new monaco.Range(position.lineNumber, start, position.lineNumber, end),
+          contents: [
+            { value: `**Variable:** ${varName}` },
+            { value: value !== undefined ? `**Value:** ${value}` : '*Variable not found in active environment*' }
+          ]
+        }
+      }
+    }
+    return null
+  }
+})
+
+const REQUEST_TABS = ['Params', 'Auth', 'Headers', 'Body', 'Pre-request', 'Tests'] as const
+type RequestTabType = (typeof REQUEST_TABS)[number]
 
 const METHOD_COLOR: Record<string, string> = {
   GET: 'text-success',
@@ -31,13 +90,10 @@ const RequestForm = ({ method, url, onUpdate }: RequestFormProps): React.JSX.Ele
   const activeEnv = environments.find((e) => e.id === activeEnvironmentId)
   const envVars = activeEnv?.variables || {}
   
-  const [hoverVar, setHoverVar] = useState<{ name: string; value: string; x: number } | null>(null)
+  const [hoverVar, setHoverVar] = useState<{ name: string; value: string; x: number; y: number } | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const checkVariable = (e: React.SyntheticEvent<HTMLInputElement>): void => {
-    const input = e.currentTarget
-    const pos = input.selectionStart || 0
-    
+  const checkVariableAtPos = (pos: number, x: number, y: number): void => {
     const regex = /\{\{([^}]+)\}\}/g
     let match
     let found = false
@@ -48,11 +104,7 @@ const RequestForm = ({ method, url, onUpdate }: RequestFormProps): React.JSX.Ele
         const varName = match[1].trim()
         const val = envVars[varName]
         if (val !== undefined) {
-          // Estimate X position (very rough, but better than nothing)
-          // For mono fonts, it's easier.
-          const charWidth = 8 // approximate for mono
-          const x = 110 + (start * charWidth) // 110 is approx offset of select box
-          setHoverVar({ name: varName, value: String(val), x })
+          setHoverVar({ name: varName, value: String(val), x, y })
           found = true
           break
         }
@@ -99,32 +151,58 @@ const RequestForm = ({ method, url, onUpdate }: RequestFormProps): React.JSX.Ele
           ref={inputRef}
           type="text"
           value={url}
-          onKeyUp={checkVariable}
-          onMouseUp={checkVariable}
+          onMouseMove={(e): void => {
+            const input = e.currentTarget
+            const rect = input.getBoundingClientRect()
+            const x = e.clientX - rect.left
+            
+            // Approximate char index (font-mono text-sm is about 8.4px per char)
+            const charWidth = 8.4 // mono text-sm
+            const padding = 16 // px-4
+            const pos = Math.max(0, Math.floor((x - padding) / charWidth))
+            
+            checkVariableAtPos(pos, e.clientX, e.clientY)
+          }}
+          onMouseLeave={(): void => setHoverVar(null)}
+          onKeyUp={(e): void => {
+             const pos = e.currentTarget.selectionStart || 0
+             const rect = e.currentTarget.getBoundingClientRect()
+             checkVariableAtPos(pos, rect.left + 16 + (pos * 8.4), rect.top + 20)
+          }}
           onBlur={(): void => setHoverVar(null)}
+          onMouseLeave={(): void => setHoverVar(null)}
           onChange={(e): void => onUpdate({ url: e.target.value })}
-          className="w-full bg-transparent px-4 py-2.5 text-sm text-text focus:outline-none font-mono placeholder:text-muted/30 relative z-10"
+          className="w-full bg-transparent px-4 py-2.5 text-sm text-text focus:outline-none font-mono placeholder:text-muted/30 relative z-10 cursor-text"
           placeholder="https://api.example.com/v1/resource"
         />
         
         {/* Variable Tooltip */}
         {hoverVar && (
           <div 
-            className="absolute -top-10 z-50 bg-popover text-popover-foreground px-2 py-1.5 rounded shadow-lg border border-border text-[10px] animate-in fade-in zoom-in duration-150 pointer-events-none"
-            style={{ left: `${Math.min(hoverVar.x, 400)}px` }}
+            className="fixed z-[100] bg-surface/95 backdrop-blur-md text-text px-3 py-2 rounded-lg shadow-2xl border border-primary/40 text-[11px] animate-in fade-in zoom-in duration-150 pointer-events-none min-w-[160px]"
+            style={{ 
+              left: hoverVar.x, 
+              top: hoverVar.y - 18, // More space
+              transform: 'translate(-50%, -100%)' 
+            }}
           >
-            <div className="font-bold text-primary flex items-center gap-1">
-              <span className="opacity-50">{"{{"}</span>
-              {hoverVar.name}
-              <span className="opacity-50">{"}}"}</span>
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center justify-between border-b border-border/50 pb-1 mb-1">
+                <span className="font-black text-primary uppercase tracking-tighter">
+                  {hoverVar.name}
+                </span>
+                <span className="text-[9px] text-muted opacity-50 font-mono italic">
+                  {activeEnv?.name || 'Env'}
+                </span>
+              </div>
+              <div className="font-mono text-text/90 break-all leading-relaxed whitespace-pre-wrap max-h-[150px] overflow-y-auto">
+                {hoverVar.value}
+              </div>
             </div>
-            <div className="mt-0.5 text-text break-all max-w-[200px]">
-              {hoverVar.value}
-            </div>
-            <div className="text-[8px] text-muted mt-1 italic">
-              From: {activeEnv?.name || 'Active Environment'}
-            </div>
-            <div className="absolute -bottom-1 left-4 w-2 h-2 bg-popover border-r border-b border-border rotate-45" />
+            {/* Pointer Arrow */}
+            <div 
+              className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2.5 h-2.5 bg-surface rotate-45 border-r border-b border-primary/40"
+            />
           </div>
         )}
       </div>
@@ -133,18 +211,21 @@ const RequestForm = ({ method, url, onUpdate }: RequestFormProps): React.JSX.Ele
 }
 
 interface EditorAreaProps {
-  activeTab: (typeof TABS)[number]
+  activeTab: string
   workingRequest: {
     headers: Record<string, string>
     body: string
     auth_config: AuthConfig
+    pre_request_script?: string
+    post_request_script?: string
   }
   onUpdate: (
-    update: Partial<{ headers: Record<string, string>; body: string; auth_config: AuthConfig }>
+    update: Partial<{ headers: Record<string, string>; body: string; auth_config: AuthConfig; pre_request_script: string; post_request_script: string }>
   ) => void
 }
 
 const EditorArea = ({ activeTab, workingRequest, onUpdate }: EditorAreaProps): React.JSX.Element => {
+  const [activeScriptTab, setActiveScriptTab] = useState<'Pre-request' | 'Post-request'>('Pre-request')
   const [showPassword, setShowPassword] = useState(false)
   const [localBody, setLocalBody] = useState(workingRequest.body)
   const timerRef = useRef<NodeJS.Timeout | null>(null)
@@ -284,6 +365,56 @@ const EditorArea = ({ activeTab, workingRequest, onUpdate }: EditorAreaProps): R
           <p className="text-xs text-muted italic mb-4">
             Query parameters integration coming soon. For now, add them directly to the URL bar.
           </p>
+        </div>
+      )}
+
+      {activeTab === 'Pre-request' && (
+        <div className="h-full flex flex-col">
+          <div className="p-2 bg-background/50 border-b border-border">
+            <span className="text-[10px] text-muted font-mono uppercase tracking-wider">
+              Execution: Before request is sent
+            </span>
+          </div>
+          <div className="flex-1 overflow-hidden">
+            <Editor
+              height="100%"
+              defaultLanguage="javascript"
+              theme="vs-dark"
+              value={workingRequest.pre_request_script || ''}
+              onChange={(val) => onUpdate({ pre_request_script: val || '' })}
+              options={{
+                minimap: { enabled: false },
+                fontSize: 13,
+                scrollBeyondLastLine: false,
+                padding: { top: 10 }
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'Tests' && (
+        <div className="h-full flex flex-col">
+          <div className="p-2 bg-background/50 border-b border-border">
+            <span className="text-[10px] text-muted font-mono uppercase tracking-wider">
+              Execution: After response is received
+            </span>
+          </div>
+          <div className="flex-1 overflow-hidden">
+            <Editor
+              height="100%"
+              defaultLanguage="javascript"
+              theme="vs-dark"
+              value={workingRequest.post_request_script || ''}
+              onChange={(val) => onUpdate({ post_request_script: val || '' })}
+              options={{
+                minimap: { enabled: false },
+                fontSize: 13,
+                scrollBeyondLastLine: false,
+                padding: { top: 10 }
+              }}
+            />
+          </div>
         </div>
       )}
 
@@ -476,8 +607,16 @@ const RequestTabs = (): React.JSX.Element => {
 }
 
 export const MainArea = (): React.JSX.Element => {
-  const { activeTab, setActiveTab } = useAppStore()
-  const { tabs, activeTabId, setWorkingRequest, executeActiveRequest, saveActiveRequest } = useDataStore()
+  const { activeView, activeTab, setActiveTab } = useAppStore()
+  const { 
+    tabs, 
+    activeTabId, 
+    setWorkingRequest, 
+    executeActiveRequest, 
+    saveActiveRequest,
+    activeEnvironmentId,
+    environments 
+  } = useDataStore()
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent): void => {
@@ -495,6 +634,10 @@ export const MainArea = (): React.JSX.Element => {
     window.addEventListener('keydown', handleKeyDown)
     return (): void => window.removeEventListener('keydown', handleKeyDown)
   }, [executeActiveRequest, saveActiveRequest])
+
+  if (activeView === 'history-detail') {
+    return <HistoryDetailView />
+  }
 
   const activeTabRequest = tabs?.find((t) => t.requestId === activeTabId)
 
@@ -534,6 +677,25 @@ export const MainArea = (): React.JSX.Element => {
                 url={workingRequest.url}
                 onUpdate={(update): void => setWorkingRequest(update)}
               />
+              
+              {/* Navbar Environment Selector */}
+              <div className="border-l border-border flex items-center bg-surface/50 px-2 group">
+                <select
+                  value={activeEnvironmentId ?? ''}
+                  onChange={(e): void => {
+                    const val = e.target.value
+                    useDataStore.getState().setActiveEnvironment(val === '' ? null : Number(val))
+                  }}
+                  className="bg-transparent text-[10px] font-bold text-muted group-hover:text-primary transition-colors focus:outline-none cursor-pointer max-w-[100px] truncate uppercase tracking-widest"
+                >
+                  <option value="">No Env</option>
+                  {environments.map((env) => (
+                    <option key={env.id} value={env.id}>
+                      {env.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
             
             <div className="flex gap-2">
@@ -568,17 +730,24 @@ export const MainArea = (): React.JSX.Element => {
 
         {/* Tabs Area */}
         <div className="flex px-4 border-b border-border bg-surface/30 shrink-0">
-          {TABS.map((tab) => (
+          {REQUEST_TABS.map((tab) => (
             <div
               key={tab}
               onClick={(): void => setActiveTab(tab)}
-              className={`px-4 py-2.5 text-sm font-medium cursor-pointer border-b-2 transition-colors ${
+              className={`px-4 py-2.5 text-sm font-medium cursor-pointer border-b-2 transition-colors flex items-center gap-1.5 ${
                 activeTab === tab
                   ? 'border-primary text-primary'
                   : 'border-transparent text-muted hover:text-text'
               }`}
             >
               {tab}
+              {((tab === 'Body' && workingRequest.body && workingRequest.body !== '{}' && workingRequest.body !== '') ||
+                (tab === 'Pre-request' && workingRequest.pre_request_script) ||
+                (tab === 'Tests' && workingRequest.post_request_script) ||
+                (tab === 'Headers' && Object.keys(workingRequest.headers || {}).length > 0) ||
+                (tab === 'Auth' && workingRequest.auth_config?.type !== 'No Auth')) && (
+                <div className="w-1 h-1 rounded-full bg-success shadow-[0_0_5px_rgba(34,197,94,0.8)]" />
+              )}
             </div>
           ))}
         </div>

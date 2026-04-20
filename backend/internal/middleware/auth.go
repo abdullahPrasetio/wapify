@@ -11,6 +11,8 @@ import (
 
 func RequireAuth(c *fiber.Ctx) error {
 	authHeader := c.Get("Authorization")
+	fmt.Println("authHeader", authHeader)
+	fmt.Println("url", c.Path())
 	if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"error": "Missing or invalid authorization header",

@@ -89,8 +89,10 @@ type Request struct {
 	CollectionID uint      `gorm:"not null;column:collection_id" json:"collection_id"`
 	FolderID     *uint     `gorm:"column:folder_id" json:"folder_id"`
 	CreatedByID  *uint     `gorm:"column:created_by" json:"created_by"`
-	OrderIndex   int       `gorm:"default:0;column:order_index" json:"order_index"`
-	CreatedAt    time.Time `json:"created_at"`
+	OrderIndex         int       `gorm:"default:0;column:order_index" json:"order_index"`
+	PreRequestScript   string    `gorm:"type:text;column:pre_request_script" json:"pre_request_script"`
+	PostRequestScript  string    `gorm:"type:text;column:post_request_script" json:"post_request_script"`
+	CreatedAt          time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
 
 	Collection *Collection `gorm:"foreignKey:CollectionID" json:"-"`
@@ -109,17 +111,21 @@ type Environment struct {
 }
 
 type RequestHistory struct {
-	ID           uint      `gorm:"primaryKey" json:"id"`
-	UserID       uint      `gorm:"not null;column:user_id" json:"user_id"`
-	TeamID       uint      `gorm:"not null;column:team_id" json:"team_id"`
-	RequestID    *uint     `gorm:"column:request_id" json:"request_id"`
-	Method       string    `gorm:"not null" json:"method"`
-	URL          string    `gorm:"not null" json:"url"`
-	StatusCode   int       `gorm:"column:status_code" json:"status_code"`
-	ResponseTime int       `gorm:"column:response_time" json:"response_time"`
-	CreatedAt    time.Time `json:"created_at"`
+	ID              uint      `gorm:"primaryKey" json:"id"`
+	UserID          uint      `gorm:"not null;column:user_id" json:"user_id"`
+	TeamID          uint      `gorm:"index;not null" json:"team_id"`
+	RequestID       uint      `gorm:"index;not null" json:"request_id"`
+	Method          string    `gorm:"not null" json:"method"`
+	URL             string    `gorm:"not null" json:"url"`
+	RequestHeaders  JSONB     `gorm:"type:jsonb;default:'{}'" json:"request_headers"`
+	RequestBody     string    `gorm:"type:text" json:"request_body"`
+	ResponseHeaders JSONB     `gorm:"type:jsonb;default:'{}'" json:"response_headers"`
+	ResponseBody    string    `gorm:"type:text" json:"response_body"`
+	StatusCode      int       `json:"status_code"`
+	ResponseTime    int       `json:"response_time"` // in ms
+	CreatedAt       time.Time `json:"created_at"`
 
 	User    *User    `gorm:"foreignKey:UserID" json:"user,omitempty"`
-	Request *Request `gorm:"foreignKey:RequestID" json:"-"`
 	Team    *Team    `gorm:"foreignKey:TeamID" json:"-"`
+	Request *Request `gorm:"foreignKey:RequestID" json:"-"`
 }

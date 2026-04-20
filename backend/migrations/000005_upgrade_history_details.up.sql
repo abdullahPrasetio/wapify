@@ -1,0 +1,5 @@
+ALTER TABLE request_histories 
+ADD COLUMN IF NOT EXISTS request_headers JSONB DEFAULT '{}',
+ADD COLUMN IF NOT EXISTS request_body TEXT,
+ADD COLUMN IF NOT EXISTS response_headers JSONB DEFAULT '{}',
+ADD COLUMN IF NOT EXISTS response_body TEXT;

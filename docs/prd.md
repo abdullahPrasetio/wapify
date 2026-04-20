@@ -138,6 +138,10 @@ Go binary = tinggal install di server client manapun
 - CRUD Request: method, URL, headers, body (JSON/Form/Raw), params
 - Import koleksi Postman v2.1 JSON
 - Environment variables per tim dengan interpolasi `{{variable_name}}`
+- **Scripting Engine (Wapify SDK)**: Dukungan Pre-request dan Post-request (Tests) script menggunakan JavaScript.
+  - Global object: `wap` (alias `pm` untuk kompatibilitas).
+  - Library terintegrasi: `moment` dan `lodash`.
+  - Akses environment: `wap.setEnv()`, `wap.getEnv()`.
 - Koleksi ter-share otomatis ke semua anggota tim sesuai role
 
 ### Kirim Request (Bebas CORS)
@@ -284,6 +288,8 @@ erDiagram
         json headers
         json body
         json auth_config
+        text pre_request_script
+        text post_request_script
         int collection_id FK
         int folder_id FK
         int created_by FK
@@ -324,7 +330,8 @@ erDiagram
 |---|---|
 | Framework | **Electron** |
 | UI | **React + Zustand + Radix UI + Tailwind CSS** |
-| Code Editor | **Monaco Editor** (untuk request body) |
+| Code Editor | **Monaco Editor** (untuk request body & scripts) |
+| Scripting Libraries | **Moment.js, Lodash** |
 | HTTP Executor | **Electron Main Process** (bebas CORS) |
 | Credential Storage | **keytar** (OS keychain) |
 | Packaging | **electron-builder** (.dmg + .exe) |

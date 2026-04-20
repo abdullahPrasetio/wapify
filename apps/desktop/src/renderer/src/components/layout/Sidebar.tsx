@@ -16,7 +16,10 @@ import {
   FilePlus,
   FolderPlus,
   Clock,
-  Trash2
+  Trash2,
+  Download,
+  Copy,
+  MoreVertical
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { useAuthStore } from '../../store/useAuthStore'
@@ -26,6 +29,7 @@ import type { Collection, ApiRequest } from '../../types'
 
 import { ImportModal } from '../modals/ImportModal'
 import { EnvironmentModal } from '../modals/EnvironmentModal'
+import { PromptModal } from '../modals/PromptModal'
 
 const METHOD_COLORS: Record<string, string> = {
   GET: 'text-success',
@@ -37,10 +41,49 @@ const METHOD_COLORS: Record<string, string> = {
   OPTIONS: 'text-muted'
 }
 
-interface FolderItemProps {
-  folder: Folder
-  collectionId: number
-  level: number
+interface ContextMenuProps {
+  x: number
+  y: number
+  onClose: () => void
+  items: {
+    label: string
+    icon: any
+    onClick: () => void | Promise<void>
+    variant?: 'default' | 'danger'
+  }[]
+}
+
+const ContextMenu = ({ x, y, onClose, items }: ContextMenuProps): React.JSX.Element => {
+  useEffect(() => {
+    const handleClick = (): void => onClose()
+    window.addEventListener('click', handleClick)
+    return (): void => window.removeEventListener('click', handleClick)
+  }, [onClose])
+
+  return (
+    <div
+      className="fixed z-[100] w-48 bg-surface border border-border rounded-md shadow-xl py-1 animate-in fade-in zoom-in duration-100"
+      style={{ top: y, left: x }}
+      onClick={(e): void => e.stopPropagation()}
+    >
+      {items.map((item, i) => (
+        <button
+          key={i}
+          onClick={(): void => {
+            item.onClick()
+            onClose()
+          }}
+          className={`w-full flex items-center gap-2 px-3 py-1.5 text-xs transition-colors ${item.variant === 'danger'
+              ? 'text-danger hover:bg-danger/10'
+              : 'text-text hover:bg-background'
+            }`}
+        >
+          <item.icon size={13} className="shrink-0" />
+          {item.label}
+        </button>
+      ))}
+    </div>
+  )
 }
 
 const FolderItem = ({
@@ -53,38 +96,57 @@ const FolderItem = ({
   allFolders: Folder[]
 }): React.JSX.Element => {
   const [isExpanded, setIsExpanded] = useState(false)
-  const { requestsByFolder, openRequestInTab, createRequest, createFolder } = useDataStore()
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
+  const [promptType, setPromptType] = useState<'request' | 'folder' | null>(null)
+
+  const { requestsByFolder, openRequestInTab, createRequest, createFolder, deleteFolder, deleteRequest } = useDataStore()
   const { setActiveView } = useAppStore()
 
   const requests = requestsByFolder[folder.id] || []
   const subFolders = allFolders.filter((f) => f.parent_folder_id === folder.id)
+
+  const handleContextMenu = (e: React.MouseEvent): void => {
+    e.preventDefault()
+    e.stopPropagation()
+    setContextMenu({ x: e.clientX, y: e.clientY })
+  }
 
   const handleSelectRequest = (req: ApiRequest): void => {
     openRequestInTab(req)
     setActiveView('request-builder')
   }
 
-  const handleAddRequest = (e: React.MouseEvent): void => {
-    e.stopPropagation()
-    const name = window.prompt('Request Name:', 'New Request')
-    if (name) {
-      createRequest(collectionId, folder.id, name)
+  const handleAddRequest = (): void => setPromptType('request')
+  const handleAddFolder = (): void => setPromptType('folder')
+
+  const handleDeleteFolder = (): void => {
+    if (window.confirm(`Delete folder "${folder.name}" and all its contents?`)) {
+      deleteFolder(folder.id)
     }
   }
 
-  const handleAddFolder = (e: React.MouseEvent): void => {
-    e.stopPropagation()
-    const name = window.prompt('Sub-folder Name:', 'New Folder')
-    if (name) {
-      createFolder(collectionId, folder.id, name)
+  const handleDeleteRequest = (req: ApiRequest): void => {
+    if (window.confirm(`Delete request "${req.name}"?`)) {
+      deleteRequest(req.id)
     }
+  }
+
+  const handleDuplicateRequest = (req: ApiRequest): void => {
+    createRequest(collectionId, folder.id, `${req.name} (Copy)`, {
+      method: req.method,
+      url: req.url,
+      headers: req.headers,
+      body: req.body,
+      auth_config: req.auth_config
+    })
   }
 
   return (
     <div>
       <div
         onClick={(): void => setIsExpanded(!isExpanded)}
-        className="flex items-center px-2 py-1.5 rounded hover:bg-background cursor-pointer text-xs text-text group"
+        onContextMenu={handleContextMenu}
+        className={`flex items-center px-2 py-1.5 rounded hover:bg-background cursor-pointer text-xs text-text group ${contextMenu ? 'bg-background' : ''}`}
       >
         {isExpanded ? (
           <ChevronDown size={12} className="text-muted mr-1 shrink-0" />
@@ -93,23 +155,37 @@ const FolderItem = ({
         )}
         <Hash size={12} className="text-muted mr-2 shrink-0" />
         <span className="truncate flex-1">{folder.name}</span>
-        <div className="opacity-0 group-hover:opacity-100 flex items-center transition-opacity gap-1">
-          <button
-            onClick={handleAddFolder}
-            title="Add Sub-folder"
-            className="text-muted hover:text-primary p-0.5"
-          >
-            <FolderPlus size={12} />
-          </button>
-          <button
-            onClick={handleAddRequest}
-            title="Add Request"
-            className="text-muted hover:text-primary p-0.5"
-          >
-            <FilePlus size={12} />
-          </button>
-        </div>
       </div>
+
+      {contextMenu && (
+        <ContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          onClose={(): void => setContextMenu(null)}
+          items={[
+            { label: 'Add Request', icon: FilePlus, onClick: handleAddRequest },
+            { label: 'Add Folder', icon: FolderPlus, onClick: handleAddFolder },
+            { label: 'Delete Folder', icon: Trash2, onClick: handleDeleteFolder, variant: 'danger' }
+          ]}
+        />
+      )}
+
+      <PromptModal
+        isOpen={promptType !== null}
+        title={promptType === 'request' ? 'New Request' : 'New Folder'}
+        placeholder={promptType === 'request' ? 'Request name...' : 'Folder name...'}
+        onClose={(): void => setPromptType(null)}
+        onSubmit={(val): void => {
+          console.log('[Sidebar] Prompt submitted:', val, 'for type:', promptType)
+          if (promptType === 'request') {
+            createRequest(collectionId, folder.id, val)
+            setActiveView('request-builder')
+          } else {
+            createFolder(collectionId, folder.id, val)
+          }
+          setIsExpanded(true)
+        }}
+      />
 
       {isExpanded && (
         <div className="ml-2 pl-2 border-l border-border/50 space-y-0.5 py-1">
@@ -125,18 +201,13 @@ const FolderItem = ({
 
           {/* Folder Requests */}
           {requests.map((req) => (
-            <div
+            <RequestItem
               key={req.id}
-              onClick={(): void => handleSelectRequest(req)}
-              className="flex items-center px-2 py-1 rounded hover:bg-background cursor-pointer text-xs text-text"
-            >
-              <span
-                className={`text-[9px] font-bold mr-2 w-8 text-right shrink-0 ${METHOD_COLORS[req.method] ?? 'text-muted'}`}
-              >
-                {req.method}
-              </span>
-              <span className="truncate">{req.name}</span>
-            </div>
+              request={req}
+              onSelect={handleSelectRequest}
+              onDelete={handleDeleteRequest}
+              onDuplicate={handleDuplicateRequest}
+            />
           ))}
 
           {subFolders.length === 0 && requests.length === 0 && (
@@ -150,19 +221,72 @@ const FolderItem = ({
   )
 }
 
+const RequestItem = ({
+  request,
+  onSelect,
+  onDelete,
+  onDuplicate
+}: {
+  request: ApiRequest
+  onSelect: (req: ApiRequest) => void
+  onDelete: (req: ApiRequest) => void
+  onDuplicate: (req: ApiRequest) => void
+}): React.JSX.Element => {
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
+
+  const handleContextMenu = (e: React.MouseEvent): void => {
+    e.preventDefault()
+    e.stopPropagation()
+    setContextMenu({ x: e.clientX, y: e.clientY })
+  }
+
+  return (
+    <div
+      onClick={(): void => onSelect(request)}
+      onContextMenu={handleContextMenu}
+      className={`flex items-center px-2 py-1 rounded hover:bg-background cursor-pointer text-xs text-text ${contextMenu ? 'bg-background' : ''}`}
+    >
+      <span
+        className={`text-[9px] font-bold mr-2 w-8 text-right shrink-0 ${METHOD_COLORS[request.method] ?? 'text-muted'}`}
+      >
+        {request.method}
+      </span>
+      <span className="truncate">{request.name}</span>
+
+      {contextMenu && (
+        <ContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          onClose={(): void => setContextMenu(null)}
+          items={[
+            { label: 'Duplicate', icon: Copy, onClick: (): void => onDuplicate(request) },
+            { label: 'Delete', icon: Trash2, onClick: (): void => onDelete(request), variant: 'danger' }
+          ]}
+        />
+      )}
+    </div>
+  )
+}
+
 interface CollectionItemProps {
   collection: Collection
 }
 
 const CollectionItem = ({ collection }: CollectionItemProps): React.JSX.Element => {
   const [isExpanded, setIsExpanded] = useState(false)
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
+  const [promptType, setPromptType] = useState<'request' | 'folder' | null>(null)
+
   const {
     fetchCollectionContents,
     requestsByCollection,
     foldersByCollection,
     openRequestInTab,
     createRequest,
-    createFolder
+    createFolder,
+    deleteCollection,
+    deleteRequest,
+    exportCollection
   } = useDataStore()
   const { setActiveView } = useAppStore()
 
@@ -173,20 +297,35 @@ const CollectionItem = ({ collection }: CollectionItemProps): React.JSX.Element 
     setIsExpanded(!isExpanded)
   }
 
-  const handleAddRequest = (e: React.MouseEvent): void => {
+  const handleContextMenu = (e: React.MouseEvent): void => {
+    e.preventDefault()
     e.stopPropagation()
-    const name = window.prompt('Request Name:', 'New Request')
-    if (name) {
-      createRequest(collection.id, null, name)
+    setContextMenu({ x: e.clientX, y: e.clientY })
+  }
+
+  const handleAddRequest = (): void => setPromptType('request')
+  const handleAddFolder = (): void => setPromptType('folder')
+
+  const handleDeleteCollection = (): void => {
+    if (window.confirm(`Delete collection "${collection.name}"? This cannot be undone.`)) {
+      deleteCollection(collection.id)
     }
   }
 
-  const handleAddFolder = (e: React.MouseEvent): void => {
-    e.stopPropagation()
-    const name = window.prompt('Folder Name:', 'New Folder')
-    if (name) {
-      createFolder(collection.id, null, name)
+  const handleDeleteRequest = (req: ApiRequest): void => {
+    if (window.confirm(`Delete request "${req.name}"?`)) {
+      deleteRequest(req.id)
     }
+  }
+
+  const handleDuplicateRequest = (req: ApiRequest): void => {
+    createRequest(collection.id, null, `${req.name} (Copy)`, {
+      method: req.method,
+      url: req.url,
+      headers: req.headers,
+      body: req.body,
+      auth_config: req.auth_config
+    })
   }
 
   const handleSelectRequest = (req: ApiRequest): void => {
@@ -202,7 +341,8 @@ const CollectionItem = ({ collection }: CollectionItemProps): React.JSX.Element 
     <div>
       <div
         onClick={handleExpand}
-        className="flex items-center px-2 py-1.5 rounded hover:bg-background cursor-pointer text-sm text-text group"
+        onContextMenu={handleContextMenu}
+        className={`flex items-center px-2 py-1.5 rounded hover:bg-background cursor-pointer text-sm text-text group ${contextMenu ? 'bg-background' : ''}`}
       >
         {isExpanded ? (
           <ChevronDown size={14} className="text-muted mr-1 shrink-0" />
@@ -211,23 +351,38 @@ const CollectionItem = ({ collection }: CollectionItemProps): React.JSX.Element 
         )}
         <Folder size={14} className="text-primary mr-2 shrink-0" />
         <span className="truncate flex-1 font-medium">{collection.name}</span>
-        <div className="opacity-0 group-hover:opacity-100 flex items-center transition-opacity gap-1">
-          <button
-            onClick={handleAddFolder}
-            title="Add Folder"
-            className="text-muted hover:text-primary p-0.5"
-          >
-            <FolderPlus size={13} />
-          </button>
-          <button
-            onClick={handleAddRequest}
-            title="Add Request"
-            className="text-muted hover:text-primary p-0.5"
-          >
-            <FilePlus size={13} />
-          </button>
-        </div>
       </div>
+
+      {contextMenu && (
+        <ContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          onClose={(): void => setContextMenu(null)}
+          items={[
+            { label: 'Add Request', icon: FilePlus, onClick: handleAddRequest },
+            { label: 'Add Folder', icon: FolderPlus, onClick: handleAddFolder },
+            { label: 'Export Collection', icon: Download, onClick: (): Promise<void> => exportCollection(collection.id) },
+            { label: 'Delete Collection', icon: Trash2, onClick: handleDeleteCollection, variant: 'danger' }
+          ]}
+        />
+      )}
+
+      <PromptModal
+        isOpen={promptType !== null}
+        title={promptType === 'request' ? 'New Request' : 'New Folder'}
+        placeholder={promptType === 'request' ? 'Request name...' : 'Folder name...'}
+        onClose={(): void => setPromptType(null)}
+        onSubmit={(val): void => {
+          console.log('[Sidebar] Collection root prompt submitted:', val, 'for type:', promptType)
+          if (promptType === 'request') {
+            createRequest(collection.id, null, val)
+            setActiveView('request-builder')
+          } else {
+            createFolder(collection.id, null, val)
+          }
+          setIsExpanded(true)
+        }}
+      />
 
       {isExpanded && (
         <div className="ml-4 pl-3 border-l border-border space-y-0.5 py-1">
@@ -243,18 +398,13 @@ const CollectionItem = ({ collection }: CollectionItemProps): React.JSX.Element 
 
           {/* Root Requests */}
           {requests.map((req) => (
-            <div
+            <RequestItem
               key={req.id}
-              onClick={(): void => handleSelectRequest(req)}
-              className="flex items-center px-2 py-1.5 rounded hover:bg-background cursor-pointer text-sm text-text"
-            >
-              <span
-                className={`text-[10px] font-bold mr-2 w-10 text-right shrink-0 ${METHOD_COLORS[req.method] ?? 'text-muted'}`}
-              >
-                {req.method}
-              </span>
-              <span className="truncate">{req.name}</span>
-            </div>
+              request={req}
+              onSelect={handleSelectRequest}
+              onDelete={handleDeleteRequest}
+              onDuplicate={handleDuplicateRequest}
+            />
           ))}
 
           {rootFolders.length === 0 && requests.length === 0 && (
@@ -290,6 +440,7 @@ export const Sidebar = (): React.JSX.Element => {
   const [searchQuery, setSearchQuery] = useState('')
   const [isAdminMenuOpen, setIsAdminMenuOpen] = useState(false)
   const [sidebarTab, setSidebarTab] = useState<'collections' | 'history'>('collections')
+  const [isNewCollectionModalOpen, setIsNewCollectionModalOpen] = useState(false)
 
   // Fetch teams on mount
   useEffect(() => {
@@ -304,10 +455,7 @@ export const Sidebar = (): React.JSX.Element => {
   )
 
   const handleNewCollection = (): void => {
-    const name = window.prompt('Collection Name:', 'New Collection')
-    if (name) {
-      createCollection(name)
-    }
+    setIsNewCollectionModalOpen(true)
   }
 
   const handleSelectTeam = (id: number): void => {
@@ -410,11 +558,10 @@ export const Sidebar = (): React.JSX.Element => {
               <div
                 key={team.id}
                 onClick={(): void => handleSelectTeam(team.id)}
-                className={`flex items-center px-2 py-1.5 rounded cursor-pointer text-xs transition-colors ${
-                  team.id === activeTeamId
+                className={`flex items-center px-2 py-1.5 rounded cursor-pointer text-xs transition-colors ${team.id === activeTeamId
                     ? 'bg-primary/15 text-primary font-medium'
                     : 'text-text hover:bg-background'
-                }`}
+                  }`}
               >
                 <div
                   className={`w-1.5 h-1.5 rounded-full mr-2 shrink-0 ${team.id === activeTeamId ? 'bg-primary' : 'bg-muted'}`}
@@ -526,6 +673,7 @@ export const Sidebar = (): React.JSX.Element => {
                   {history.map((h) => (
                     <div
                       key={h.id}
+                      onClick={(): void => useAppStore.getState().setActiveHistoryId(h.id)}
                       className="px-2 py-2 rounded hover:bg-background cursor-pointer group flex flex-col gap-0.5 border-l-2 border-transparent hover:border-primary/50"
                     >
                       <div className="flex items-center justify-between">
@@ -575,9 +723,13 @@ export const Sidebar = (): React.JSX.Element => {
           {environments.length > 0 ? (
             <select
               value={activeEnvironmentId ?? ''}
-              onChange={(e): void => setActiveEnvironment(Number(e.target.value))}
+              onChange={(e): void => {
+                const val = e.target.value
+                setActiveEnvironment(val === '' ? null : Number(val))
+              }}
               className="w-full bg-background border border-border rounded text-xs px-2 py-1.5 text-text focus:outline-none focus:border-primary"
             >
+              <option value="">No Environment</option>
               {environments.map((env) => (
                 <option key={env.id} value={env.id}>
                   {env.name}
@@ -609,6 +761,14 @@ export const Sidebar = (): React.JSX.Element => {
           </div>
         </div>
       </div>
+
+      <PromptModal
+        title="New Collection"
+        placeholder="Collection name..."
+        isOpen={isNewCollectionModalOpen}
+        onClose={(): void => setIsNewCollectionModalOpen(false)}
+        onSubmit={(val): void => createCollection(val)}
+      />
     </div>
   )
 }

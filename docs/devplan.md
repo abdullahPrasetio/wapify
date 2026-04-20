@@ -1,7 +1,7 @@
 # Wapify — Development Plan
 
-**Terakhir Diperbarui:** April 2026
-**Status Saat Ini:** ✅ Fase 1 — MVP Internal (Backend Selesai)
+**Terakhir Diperbarui:** 20 April 2026
+**Status Saat Ini:** ✅ Fase 1 — MVP Internal (Selesai), 🟡 Fase 4 — Testing (SDK Selesai)
 
 ---
 
@@ -10,7 +10,7 @@
 | Fase | Nama | Target | Status |
 |---|---|---|---|
 | 0 | Setup & Fondasi | Repo & tooling siap | ✅ Selesai |
-| 1 | MVP Internal | Tim Waluyo bisa pakai minggu ini | 🟡 In Progress |
+| 1 | MVP Internal | Tim Waluyo bisa pakai minggu ini | ✅ Selesai |
 | 2 | Kolaborasi Real-time | Field locking, presence, versioning | ⬜ Belum Mulai |
 | 3 | Dokumentasi & Mock Server | Generate docs, mock API | ⬜ Belum Mulai |
 | 4 | Testing & CI/CD | Collection runner, CLI | ⬜ Belum Mulai |
@@ -108,7 +108,8 @@ wapify/
 **Environment**
 - [x] `GET/POST /api/v1/teams/:id/environments` — list + buat environment
 - [x] `GET/PUT/DELETE /api/v1/environments/:id` — detail, edit, hapus
-- [ ] Interpolasi `{{variable}}` di URL, headers, body saat request disimpan
+- [x] Interpolasi `{{variable}}` di URL, headers, body saat request disimpan
+- [x] Scripting Engine: Pre-request & Post-request (Wapify SDK v1.0)
 
 **Admin API (Super Admin)**
 - [x] `GET /api/v1/admin/users` — list semua user
@@ -216,10 +217,10 @@ wapify/
 **Target:** Test script + Collection Runner + CLI.
 **Estimasi:** 2 minggu
 
-- [ ] Test runner JavaScript via `goja`
+- [x] Test runner JavaScript via Renderer-side execution (sandbox)
 - [ ] Collection Runner (jalankan seluruh koleksi)
 - [ ] CLI: `wapify run --collection --env --reporter json|junit`
-- [ ] UI: test script editor + laporan hasil
+- [x] UI: test script editor + laporan hasil
 
 **Milestone ✅:** `wapify run` bisa dipakai di pipeline CI/CD.
 

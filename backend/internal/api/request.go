@@ -15,7 +15,9 @@ type CreateRequestPayload struct {
 	Body        repository.JSONB `json:"body"`
 	AuthConfig  repository.JSONB `json:"auth_config"`
 	FolderID    *uint           `json:"folder_id"`
-	OrderIndex  int             `json:"order_index"`
+	OrderIndex        int              `json:"order_index"`
+	PreRequestScript  string           `json:"pre_request_script"`
+	PostRequestScript string           `json:"post_request_script"`
 }
 
 func SetupRequestRoutes(app *fiber.App) {
@@ -75,9 +77,11 @@ func CreateRequestInFolder(c *fiber.Ctx) error {
 		Body:         req.Body,
 		AuthConfig:   req.AuthConfig,
 		CollectionID: collection.ID,
-		FolderID:     &fid,
-		CreatedByID:  &userID,
-		OrderIndex:   req.OrderIndex,
+		FolderID:           &fid,
+		CreatedByID:        &userID,
+		OrderIndex:         req.OrderIndex,
+		PreRequestScript:   req.PreRequestScript,
+		PostRequestScript:  req.PostRequestScript,
 	}
 	if err := repository.DB.Create(&request).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to create request", "code": "INTERNAL_SERVER_ERROR"})
@@ -123,9 +127,11 @@ func CreateRequestInCollection(c *fiber.Ctx) error {
 		Body:         req.Body,
 		AuthConfig:   req.AuthConfig,
 		CollectionID: collection.ID,
-		FolderID:     req.FolderID,
-		CreatedByID:  &userID,
-		OrderIndex:   req.OrderIndex,
+		FolderID:           req.FolderID,
+		CreatedByID:        &userID,
+		OrderIndex:         req.OrderIndex,
+		PreRequestScript:   req.PreRequestScript,
+		PostRequestScript:  req.PostRequestScript,
 	}
 	if err := repository.DB.Create(&request).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to create request", "code": "INTERNAL_SERVER_ERROR"})
@@ -179,6 +185,12 @@ func UpdateRequest(c *fiber.Ctx) error {
 	}
 	if req.AuthConfig != nil {
 		request.AuthConfig = req.AuthConfig
+	}
+	if req.PreRequestScript != "" {
+		request.PreRequestScript = req.PreRequestScript
+	}
+	if req.PostRequestScript != "" {
+		request.PostRequestScript = req.PostRequestScript
 	}
 	if err := repository.DB.Save(&request).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to update request", "code": "INTERNAL_SERVER_ERROR"})
