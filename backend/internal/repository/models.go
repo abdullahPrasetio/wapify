@@ -1,0 +1,125 @@
+package repository
+
+import (
+	"database/sql/driver"
+	"encoding/json"
+	"errors"
+	"time"
+)
+
+// JSONB is a helper type for PostgreSQL JSONB columns
+type JSONB map[string]interface{}
+
+func (j JSONB) Value() (driver.Value, error) {
+	return json.Marshal(j)
+}
+
+func (j *JSONB) Scan(value interface{}) error {
+	b, ok := value.([]byte)
+	if !ok {
+		return errors.New("type assertion to []byte failed")
+	}
+	return json.Unmarshal(b, j)
+}
+
+type User struct {
+	ID           uint      `gorm:"primaryKey" json:"id"`
+	Email        string    `gorm:"uniqueIndex;not null" json:"email"`
+	PasswordHash string    `gorm:"not null" json:"-"`
+	Name         string    `gorm:"not null" json:"name"`
+	IsSuperAdmin bool      `gorm:"default:false" json:"is_super_admin"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+}
+
+type Team struct {
+	ID          uint      `gorm:"primaryKey" json:"id"`
+	Name        string    `gorm:"not null" json:"name"`
+	Description string    `json:"description"`
+	CreatedByID *uint     `gorm:"column:created_by" json:"created_by"`
+	CreatedAt   time.Time `json:"created_at"`
+
+	CreatedBy *User `gorm:"foreignKey:CreatedByID;references:ID" json:"-"`
+}
+
+type TeamMember struct {
+	ID       uint      `gorm:"primaryKey" json:"id"`
+	TeamID   uint      `gorm:"not null;uniqueIndex:idx_team_user" json:"team_id"`
+	UserID   uint      `gorm:"not null;uniqueIndex:idx_team_user" json:"user_id"`
+	Role     string    `gorm:"not null" json:"role"`
+	JoinedAt time.Time `json:"joined_at"`
+
+	Team *Team `gorm:"foreignKey:TeamID" json:"-"`
+	User *User `gorm:"foreignKey:UserID" json:"user,omitempty"`
+}
+
+type Collection struct {
+	ID          uint      `gorm:"primaryKey" json:"id"`
+	Name        string    `gorm:"not null" json:"name"`
+	Description string    `json:"description"`
+	TeamID      uint      `gorm:"not null" json:"team_id"`
+	CreatedByID *uint     `gorm:"column:created_by" json:"created_by"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+
+	Team      *Team `gorm:"foreignKey:TeamID" json:"-"`
+	CreatedBy *User `gorm:"foreignKey:CreatedByID;references:ID" json:"-"`
+}
+
+type Folder struct {
+	ID             uint   `gorm:"primaryKey" json:"id"`
+	Name           string `gorm:"not null" json:"name"`
+	CollectionID   uint   `gorm:"not null;column:collection_id" json:"collection_id"`
+	ParentFolderID *uint  `gorm:"column:parent_folder_id" json:"parent_folder_id"`
+	OrderIndex     int    `gorm:"default:0;column:order_index" json:"order_index"`
+
+	Collection   *Collection `gorm:"foreignKey:CollectionID" json:"-"`
+	ParentFolder *Folder     `gorm:"foreignKey:ParentFolderID" json:"-"`
+}
+
+type Request struct {
+	ID           uint      `gorm:"primaryKey" json:"id"`
+	Name         string    `gorm:"not null" json:"name"`
+	Description  string    `json:"description"`
+	Method       string    `gorm:"not null" json:"method"`
+	URL          string    `gorm:"not null" json:"url"`
+	Headers      JSONB     `gorm:"type:jsonb;default:'{}';column:headers" json:"headers"`
+	Body         JSONB     `gorm:"type:jsonb;default:'{}';column:body" json:"body"`
+	AuthConfig   JSONB     `gorm:"type:jsonb;default:'{}';column:auth_config" json:"auth_config"`
+	CollectionID uint      `gorm:"not null;column:collection_id" json:"collection_id"`
+	FolderID     *uint     `gorm:"column:folder_id" json:"folder_id"`
+	CreatedByID  *uint     `gorm:"column:created_by" json:"created_by"`
+	OrderIndex   int       `gorm:"default:0;column:order_index" json:"order_index"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+
+	Collection *Collection `gorm:"foreignKey:CollectionID" json:"-"`
+	Folder     *Folder     `gorm:"foreignKey:FolderID" json:"-"`
+	CreatedBy  *User       `gorm:"foreignKey:CreatedByID;references:ID" json:"-"`
+}
+
+type Environment struct {
+	ID        uint      `gorm:"primaryKey" json:"id"`
+	Name      string    `gorm:"not null" json:"name"`
+	Variables JSONB     `gorm:"type:jsonb;default:'{}'" json:"variables"`
+	TeamID    uint      `gorm:"not null" json:"team_id"`
+	CreatedAt time.Time `json:"created_at"`
+
+	Team *Team `gorm:"foreignKey:TeamID" json:"-"`
+}
+
+type RequestHistory struct {
+	ID           uint      `gorm:"primaryKey" json:"id"`
+	UserID       uint      `gorm:"not null;column:user_id" json:"user_id"`
+	TeamID       uint      `gorm:"not null;column:team_id" json:"team_id"`
+	RequestID    *uint     `gorm:"column:request_id" json:"request_id"`
+	Method       string    `gorm:"not null" json:"method"`
+	URL          string    `gorm:"not null" json:"url"`
+	StatusCode   int       `gorm:"column:status_code" json:"status_code"`
+	ResponseTime int       `gorm:"column:response_time" json:"response_time"`
+	CreatedAt    time.Time `json:"created_at"`
+
+	User    *User    `gorm:"foreignKey:UserID" json:"user,omitempty"`
+	Request *Request `gorm:"foreignKey:RequestID" json:"-"`
+	Team    *Team    `gorm:"foreignKey:TeamID" json:"-"`
+}
