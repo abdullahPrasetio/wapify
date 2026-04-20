@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { persist, createJSONStorage } from 'zustand/middleware'
 import { apiClient } from '../api/client'
 import type {
   Team,
@@ -152,6 +153,10 @@ interface DataState {
   fetchHistory: () => Promise<void>
   clearHistory: () => Promise<void>
 
+  // Expansion State
+  expandedItems: Record<string, boolean>
+  toggleExpand: (id: string) => void
+
   // Execution Actions
   executeActiveRequest: () => Promise<void>
   clearResponse: () => void
@@ -160,7 +165,6 @@ interface DataState {
   deleteFolder: (id: number) => Promise<void>
   deleteRequest: (id: number) => Promise<void>
   exportCollection: (id: number) => Promise<void>
-  clearHistory: () => Promise<void>
   clearLogs: () => void
 }
 
@@ -212,7 +216,9 @@ const injectAuth = (
   return newHeaders
 }
 
-export const useDataStore = create<DataState>((set, get) => ({
+export const useDataStore = create<DataState>()(
+  persist(
+    (set, get) => ({
   teams: [],
   teamsLoading: false,
   activeTeamId: null,
@@ -232,6 +238,16 @@ export const useDataStore = create<DataState>((set, get) => ({
   environments: [],
   activeEnvironmentId: null,
   logs: [],
+  expandedItems: {},
+
+  toggleExpand: (id: string) => {
+    set((state) => ({
+      expandedItems: {
+        ...state.expandedItems,
+        [id]: !state.expandedItems[id]
+      }
+    }))
+  },
 
   fetchTeams: async () => {
     set({ teamsLoading: true })
@@ -283,8 +299,10 @@ export const useDataStore = create<DataState>((set, get) => ({
       const response = await apiClient.get<Collection[]>(`/api/v1/teams/${teamId}/collections`)
       if (response.status === 200) {
         set({ collections: response.data as Collection[], collectionsLoading: false })
+        return response.data as Collection[]
       } else {
         set({ collectionsLoading: false })
+        return null
       }
     } catch {
       set({ collectionsLoading: false })
@@ -646,16 +664,26 @@ export const useDataStore = create<DataState>((set, get) => ({
   },
 
   deleteEnvironment: async (id: number) => {
-    const { activeTeamId } = get()
+    const { activeTeamId, activeEnvironmentId, fetchEnvironments } = get()
     if (!activeTeamId) return
 
+    console.log(`[Store] Deleting environment ${id}...`)
     try {
       const response = await apiClient.delete(`/api/v1/environments/${id}`)
       if (response.status === 200) {
-        await get().fetchEnvironments(activeTeamId)
+        console.log(`[Store] Environment ${id} deleted successfully`)
+        // If the deleted env was active, clear it
+        if (activeEnvironmentId === id) {
+          set({ activeEnvironmentId: null })
+        }
+        await fetchEnvironments(activeTeamId)
         toast.success('Environment deleted')
+      } else {
+        console.error(`[Store] Failed to delete environment: ${response.status}`)
+        toast.error('Failed to delete environment')
       }
-    } catch {
+    } catch (err) {
+      console.error('[Store] Error deleting environment:', err)
       toast.error('Failed to delete environment')
     }
   },
@@ -1132,4 +1160,16 @@ export const useDataStore = create<DataState>((set, get) => ({
   },
 
   clearLogs: () => set({ logs: [] })
-}))
+}),
+    {
+      name: 'wapify-data-storage',
+      storage: createJSONStorage(() => localStorage),
+      partialize: (state) => ({
+        activeTeamId: state.activeTeamId,
+        activeTabId: state.activeTabId,
+        activeEnvironmentId: state.activeEnvironmentId,
+        expandedItems: state.expandedItems
+      })
+    }
+  )
+)

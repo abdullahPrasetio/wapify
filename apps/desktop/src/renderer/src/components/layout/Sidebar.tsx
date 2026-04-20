@@ -95,7 +95,8 @@ const FolderItem = ({
   collectionId: number
   allFolders: Folder[]
 }): React.JSX.Element => {
-  const [isExpanded, setIsExpanded] = useState(false)
+  const { expandedItems, toggleExpand } = useDataStore()
+  const isExpanded = !!expandedItems[`folder-${folder.id}`]
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
   const [promptType, setPromptType] = useState<'request' | 'folder' | null>(null)
 
@@ -144,7 +145,7 @@ const FolderItem = ({
   return (
     <div>
       <div
-        onClick={(): void => setIsExpanded(!isExpanded)}
+        onClick={(): void => toggleExpand(`folder-${folder.id}`)}
         onContextMenu={handleContextMenu}
         className={`flex items-center px-2 py-1.5 rounded hover:bg-background cursor-pointer text-xs text-text group ${contextMenu ? 'bg-background' : ''}`}
       >
@@ -183,7 +184,7 @@ const FolderItem = ({
           } else {
             createFolder(collectionId, folder.id, val)
           }
-          setIsExpanded(true)
+          toggleExpand(`folder-${folder.id}`)
         }}
       />
 
@@ -273,11 +274,9 @@ interface CollectionItemProps {
 }
 
 const CollectionItem = ({ collection }: CollectionItemProps): React.JSX.Element => {
-  const [isExpanded, setIsExpanded] = useState(false)
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
-  const [promptType, setPromptType] = useState<'request' | 'folder' | null>(null)
-
   const {
+    expandedItems,
+    toggleExpand,
     fetchCollectionContents,
     requestsByCollection,
     foldersByCollection,
@@ -290,11 +289,15 @@ const CollectionItem = ({ collection }: CollectionItemProps): React.JSX.Element 
   } = useDataStore()
   const { setActiveView } = useAppStore()
 
+  const isExpanded = !!expandedItems[`collection-${collection.id}`]
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
+  const [promptType, setPromptType] = useState<'request' | 'folder' | null>(null)
+
   const handleExpand = async (): Promise<void> => {
     if (!isExpanded && !requestsByCollection[collection.id]) {
       await fetchCollectionContents(collection.id)
     }
-    setIsExpanded(!isExpanded)
+    toggleExpand(`collection-${collection.id}`)
   }
 
   const handleContextMenu = (e: React.MouseEvent): void => {
