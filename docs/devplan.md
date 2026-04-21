@@ -220,7 +220,7 @@ wapify/
 **Estimasi:** 2 minggu
 
 - [x] Test runner JavaScript via Renderer-side execution (sandbox)
-- [ ] Collection Runner (jalankan seluruh koleksi)
+- [x] Collection Runner (jalankan seluruh koleksi)
 - [ ] CLI: `wapify run --collection --env --reporter json|junit`
 - [x] UI: test script editor + laporan hasil
 
