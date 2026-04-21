@@ -39,13 +39,36 @@ async function ipcRequest<T>(config: RequestConfig): Promise<IpcResponse<T>> {
     headers['Authorization'] = `Bearer ${authToken}`
   }
 
+  if (!window.api) {
+    if (config.url.startsWith(BASE_URL)) {
+      console.warn('Running in Browser Mode: Using standard fetch for Wapify API')
+      const res = await fetch(config.url, {
+        method: config.method,
+        headers,
+        body: config.body
+      })
+      const raw = await res.text()
+      let data: unknown
+      try { data = JSON.parse(raw) } catch { data = raw }
+      return { status: res.status, headers: {}, data, timing: 0 } as IpcResponse<T>
+    } else {
+      console.error('Wapify IPC is not available. Are you running in Chrome instead of Electron?')
+      throw new Error('This app requires Electron to run.')
+    }
+  }
+
   let response = await window.api.wapifyRequest({
     ...config,
     headers
   })
 
   // Auto-refresh token if 401 Unauthorized
-  if (response.status === 401 && config.url.startsWith(BASE_URL) && !config.url.includes('/auth/login') && !config.url.includes('/auth/refresh')) {
+  if (
+    response.status === 401 &&
+    config.url.startsWith(BASE_URL) &&
+    !config.url.includes('/auth/login') &&
+    !config.url.includes('/auth/refresh')
+  ) {
     const refreshToken = await window.api.getToken()
     if (refreshToken) {
       // Try to refresh
@@ -60,7 +83,7 @@ async function ipcRequest<T>(config: RequestConfig): Promise<IpcResponse<T>> {
         // Success refresh, update token
         const newAuthToken = (refreshResponse.data as any).token
         setAuthToken(newAuthToken)
-        
+
         // Retry original request
         headers['Authorization'] = `Bearer ${newAuthToken}`
         response = await window.api.wapifyRequest({

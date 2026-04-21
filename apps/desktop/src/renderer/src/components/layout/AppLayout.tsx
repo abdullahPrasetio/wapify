@@ -9,11 +9,11 @@ import { TeamManagement } from '../admin/TeamManagement'
 
 export const AppLayout = (): React.JSX.Element => {
   const { activeView } = useAppStore()
-  const { 
-    activeTeamId, 
-    fetchTeams, 
-    fetchCollections, 
-    fetchEnvironments, 
+  const {
+    activeTeamId,
+    fetchTeams,
+    fetchCollections,
+    fetchEnvironments,
     fetchHistory,
     expandedItems,
     fetchCollectionContents

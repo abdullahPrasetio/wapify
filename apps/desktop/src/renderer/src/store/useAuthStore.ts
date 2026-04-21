@@ -30,45 +30,47 @@ export const useAuthStore = create<AuthState>((set) => ({
         password
       })
 
-      if (response.status === 200 && (response.data as LoginResponse).token) {
+      if (response && response.status === 200 && (response.data as LoginResponse).token) {
         const { token, refresh_token, user } = response.data as LoginResponse
         setAuthToken(token)
-        if (refresh_token) {
+        if (refresh_token && window.api) {
           await window.api.setToken(refresh_token)
         }
         set({ user, token, isAuthenticated: true, isLoading: false, error: null })
       } else {
-        const errData = response.data as { error?: string }
+        const errData = response?.data as { error?: string }
         set({ isLoading: false, error: errData?.error ?? 'Login gagal. Periksa kredensial Anda.' })
       }
     } catch {
       set({
         isLoading: false,
-        error: 'Tidak dapat terhubung ke server. Pastikan backend sedang berjalan.'
+        error: 'Tidak dapat terhubung ke server. Pastikan backend sedang berjalan atau gunakan Electron.'
       })
     }
   },
 
   logout: async () => {
     setAuthToken(null)
-    await window.api.deleteToken()
+    if (window.api) {
+      await window.api.deleteToken()
+    }
     set({ user: null, token: null, isAuthenticated: false, error: null })
   },
 
   rehydrateAuth: async () => {
     set({ isLoading: true })
     try {
-      const refreshToken = await window.api.getToken()
+      const refreshToken = window.api ? await window.api.getToken() : null
       if (refreshToken) {
         // Coba refresh token
         const response = await apiClient.post<LoginResponse>('/api/v1/auth/refresh', {
           refresh_token: refreshToken
         })
 
-        if (response.status === 200) {
+        if (response && response.status === 200) {
           const { token, refresh_token: newRefreshToken, user } = response.data as LoginResponse
           setAuthToken(token)
-          if (newRefreshToken) {
+          if (newRefreshToken && window.api) {
             await window.api.setToken(newRefreshToken)
           }
           set({ user, token, isAuthenticated: true, isLoading: false })

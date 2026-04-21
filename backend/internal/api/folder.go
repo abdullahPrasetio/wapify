@@ -63,6 +63,12 @@ func CreateFolder(c *fiber.Ctx) error {
 	if err := repository.DB.Create(&folder).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to create folder", "code": "INTERNAL_SERVER_ERROR"})
 	}
+
+	// Real-time broadcast & logging
+	userID := uint(c.Locals("user_id").(float64))
+	WSHub.BroadcastEntityUpdate(collection.TeamID, "COLLECTION", collection.ID)
+	LogActivity(repository.DB, collection.TeamID, userID, "CREATED_FOLDER", "FOLDER", folder.ID, map[string]interface{}{"name": folder.Name})
+
 	return c.Status(fiber.StatusCreated).JSON(folder)
 }
 
@@ -87,6 +93,12 @@ func UpdateFolder(c *fiber.Ctx) error {
 	if err := repository.DB.Save(&folder).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to update folder", "code": "INTERNAL_SERVER_ERROR"})
 	}
+
+	// Real-time broadcast & logging
+	userID := uint(c.Locals("user_id").(float64))
+	WSHub.BroadcastEntityUpdate(collection.TeamID, "COLLECTION", collection.ID)
+	LogActivity(repository.DB, collection.TeamID, userID, "UPDATED_FOLDER", "FOLDER", folder.ID, nil)
+
 	return c.JSON(folder)
 }
 
@@ -104,5 +116,11 @@ func DeleteFolder(c *fiber.Ctx) error {
 	if err := repository.DB.Delete(&folder).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to delete folder", "code": "INTERNAL_SERVER_ERROR"})
 	}
+
+	// Real-time broadcast & logging
+	userID := uint(c.Locals("user_id").(float64))
+	WSHub.BroadcastEntityUpdate(collection.TeamID, "COLLECTION", collection.ID)
+	LogActivity(repository.DB, collection.TeamID, userID, "DELETED_FOLDER", "FOLDER", folder.ID, map[string]interface{}{"name": folder.Name})
+
 	return c.JSON(fiber.Map{"message": "Folder deleted successfully"})
 }

@@ -73,7 +73,7 @@ export interface ApiRequest {
   method: HttpMethod
   url: string
   headers: Record<string, string>
-  body: any
+  body: unknown
   auth_config: Record<string, unknown>
   collection_id: number
   folder_id: number | null

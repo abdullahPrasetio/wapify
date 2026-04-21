@@ -86,6 +86,11 @@ func CreateRequestInFolder(c *fiber.Ctx) error {
 	if err := repository.DB.Create(&request).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to create request", "code": "INTERNAL_SERVER_ERROR"})
 	}
+
+	// Real-time broadcast & logging
+	WSHub.BroadcastEntityUpdate(collection.TeamID, "COLLECTION", collection.ID)
+	LogActivity(repository.DB, collection.TeamID, userID, "CREATED_REQUEST", "REQUEST", request.ID, map[string]interface{}{"name": request.Name})
+
 	return c.Status(fiber.StatusCreated).JSON(request)
 }
 
@@ -136,6 +141,11 @@ func CreateRequestInCollection(c *fiber.Ctx) error {
 	if err := repository.DB.Create(&request).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to create request", "code": "INTERNAL_SERVER_ERROR"})
 	}
+
+	// Real-time broadcast & logging
+	WSHub.BroadcastEntityUpdate(collection.TeamID, "COLLECTION", collection.ID)
+	LogActivity(repository.DB, collection.TeamID, userID, "CREATED_REQUEST", "REQUEST", request.ID, map[string]interface{}{"name": request.Name})
+
 	return c.Status(fiber.StatusCreated).JSON(request)
 }
 
@@ -195,6 +205,12 @@ func UpdateRequest(c *fiber.Ctx) error {
 	if err := repository.DB.Save(&request).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to update request", "code": "INTERNAL_SERVER_ERROR"})
 	}
+
+	// Real-time broadcast & logging
+	userID := uint(c.Locals("user_id").(float64))
+	WSHub.BroadcastEntityUpdate(collection.TeamID, "REQUEST", request.ID)
+	LogActivity(repository.DB, collection.TeamID, userID, "UPDATED_REQUEST", "REQUEST", request.ID, nil)
+
 	return c.JSON(request)
 }
 
@@ -212,5 +228,11 @@ func DeleteRequest(c *fiber.Ctx) error {
 	if err := repository.DB.Delete(&request).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to delete request", "code": "INTERNAL_SERVER_ERROR"})
 	}
+
+	// Real-time broadcast & logging
+	userID := uint(c.Locals("user_id").(float64))
+	WSHub.BroadcastEntityUpdate(collection.TeamID, "COLLECTION", collection.ID)
+	LogActivity(repository.DB, collection.TeamID, userID, "DELETED_REQUEST", "REQUEST", request.ID, map[string]interface{}{"name": request.Name})
+
 	return c.JSON(fiber.Map{"message": "Request deleted successfully"})
 }

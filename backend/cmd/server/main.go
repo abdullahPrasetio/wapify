@@ -45,6 +45,8 @@ func main() {
 	api.SetupEnvironmentRoutes(app)
 	api.SetupAdminRoutes(app)
 	api.SetupHistoryRoutes(app)
+	api.SetupWebSocketRoutes(app)
+	api.SetupCollaborationRoutes(app)
 
 	port := os.Getenv("PORT")
 	if port == "" {

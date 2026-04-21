@@ -129,3 +129,47 @@ type RequestHistory struct {
 	Team    *Team    `gorm:"foreignKey:TeamID" json:"-"`
 	Request *Request `gorm:"foreignKey:RequestID" json:"-"`
 }
+
+type RequestVersion struct {
+	ID                uint      `gorm:"primaryKey" json:"id"`
+	RequestID         uint      `gorm:"not null" json:"request_id"`
+	CreatedByID       uint      `gorm:"column:created_by;not null" json:"created_by"`
+	Name              *string   `json:"name"`
+	Method            string    `gorm:"not null" json:"method"`
+	URL               string    `gorm:"not null" json:"url"`
+	Headers           JSONB     `gorm:"type:jsonb;default:'{}'" json:"headers"`
+	Body              JSONB     `gorm:"type:jsonb;default:'{}'" json:"body"`
+	AuthConfig        JSONB     `gorm:"type:jsonb;default:'{}'" json:"auth_config"`
+	PreRequestScript  string    `gorm:"type:text" json:"pre_request_script"`
+	PostRequestScript string    `gorm:"type:text" json:"post_request_script"`
+	CreatedAt         time.Time `json:"created_at"`
+
+	Request   *Request `gorm:"foreignKey:RequestID" json:"-"`
+	CreatedBy *User    `gorm:"foreignKey:CreatedByID;references:ID" json:"created_by_user,omitempty"`
+}
+
+type Comment struct {
+	ID        uint      `gorm:"primaryKey" json:"id"`
+	RequestID uint      `gorm:"not null" json:"request_id"`
+	UserID    uint      `gorm:"not null" json:"user_id"`
+	Content   string    `gorm:"not null" json:"content"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+
+	Request *Request `gorm:"foreignKey:RequestID" json:"-"`
+	User    *User    `gorm:"foreignKey:UserID" json:"user,omitempty"`
+}
+
+type ActivityLog struct {
+	ID         uint      `gorm:"primaryKey" json:"id"`
+	TeamID     uint      `gorm:"not null" json:"team_id"`
+	UserID     uint      `gorm:"not null" json:"user_id"`
+	Action     string    `gorm:"not null" json:"action"`
+	EntityType string    `gorm:"not null" json:"entity_type"`
+	EntityID   uint      `gorm:"not null" json:"entity_id"`
+	Details    JSONB     `gorm:"type:jsonb;default:'{}'" json:"details"`
+	CreatedAt  time.Time `json:"created_at"`
+
+	Team *Team `gorm:"foreignKey:TeamID" json:"-"`
+	User *User `gorm:"foreignKey:UserID" json:"user,omitempty"`
+}

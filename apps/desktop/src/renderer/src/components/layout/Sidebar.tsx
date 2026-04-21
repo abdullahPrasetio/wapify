@@ -47,7 +47,7 @@ interface ContextMenuProps {
   onClose: () => void
   items: {
     label: string
-    icon: any
+    icon: unknown
     onClick: () => void | Promise<void>
     variant?: 'default' | 'danger'
   }[]
@@ -73,10 +73,11 @@ const ContextMenu = ({ x, y, onClose, items }: ContextMenuProps): React.JSX.Elem
             item.onClick()
             onClose()
           }}
-          className={`w-full flex items-center gap-2 px-3 py-1.5 text-xs transition-colors ${item.variant === 'danger'
+          className={`w-full flex items-center gap-2 px-3 py-1.5 text-xs transition-colors ${
+            item.variant === 'danger'
               ? 'text-danger hover:bg-danger/10'
               : 'text-text hover:bg-background'
-            }`}
+          }`}
         >
           <item.icon size={13} className="shrink-0" />
           {item.label}
@@ -100,7 +101,14 @@ const FolderItem = ({
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
   const [promptType, setPromptType] = useState<'request' | 'folder' | null>(null)
 
-  const { requestsByFolder, openRequestInTab, createRequest, createFolder, deleteFolder, deleteRequest } = useDataStore()
+  const {
+    requestsByFolder,
+    openRequestInTab,
+    createRequest,
+    createFolder,
+    deleteFolder,
+    deleteRequest
+  } = useDataStore()
   const { setActiveView } = useAppStore()
 
   const requests = requestsByFolder[folder.id] || []
@@ -261,7 +269,12 @@ const RequestItem = ({
           onClose={(): void => setContextMenu(null)}
           items={[
             { label: 'Duplicate', icon: Copy, onClick: (): void => onDuplicate(request) },
-            { label: 'Delete', icon: Trash2, onClick: (): void => onDelete(request), variant: 'danger' }
+            {
+              label: 'Delete',
+              icon: Trash2,
+              onClick: (): void => onDelete(request),
+              variant: 'danger'
+            }
           ]}
         />
       )}
@@ -364,8 +377,17 @@ const CollectionItem = ({ collection }: CollectionItemProps): React.JSX.Element 
           items={[
             { label: 'Add Request', icon: FilePlus, onClick: handleAddRequest },
             { label: 'Add Folder', icon: FolderPlus, onClick: handleAddFolder },
-            { label: 'Export Collection', icon: Download, onClick: (): Promise<void> => exportCollection(collection.id) },
-            { label: 'Delete Collection', icon: Trash2, onClick: handleDeleteCollection, variant: 'danger' }
+            {
+              label: 'Export Collection',
+              icon: Download,
+              onClick: (): Promise<void> => exportCollection(collection.id)
+            },
+            {
+              label: 'Delete Collection',
+              icon: Trash2,
+              onClick: handleDeleteCollection,
+              variant: 'danger'
+            }
           ]}
         />
       )}
@@ -383,7 +405,7 @@ const CollectionItem = ({ collection }: CollectionItemProps): React.JSX.Element 
           } else {
             createFolder(collection.id, null, val)
           }
-          setIsExpanded(true)
+          toggleExpand(`collection-${collection.id}`)
         }}
       />
 
@@ -546,8 +568,12 @@ export const Sidebar = (): React.JSX.Element => {
               onClick={(): void => {
                 const name = window.prompt('Team Name:')
                 if (name) {
-                  const desc = window.prompt('Description (Optional):', '')
-                  createTeam(name, desc || '')
+                  try {
+                    const desc = window.prompt('Description (Optional):', '')
+                    createTeam(name, desc || '')
+                  } catch (err: unknown) {
+                    console.error(err)
+                  }
                 }
               }}
               title="New Team"
@@ -561,10 +587,11 @@ export const Sidebar = (): React.JSX.Element => {
               <div
                 key={team.id}
                 onClick={(): void => handleSelectTeam(team.id)}
-                className={`flex items-center px-2 py-1.5 rounded cursor-pointer text-xs transition-colors ${team.id === activeTeamId
+                className={`flex items-center px-2 py-1.5 rounded cursor-pointer text-xs transition-colors ${
+                  team.id === activeTeamId
                     ? 'bg-primary/15 text-primary font-medium'
                     : 'text-text hover:bg-background'
-                  }`}
+                }`}
               >
                 <div
                   className={`w-1.5 h-1.5 rounded-full mr-2 shrink-0 ${team.id === activeTeamId ? 'bg-primary' : 'bg-muted'}`}

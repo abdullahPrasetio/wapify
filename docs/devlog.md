@@ -352,6 +352,7 @@
 - `backend/internal/repository/models.go` — Schema update.
 - `apps/desktop/src/renderer/src/store/useDataStore.ts` — Core execution logic.
 - `apps/desktop/src/renderer/src/components/layout/MainArea.tsx` — UI & Indicators.
+
 ---
 
 ## [2026-04-20] — Refinement Scripting Engine & Premium UI Polish
@@ -383,3 +384,69 @@
 ### Keputusan & Catatan
 - Keputusan untuk meletakkan environment selector di Navbar bertujuan untuk mengurangi kebingungan user saat bekerja dengan banyak tab dan environment yang berbeda.
 - Penanganan variabel yang tidak lagi memblokir request memberikan kebebasan bagi user untuk melakukan debug manual di sisi server jika diperlukan.
+
+---
+
+## [2026-04-20] — UX Stability: Persistence, Auth Rehydration & Sidebar State
+
+**Fase:** Fase 1 — MVP Internal
+**Dikerjakan oleh:** Antigravity
+**Status:** ✅ Selesai
+
+### Yang Dikerjakan
+- **Auth Rehydration**:
+    - Implementasi `rehydrateAuth` di `useAuthStore` untuk membaca *Refresh Token* dari Keychain OS saat aplikasi dimuat.
+    - Menghilangkan keharusan login ulang saat melakukan refresh (`Cmd + R`) atau membuka kembali aplikasi.
+    - Penambahan *Splash Screen* ("Initializing Wapify...") untuk transisi yang lebih mulus saat pengecekan token.
+- **State Persistence (Zustand Persist)**:
+    - Integrasi middleware `persist` pada `useDataStore` untuk menyimpan state penting ke `localStorage`.
+    - State yang dipersist: `activeTeamId`, `activeTabId`, `activeEnvironmentId`, dan `expandedItems`.
+- **Sidebar State Recovery**:
+    - Memindahkan state daftar folder/koleksi yang terbuka (`expandedItems`) dari lokal komponen ke global store.
+    - Implementasi pemulihan otomatis: Saat aplikasi dimuat, sistem akan otomatis melakukan *re-fetch* konten untuk seluruh koleksi yang sedang terbuka.
+    - Fix: Folder dan Koleksi tidak lagi *collapse* (tertutup) secara otomatis saat data di-refresh.
+- **Robustness Improvements**:
+    - Perbaikan bug pada fungsi `deleteEnvironment` dengan penambahan logging dan pembersihan ID aktif jika environment yang sedang digunakan dihapus.
+
+### Perubahan File Utama
+- `apps/desktop/src/renderer/src/store/useAuthStore.ts` — Logika rehydration token.
+- `apps/desktop/src/renderer/src/store/useDataStore.ts` — Konfigurasi persistensi dan global expansion state.
+- `apps/desktop/src/renderer/src/App.tsx` & `AppLayout.tsx` — Alur inisialisasi data otomatis.
+- `apps/desktop/src/renderer/src/components/layout/Sidebar.tsx` — Sinkronisasi UI dengan global expansion state.
+
+### Keputusan & Catatan
+- Keputusan untuk mem-persist `expandedItems` sangat krusial untuk menjaga konteks kerja user, terutama pada koleksi yang memiliki struktur folder dalam.
+- Penggunaan Keychain OS (via `keytar`) untuk *Refresh Token* tetap dipertahankan sebagai standar keamanan tinggi dibandingkan menyimpannya di `localStorage`.
++
++---
++
++## [2026-04-20] — Implementasi Fase 2: Kolaborasi Real-time & Versioning
++
++**Fase:** Fase 2 — Kolaborasi Real-time
++**Dikerjakan oleh:** Antigravity
++**Status:** ✅ Selesai
++
++### Yang Dikerjakan
++- **WebSocket Collaboration Engine**:
++    - Backend: Implementasi `Hub` dan `Client` menggunakan `gofiber/contrib/websocket` untuk manajemen koneksi per tim.
++    - Presence: Fitur melacak user yang sedang aktif pada request tertentu (indikator avatar di UI).
++    - Field-level Locking: Sistem penguncian otomatis (TTL 5 detik) saat user mulai mengetik untuk mencegah conflict editing.
++    - Real-time Broadcast: Sinkronisasi sidebar dan koleksi secara instan saat ada perubahan entitas (Request/Folder/Collection) dari user lain.
++- **Versioning & Rollback**:
++    - Fitur snapshot otomatis versi request setiap kali user menekan tombol Save.
++    - Panel **History** untuk melihat daftar versi sebelumnya dan melakukan rollback instan ke snapshot terpilih.
++- **Team Communication**:
++    - Fitur **Comments** per request untuk diskusi tim secara langsung di dalam aplikasi.
++    - Fitur **Activity Log** untuk merekam jejak perubahan penting (create/update/delete) di seluruh tim.
++- **UI Integration**:
++    - Pembuatan **Collaboration Panel** (Right Sidebar) untuk akses Comments dan History secara berdampingan.
++    - Integrasi status locking pada seluruh input form (URL, Headers, Body, Scripts, Auth) dengan feedback visual yang jelas.
++
++### Keputusan & Catatan
++- Menggunakan `gofiber/contrib/websocket` (wrapper gorilla) karena performa dan integrasi yang mulus dengan framework Fiber.
++- Implementasi locking bersifat *pessimistic* dengan TTL singkat (5 detik) untuk memberikan UX yang aman namun tetap responsif.
++- Versioning dilakukan di level `Request` (bukan seluruh koleksi sekaligus) sesuai kebutuhan user untuk performa yang lebih ringan.
++
++### Milestone ✅
++- Sistem kolaborasi real-time Wapify kini siap digunakan. User bisa melihat rekan tim mereka, berdiskusi via komentar, dan bekerja tanpa takut menimpa perubahan orang lain.
++---

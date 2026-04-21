@@ -4,6 +4,10 @@ import { useDataStore } from './store/useDataStore'
 import { AppLayout } from './components/layout/AppLayout'
 import { LoginPage } from './components/auth/LoginPage'
 import { Toaster } from 'sonner'
+import { initWebSocketIntegration } from './api/websocket'
+
+// Initialize WebSocket sync logic
+initWebSocketIntegration()
 
 function App(): React.JSX.Element {
   const { isAuthenticated, logout, rehydrateAuth, isLoading } = useAuthStore()
@@ -26,7 +30,9 @@ function App(): React.JSX.Element {
       <div className="h-screen w-screen bg-background flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <div className="w-10 h-10 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
-          <span className="text-muted text-sm font-medium animate-pulse">Initializing Wapify...</span>
+          <span className="text-muted text-sm font-medium animate-pulse">
+            Initializing Wapify...
+          </span>
         </div>
       </div>
     )
