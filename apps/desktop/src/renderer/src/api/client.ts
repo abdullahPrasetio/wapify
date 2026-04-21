@@ -1,7 +1,16 @@
 import type { IpcResponse } from '../types'
 
-// Base URL untuk Wapify backend
-const BASE_URL = 'http://localhost:8000'
+// Base URL untuk Wapify backend - Bisa dikonfigurasi via settings
+export const getBaseUrl = (): string => {
+  const savedUrl = localStorage.getItem('wapify_server_url')
+  return savedUrl || 'http://localhost:8000'
+}
+
+export const setBaseUrl = (url: string): void => {
+  // Ensure no trailing slash
+  const cleanUrl = url.replace(/\/$/, '')
+  localStorage.setItem('wapify_server_url', cleanUrl)
+}
 
 interface RequestConfig {
   method: string
@@ -35,12 +44,12 @@ async function ipcRequest<T>(config: RequestConfig): Promise<IpcResponse<T>> {
   }
 
   // Hanya tambahkan Authorization Wapify jika merequest ke backend Wapify dan tidak skipAuth
-  if (authToken && config.url.startsWith(BASE_URL) && !config.skipAuth) {
+  if (authToken && config.url.startsWith(getBaseUrl()) && !config.skipAuth) {
     headers['Authorization'] = `Bearer ${authToken}`
   }
 
   if (!window.api) {
-    if (config.url.startsWith(BASE_URL)) {
+    if (config.url.startsWith(getBaseUrl())) {
       console.warn('Running in Browser Mode: Using standard fetch for Wapify API')
       const res = await fetch(config.url, {
         method: config.method,
@@ -65,7 +74,7 @@ async function ipcRequest<T>(config: RequestConfig): Promise<IpcResponse<T>> {
   // Auto-refresh token if 401 Unauthorized
   if (
     response.status === 401 &&
-    config.url.startsWith(BASE_URL) &&
+    config.url.startsWith(getBaseUrl()) &&
     !config.url.includes('/auth/login') &&
     !config.url.includes('/auth/refresh')
   ) {
@@ -74,7 +83,7 @@ async function ipcRequest<T>(config: RequestConfig): Promise<IpcResponse<T>> {
       // Try to refresh
       const refreshResponse = await window.api.wapifyRequest({
         method: 'POST',
-        url: `${BASE_URL}/api/v1/auth/refresh`,
+        url: `${getBaseUrl()}/api/v1/auth/refresh`,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ refresh_token: refreshToken })
       })
@@ -105,12 +114,12 @@ async function ipcRequest<T>(config: RequestConfig): Promise<IpcResponse<T>> {
 // ─── API Client Methods ───────────────────────────────────────────────────────
 export const apiClient = {
   get: <T>(path: string, headers?: Record<string, string>) =>
-    ipcRequest<T>({ method: 'GET', url: `${BASE_URL}${path}`, headers }),
+    ipcRequest<T>({ method: 'GET', url: `${getBaseUrl()}${path}`, headers }),
 
   post: <T>(path: string, body: unknown, headers?: Record<string, string>) =>
     ipcRequest<T>({
       method: 'POST',
-      url: `${BASE_URL}${path}`,
+      url: `${getBaseUrl()}${path}`,
       body: JSON.stringify(body),
       headers
     }),
@@ -118,13 +127,13 @@ export const apiClient = {
   put: <T>(path: string, body: unknown, headers?: Record<string, string>) =>
     ipcRequest<T>({
       method: 'PUT',
-      url: `${BASE_URL}${path}`,
+      url: `${getBaseUrl()}${path}`,
       body: JSON.stringify(body),
       headers
     }),
 
   delete: <T>(path: string, headers?: Record<string, string>) =>
-    ipcRequest<T>({ method: 'DELETE', url: `${BASE_URL}${path}`, headers }),
+    ipcRequest<T>({ method: 'DELETE', url: `${getBaseUrl()}${path}`, headers }),
 
   /**
    * Untuk mengirim request ke Target API arbitrary (bukan hanya backend Wapify).

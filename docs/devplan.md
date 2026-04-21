@@ -1,7 +1,7 @@
 # Wapify — Development Plan
 
-**Terakhir Diperbarui:** 20 April 2026
-**Status Saat Ini:** ✅ Fase 1 — MVP Internal (Selesai), 🟡 Fase 4 — Testing (SDK Selesai)
+**Terakhir Diperbarui:** 21 April 2026
+**Status Saat Ini:** ✅ Fase 1, 2, & 3 Selesai — Siap Fase 4 (Testing & CI/CD)
 
 ---
 
@@ -12,7 +12,7 @@
 | 0 | Setup & Fondasi | Repo & tooling siap | ✅ Selesai |
 | 1 | MVP Internal | Tim Waluyo bisa pakai minggu ini | ✅ Selesai |
 | 2 | Kolaborasi Real-time | Field locking, presence, versioning | ✅ Selesai |
-| 3 | Dokumentasi & Mock Server | Generate docs, mock API | ⬜ Belum Mulai |
+| 3 | Dokumentasi & Mock Server | Generate docs, mock API | ✅ Selesai |
 | 4 | Testing & CI/CD | Collection runner, CLI | ⬜ Belum Mulai |
 | 5 | On-Premise & License | Jual ke client luar | ⬜ Belum Mulai |
 | 6 | SaaS (Opsional) | Cloud hosted di wapify.io | ⬜ Belum Mulai |
@@ -111,6 +111,7 @@ wapify/
 - [x] Interpolasi `{{variable}}` di URL, headers, body (Case-Insensitive)
 - [x] Scripting Engine: Pre-request & Post-request (Wapify SDK v1.0)
 - [x] Persistence: Simpan variabel hasil `setEnv` ke database permanen
+- [x] Variable UI: Ghost Input engine dengan click-to-set di seluruh area (URL, Body, Header, Docs)
 
 **Admin API (Super Admin)**
 - [x] `GET /api/v1/admin/users` — list semua user
@@ -175,10 +176,10 @@ wapify/
 
 ### Build & Distribusi
 - [ ] Build Go backend: `GOARCH=arm64 GOOS=linux` untuk STB Android
-- [ ] Setup Cloudflare Tunnel ke STB
+- [x] Setup Cloudflare Tunnel ke STB
 - [ ] Build Electron: `.dmg` (macOS) + `.exe` (Windows)
 - [ ] Share installer ke tim via link download
-- [ ] Buat akun untuk semua anggota tim via admin CLI
+- [x] Buat akun untuk semua anggota tim via admin CLI
 
 **Milestone ✅:** 15+ anggota tim berhasil login, lihat koleksi, kirim request ke API manapun tanpa CORS error. Waluyo bisa kelola tim dan member dari super admin panel.
 
@@ -205,10 +206,10 @@ wapify/
 **Target:** Generate docs API dan mock server dari koleksi.
 **Estimasi:** 2 minggu
 
-- [ ] Generate dokumentasi (HTML + Markdown) dari koleksi
-- [ ] Mock server engine dengan conditional response
-- [ ] UI: documentation viewer + export
-- [ ] UI: mock server management
+- [x] Generate dokumentasi (HTML + Markdown) dari koleksi
+- [x] UI: documentation viewer + export (Markdown & OpenAPI 3.0)
+- [x] Mock server engine dengan conditional response (delay, path wildcard, per-collection)
+- [x] UI: mock server management (CRUD endpoints, quick-mock, toggle aktif)
 
 **Milestone ✅:** User bisa export dokumentasi dan aktifkan mock server.
 
@@ -238,6 +239,7 @@ wapify/
 - [ ] Dashboard license: generate/revoke key, list client aktif
 - [ ] Binary obfuscation dengan `garble`
 - [ ] Installer on-premise + dokumentasi instalasi
+- [x] Dynamic Server Config: Point app to any backend without rebuild
 - [ ] Build multi-platform: `linux/amd64`, `linux/arm64`, `windows/amd64`, `darwin/arm64`
 - [ ] Landing page wapify.io
 

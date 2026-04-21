@@ -173,3 +173,22 @@ type ActivityLog struct {
 	Team *Team `gorm:"foreignKey:TeamID" json:"-"`
 	User *User `gorm:"foreignKey:UserID" json:"user,omitempty"`
 }
+
+type MockEndpoint struct {
+	ID              uint      `gorm:"primaryKey" json:"id"`
+	CollectionID    uint      `gorm:"not null;column:collection_id" json:"collection_id"`
+	RequestID       *uint     `gorm:"column:request_id" json:"request_id"`
+	Method          string    `gorm:"not null" json:"method"`
+	Path            string    `gorm:"not null" json:"path"`
+	StatusCode      int       `gorm:"not null;default:200" json:"status_code"`
+	ResponseHeaders JSONB     `gorm:"type:jsonb;default:'{}'" json:"response_headers"`
+	ResponseBody    string    `gorm:"type:text;default:''" json:"response_body"`
+	DelayMs         int       `gorm:"default:0;column:delay_ms" json:"delay_ms"`
+	IsActive        bool      `gorm:"default:false;column:is_active" json:"is_active"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
+
+	Collection *Collection `gorm:"foreignKey:CollectionID" json:"-"`
+	Request    *Request    `gorm:"foreignKey:RequestID" json:"-"`
+}
+

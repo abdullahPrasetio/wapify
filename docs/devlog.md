@@ -94,6 +94,9 @@
 ### Yang Dikerjakan
 - **Multi-Tab System**: 
     - Refaktor `useDataStore` untuk mendukung array of tabs.
+    - [x] Dynamic Server Config: Point app to any backend without rebuild
+    - [ ] Build multi-platform: `linux/amd64`, `linux/arm64`, `windows/amd64`, `darwin/arm64`
+    - [ ] Landing page wapify.io
     - Setiap tab memiliki state `workingRequest`, `lastResponse`, dan `isSending` yang terisolasi.
     - UI Tab Bar di `MainArea` dengan fitur close dan indikator perubahan (dirty state).
 - **Import Postman Collection**:
@@ -298,7 +301,8 @@
 - **Role Management Refactoring**:
     - **Backend**: Update API `AddTeamMember` dan `UpdateTeamMember` (di `team_member.go` dan `admin.go`) untuk mencegah assignment role "Owner" secara manual. Role "Owner" kini eksklusif untuk pencipta tim.
     - **Frontend**: Menghapus opsi role "Owner" dari UI pembuatan user dan manajemen anggota tim.
-    - **Data Consistency**: Menghapus dependensi role global pada user, beralih sepenuhnya ke role berbasis tim.
+- **Data Consistency**:
+    - Menghapus dependensi role global pada user, beralih sepenuhnya ke role berbasis tim.
 
 ### Perubahan File
 - `apps/desktop/src/renderer/src/components/layout/MainArea.tsx` — Fix Editor loading & state sync.
@@ -373,6 +377,10 @@
     - **Navbar Environment Selector**: Penambahan pemilih environment langsung di baris URL (Navbar) untuk kemudahan kontrol dan sinkronisasi status environment yang lebih jelas.
     - **Precise Character Detection**: Peningkatan akurasi deteksi posisi kursor pada font mono untuk memunculkan hover tepat di atas variabel.
 - **Scripting SDK Debugging**:
+    - [x] Interpolasi `{{variable}}` di URL, headers, body (Case-Insensitive)
+    - [x] Scripting Engine: Pre-request & Post-request (Wapify SDK v1.0)
+    - [x] Persistence: Simpan variabel hasil `setEnv` ke database permanen
+    - [x] Variable UI: Ghost Input engine dengan click-to-set di seluruh area (URL, Body, Header, Docs)
     - Penambahan logging detail (`[Wapify] ...`) pada konsol browser untuk memantau siklus hidup pre-request dan post-request script.
     - Penambahan alias `wap.set` dan perbaikan `wap.response.json()` agar lebih tangguh.
 
@@ -417,36 +425,106 @@
 ### Keputusan & Catatan
 - Keputusan untuk mem-persist `expandedItems` sangat krusial untuk menjaga konteks kerja user, terutama pada koleksi yang memiliki struktur folder dalam.
 - Penggunaan Keychain OS (via `keytar`) untuk *Refresh Token* tetap dipertahankan sebagai standar keamanan tinggi dibandingkan menyimpannya di `localStorage`.
-+
-+---
-+
-+## [2026-04-20] — Implementasi Fase 2: Kolaborasi Real-time & Versioning
-+
-+**Fase:** Fase 2 — Kolaborasi Real-time
-+**Dikerjakan oleh:** Antigravity
-+**Status:** ✅ Selesai
-+
-+### Yang Dikerjakan
-+- **WebSocket Collaboration Engine**:
-+    - Backend: Implementasi `Hub` dan `Client` menggunakan `gofiber/contrib/websocket` untuk manajemen koneksi per tim.
-+    - Presence: Fitur melacak user yang sedang aktif pada request tertentu (indikator avatar di UI).
-+    - Field-level Locking: Sistem penguncian otomatis (TTL 5 detik) saat user mulai mengetik untuk mencegah conflict editing.
-+    - Real-time Broadcast: Sinkronisasi sidebar dan koleksi secara instan saat ada perubahan entitas (Request/Folder/Collection) dari user lain.
-+- **Versioning & Rollback**:
-+    - Fitur snapshot otomatis versi request setiap kali user menekan tombol Save.
-+    - Panel **History** untuk melihat daftar versi sebelumnya dan melakukan rollback instan ke snapshot terpilih.
-+- **Team Communication**:
-+    - Fitur **Comments** per request untuk diskusi tim secara langsung di dalam aplikasi.
-+    - Fitur **Activity Log** untuk merekam jejak perubahan penting (create/update/delete) di seluruh tim.
-+- **UI Integration**:
-+    - Pembuatan **Collaboration Panel** (Right Sidebar) untuk akses Comments dan History secara berdampingan.
-+    - Integrasi status locking pada seluruh input form (URL, Headers, Body, Scripts, Auth) dengan feedback visual yang jelas.
-+
-+### Keputusan & Catatan
-+- Menggunakan `gofiber/contrib/websocket` (wrapper gorilla) karena performa dan integrasi yang mulus dengan framework Fiber.
-+- Implementasi locking bersifat *pessimistic* dengan TTL singkat (5 detik) untuk memberikan UX yang aman namun tetap responsif.
-+- Versioning dilakukan di level `Request` (bukan seluruh koleksi sekaligus) sesuai kebutuhan user untuk performa yang lebih ringan.
-+
-+### Milestone ✅
-+- Sistem kolaborasi real-time Wapify kini siap digunakan. User bisa melihat rekan tim mereka, berdiskusi via komentar, dan bekerja tanpa takut menimpa perubahan orang lain.
-+---
+---
+
+## [2026-04-20] — Implementasi Fase 2: Kolaborasi Real-time & Versioning
+
+**Fase:** Fase 2 — Kolaborasi Real-time
+**Dikerjakan oleh:** Antigravity
+**Status:** ✅ Selesai
+
+### Yang Dikerjakan
+- **WebSocket Collaboration Engine**:
+    - Backend: Implementasi `Hub` dan `Client` menggunakan `gofiber/contrib/websocket` untuk manajemen koneksi per tim.
+    - Presence: Fitur melacak user yang sedang aktif pada request tertentu (indikator avatar di UI).
+    - Field-level Locking: Sistem penguncian otomatis (TTL 5 detik) saat user mulai mengetik untuk mencegah conflict editing.
+    - Real-time Broadcast: Sinkronisasi sidebar dan koleksi secara instan saat ada perubahan entitas (Request/Folder/Collection) dari user lain.
+- **Versioning & Rollback**:
+    - Fitur snapshot otomatis versi request setiap kali user menekan tombol Save.
+    - Panel **History** untuk melihat daftar versi sebelumnya dan melakukan rollback instan ke snapshot terpilih.
+- **Team Communication**:
+    - Fitur **Comments** per request untuk diskusi tim secara langsung di dalam aplikasi.
+    - Fitur **Activity Log** untuk merekam jejak perubahan penting (create/update/delete) di seluruh tim.
+- **UI Integration**:
+    - Pembuatan **Collaboration Panel** (Right Sidebar) untuk akses Comments dan History secara berdampingan.
+    - Integrasi status locking pada seluruh input form (URL, Headers, Body, Scripts, Auth) dengan feedback visual yang jelas.
+
+### Keputusan & Catatan
+- Menggunakan `gofiber/contrib/websocket` (wrapper gorilla) karena performa dan integrasi yang mulus dengan framework Fiber.
+- Implementasi locking bersifat *pessimistic* dengan TTL singkat (5 detik) untuk memberikan UX yang aman namun tetap responsif.
+- Versioning dilakukan di level `Request` (bukan seluruh koleksi sekaligus) sesuai kebutuhan user untuk performa yang lebih ringan.
+
+### Milestone ✅
+- Sistem kolaborasi real-time Wapify kini siap digunakan. User bisa melihat rekan tim mereka, berdiskusi via komentar, dan bekerja tanpa takut menimpa perubahan orang lain.
+
+---
+
+## [2026-04-21] — Stabilisasi Collaboration Engine & Perbaikan Bug Real-time
+
+**Fase:** Fase 2 — Kolaborasi Real-time
+**Dikerjakan oleh:** Antigravity
+**Status:** ✅ Selesai
+
+### Yang Dikerjakan
+- **WebSocket Synchronization Fix**:
+    - Memperbaiki ketidakcocokan properti di `websocket.ts` (menggunakan `requestId` alih-alih `id`).
+    - Mengalihkan endpoint WebSocket ke `/ws` (bypass `/api/v1`) untuk menghindari kegagalan jabat tangan (handshake) akibat middleware otentikasi global.
+    - Implementasi middleware `subscribeWithSelector` pada Zustand store untuk memastikan koneksi WebSocket dipicu secara otomatis dan robust saat rehidrasi state.
+- **Backend Stability (Critical Panics Fix)**:
+    - Memperbaiki *panic* konversi interface (float64 vs uint) pada klaim JWT di `collaboration.go`.
+    - Memperbaiki *panic* nil pointer dereference dengan menambahkan `Preload("Collection")` saat pembuatan versi request.
+- **Versioning Automation**:
+    - Integrasi pembuatan versi otomatis setiap kali user menekan tombol **Save**, memastikan tab **History** selalu terisi dengan data snapshot terbaru.
+- **UI/UX Polish**:
+    - Implementasi visual avatar (inisial user) pada status bar di `MainArea` untuk indikator kehadiran (*presence*) yang lebih intuitif.
+    - Perbaikan `electron.vite.config.ts` untuk mengatasi error `json.worker.js` pada Monaco Editor.
+    - Penambahan sistem logging detail pada sisi frontend untuk mempermudah debugging koneksi WebSocket.
+
+### Perubahan File
+- `apps/desktop/src/renderer/src/api/websocket.ts` — Perbaikan logika sync, URL, dan logging.
+- `apps/desktop/src/renderer/src/store/useDataStore.ts` — Auto-versioning on save & middleware update.
+- `apps/desktop/src/renderer/src/store/useAuthStore.ts` — Penambahan `subscribeWithSelector`.
+- `apps/desktop/electron.vite.config.ts` — Fix optimizeDeps untuk monaco-editor.
+- `backend/internal/api/collaboration.go` — Fix type conversion & nil pointer panics.
+
+### Keputusan & Catatan
+- Keputusan memindahkan endpoint WS ke root `/ws` diambil agar proses *handshake* tidak terbentur middleware `RequireAuth` yang mengharapkan header `Authorization` (yang sulit dikirim via WebSocket browser standar).
+- Penggunaan `subscribeWithSelector` sangat krusial untuk menangani *race condition* saat aplikasi baru dibuka (rehidrasi state).
+
+### Langkah Selanjutnya
+- Lanjut ke **Fase 3 — Dokumentasi & Mock Server**.
+- Persiapan fitur export dokumentasi API dari koleksi yang sudah ada.
+
+---
+
+## [2026-04-21] — Variable Management Engine (Ghost Input) & Dynamic Server Config
+
+**Fase:** Fase 1 & 5 — MVP & On-Premise Ready
+**Dikerjakan oleh:** Antigravity
+**Status:** ✅ Selesai
+
+### Yang Dikerjakan
+- **Variable Management Engine (Ghost Input)**:
+    - Implementasi teknik **Ghost Input** pada `VariableOverlayInput`. Input teks asli dibuat transparan (`text-transparent`) sementara layer backdrop di belakangnya me-render teks berwarna dengan highlight variabel yang presisi.
+    - **Global Click-to-Set**: Menghubungkan seluruh komponen (URL Bar, Monaco Editor, KeyValueEditor, Documentation) ke modal global `SetVarModal`.
+    - **Value Pre-fill**: Saat variabel diklik, input modal otomatis terisi dengan nilai yang sudah ada di environment saat ini.
+    - **State Lifting**: Memindahkan logika manajemen variabel ke `MainArea` (root) agar sinkron di semua sub-komponen.
+- **Dynamic Server Configuration**:
+    - Refaktor `api/client.ts` untuk menghapus hardcode `BASE_URL`. URL backend kini diambil secara dinamis dari `localStorage`.
+    - **Server Settings UI**: Menambahkan icon Settings pada `LoginPage` (sebelum login) dan `Sidebar` (setelah login) untuk mengubah target server (misal: ke IP STB atau domain Cloudflare).
+
+### Perubahan File
+- `apps/desktop/src/renderer/src/components/ui/VariableOverlayInput.tsx` — Implementasi Ghost Input & interaction layer.
+- `apps/desktop/src/renderer/src/api/client.ts` — Dynamic BASE_URL logic.
+- `apps/desktop/src/renderer/src/components/layout/MainArea.tsx` — State lifting untuk `settingVar`.
+- `apps/desktop/src/renderer/src/components/modals/ServerSettingsModal.tsx` — Modal konfigurasi server baru.
+- `apps/desktop/src/renderer/src/components/auth/LoginPage.tsx` & `Sidebar.tsx` — Integrasi tombol setting server.
+- `apps/desktop/src/renderer/src/components/ui/KeyValueEditor.tsx` — Fix broken JSX tags.
+
+### Keputusan & Catatan
+- Penggunaan teknik **Ghost Input** dipilih karena memberikan kontrol styling variabel yang jauh lebih premium dan akurat dibandingkan mencoba menimpa warna teks di dalam `input` HTML standar.
+- Memungkinkan konfigurasi server di halaman login sangat krusial untuk deployment *on-premise* di mana user mungkin tidak tahu alamat servernya sampai aplikasi dijalankan.
+
+### Langkah Selanjutnya
+- Lanjut ke eksekusi **Fase 4 — Automated Testing** (Collection Runner).
+- Finalisasi fitur export dokumentasi ke Swagger/OpenAPI.

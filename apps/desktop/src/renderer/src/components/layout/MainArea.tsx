@@ -2,6 +2,8 @@ import { useAppStore } from '../../store/useAppStore'
 import { useDataStore, AuthConfig } from '../../store/useDataStore'
 import { useAuthStore } from '../../store/useAuthStore'
 import { KeyValueEditor } from '../ui/KeyValueEditor'
+import { VariableOverlayInput } from '../ui/VariableOverlayInput'
+import { SetVarModal } from '../modals/SetVarModal'
 import { Shield, Eye, EyeOff, X, RefreshCw, Send, Save, Lock, Users } from 'lucide-react'
 import { ResponseArea } from './ResponseArea'
 import { HistoryDetailView } from './HistoryDetailView'
@@ -14,18 +16,12 @@ import { useState, useRef, useEffect } from 'react'
 loader.config({ monaco })
 
 // Register Hover Provider for variables
-monaco.languages.registerHoverProvider('json', {
-  provideHover: (model, position) => {
-    const word = model.getWordAtPosition(position)
-    if (!word) return null
-
-    // Check if current line has {{ }} around the word
+const createVarHoverProvider = (language: string) => ({
+  provideHover: (model: monaco.editor.ITextModel, position: monaco.IPosition) => {
     const lineContent = model.getLineContent(position.lineNumber)
-    const vars =
-      useDataStore
-        .getState()
-        .environments.find((e) => e.id === useDataStore.getState().activeEnvironmentId)
-        ?.variables || {}
+    const vars = useDataStore.getState().environments.find(
+      (e) => e.id === useDataStore.getState().activeEnvironmentId
+    )?.variables || {}
 
     const regex = /\{\{([^}]+)\}\}/g
     let match
@@ -34,17 +30,15 @@ monaco.languages.registerHoverProvider('json', {
       const end = start + match[0].length
       if (position.column >= start && position.column <= end) {
         const varName = match[1].trim()
-        const value = vars[varName]
+        const value = vars[varName] || vars[varName.toLowerCase()]
+        const isSet = value !== undefined
+
         return {
           range: new monaco.Range(position.lineNumber, start, position.lineNumber, end),
           contents: [
-            { value: `**Variable:** ${varName}` },
-            {
-              value:
-                value !== undefined
-                  ? `**Value:** ${value}`
-                  : '*Variable not found in active environment*'
-            }
+            { value: `**Variable:** \`{{${varName}}}\`` },
+            { value: isSet ? `**Value:** \`${value}\`` : '*Variable not set in active environment*' },
+            { value: isSet ? '*Click to change value (Coming soon)*' : '*Click to set value*' }
           ]
         }
       }
@@ -53,40 +47,9 @@ monaco.languages.registerHoverProvider('json', {
   }
 })
 
-// Same for javascript (scripts)
-monaco.languages.registerHoverProvider('javascript', {
-  provideHover: (model, position) => {
-    const lineContent = model.getLineContent(position.lineNumber)
-    const vars =
-      useDataStore
-        .getState()
-        .environments.find((e) => e.id === useDataStore.getState().activeEnvironmentId)
-        ?.variables || {}
-    const regex = /\{\{([^}]+)\}\}/g
-    let match
-    while ((match = regex.exec(lineContent)) !== null) {
-      const start = match.index + 1
-      const end = start + match[0].length
-      if (position.column >= start && position.column <= end) {
-        const varName = match[1].trim()
-        const value = vars[varName]
-        return {
-          range: new monaco.Range(position.lineNumber, start, position.lineNumber, end),
-          contents: [
-            { value: `**Variable:** ${varName}` },
-            {
-              value:
-                value !== undefined
-                  ? `**Value:** ${value}`
-                  : '*Variable not found in active environment*'
-            }
-          ]
-        }
-      }
-    }
-    return null
-  }
-})
+monaco.languages.registerHoverProvider('json', createVarHoverProvider('json'))
+monaco.languages.registerHoverProvider('javascript', createVarHoverProvider('javascript'))
+
 
 const REQUEST_TABS = ['Params', 'Auth', 'Headers', 'Body', 'Pre-request', 'Tests'] as const
 type RequestTabType = (typeof REQUEST_TABS)[number]
@@ -104,41 +67,10 @@ interface RequestFormProps {
   url: string
   isLocked: boolean
   onUpdate: (update: { method?: string; url?: string }) => void
+  onSetVar: (key: string) => void
 }
 
-const RequestForm = ({ method, url, isLocked, onUpdate }: RequestFormProps): React.JSX.Element => {
-  const { environments, activeEnvironmentId } = useDataStore()
-  const activeEnv = environments.find((e) => e.id === activeEnvironmentId)
-  const envVars = activeEnv?.variables || {}
-
-  const [hoverVar, setHoverVar] = useState<{
-    name: string
-    value: string
-    x: number
-    y: number
-  } | null>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
-
-  const checkVariableAtPos = (pos: number, x: number, y: number): void => {
-    const regex = /\{\{([^}]+)\}\}/g
-    let match
-    let found = false
-    while ((match = regex.exec(url)) !== null) {
-      const start = match.index
-      const end = start + match[0].length
-      if (pos >= start && pos <= end) {
-        const varName = match[1].trim()
-        const val = envVars[varName]
-        if (val !== undefined) {
-          setHoverVar({ name: varName, value: String(val), x, y })
-          found = true
-          break
-        }
-      }
-    }
-    if (!found) setHoverVar(null)
-  }
-
+const RequestForm = ({ method, url, isLocked, onUpdate, onSetVar }: RequestFormProps): React.JSX.Element => {
   return (
     <div className="flex-1 flex relative items-center">
       <select
@@ -154,93 +86,15 @@ const RequestForm = ({ method, url, isLocked, onUpdate }: RequestFormProps): Rea
         ))}
       </select>
 
-      <div className="flex-1 relative group">
-        {/* Highlighter Overlay */}
-        <div
-          className="absolute inset-0 px-4 py-2.5 pointer-events-none whitespace-pre overflow-hidden font-mono text-sm select-none"
-          aria-hidden="true"
-        >
-          {url.split(/(\{\{[^}]+\}\})/).map((part, i) => {
-            if (part.startsWith('{{') && part.endsWith('}}')) {
-              const varName = part.slice(2, -2).trim()
-              const exists = envVars[varName] !== undefined
-              return (
-                <span
-                  key={i}
-                  className={
-                    exists
-                      ? 'text-orange-400 bg-orange-400/10 rounded-sm'
-                      : 'text-red-400 bg-red-400/10 rounded-sm'
-                  }
-                >
-                  {part}
-                </span>
-              )
-            }
-            return (
-              <span key={i} className="text-transparent">
-                {part}
-              </span>
-            )
-          })}
-        </div>
-
-        <input
-          ref={inputRef}
-          type="text"
+      <div className="flex-1 relative flex items-center h-full">
+        <VariableOverlayInput
           value={url}
-          onMouseMove={(e): void => {
-            const input = e.currentTarget
-            const rect = input.getBoundingClientRect()
-            const x = e.clientX - rect.left
-
-            // Approximate char index (font-mono text-sm is about 8.4px per char)
-            const charWidth = 8.4 // mono text-sm
-            const padding = 16 // px-4
-            const pos = Math.max(0, Math.floor((x - padding) / charWidth))
-
-            checkVariableAtPos(pos, e.clientX, e.clientY)
-          }}
-          onMouseLeave={(): void => setHoverVar(null)}
-          onKeyUp={(e): void => {
-            const pos = e.currentTarget.selectionStart || 0
-            const rect = e.currentTarget.getBoundingClientRect()
-            checkVariableAtPos(pos, rect.left + 16 + pos * 8.4, rect.top + 20)
-          }}
-          onBlur={(): void => setHoverVar(null)}
-          onChange={(e): void => onUpdate({ url: e.target.value })}
           disabled={isLocked}
-          className={`w-full bg-transparent px-4 py-2.5 text-sm text-text focus:outline-none font-mono placeholder:text-muted/30 relative z-10 ${isLocked ? 'cursor-not-allowed opacity-50' : 'cursor-text'}`}
+          onChange={(e): void => onUpdate({ url: e.target.value })}
+          onSetVar={onSetVar}
           placeholder="https://api.example.com/v1/resource"
+          className="bg-transparent border-none px-4 py-2.5"
         />
-
-        {/* Variable Tooltip */}
-        {hoverVar && (
-          <div
-            className="fixed z-[100] bg-surface/95 backdrop-blur-md text-text px-3 py-2 rounded-lg shadow-2xl border border-primary/40 text-[11px] animate-in fade-in zoom-in duration-150 pointer-events-none min-w-[160px]"
-            style={{
-              left: hoverVar.x,
-              top: hoverVar.y - 18, // More space
-              transform: 'translate(-50%, -100%)'
-            }}
-          >
-            <div className="flex flex-col gap-1.5">
-              <div className="flex items-center justify-between border-b border-border/50 pb-1 mb-1">
-                <span className="font-black text-primary uppercase tracking-tighter">
-                  {hoverVar.name}
-                </span>
-                <span className="text-[9px] text-muted opacity-50 font-mono italic">
-                  {activeEnv?.name || 'Env'}
-                </span>
-              </div>
-              <div className="font-mono text-text/90 break-all leading-relaxed whitespace-pre-wrap max-h-[150px] overflow-y-auto">
-                {hoverVar.value}
-              </div>
-            </div>
-            {/* Pointer Arrow */}
-            <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2.5 h-2.5 bg-surface rotate-45 border-r border-b border-primary/40" />
-          </div>
-        )}
       </div>
     </div>
   )
@@ -255,7 +109,6 @@ interface EditorAreaProps {
     pre_request_script?: string
     post_request_script?: string
   }
-  isLocked: boolean
   onUpdate: (
     update: Partial<{
       headers: Record<string, string>
@@ -265,13 +118,15 @@ interface EditorAreaProps {
       post_request_script: string
     }>
   ) => void
+  onSetVar: (key: string) => void
 }
 
 const EditorArea = ({
   activeTab,
   workingRequest,
   isLocked,
-  onUpdate
+  onUpdate,
+  onSetVar
 }: EditorAreaProps): React.JSX.Element => {
   const [activeScriptTab, setActiveScriptTab] = useState<'Pre-request' | 'Post-request'>(
     'Pre-request'
@@ -280,96 +135,43 @@ const EditorArea = ({
   const [localBody, setLocalBody] = useState(workingRequest.body)
   const timerRef = useRef<NodeJS.Timeout | null>(null)
 
-  // Sync local body when workingRequest.body changes (e.g. tab switched)
-  useEffect(() => {
-    setLocalBody(workingRequest.body || '')
-  }, [workingRequest.body])
-
   const handleBodyChange = (value: string | undefined): void => {
     const newVal = value || ''
     setLocalBody(newVal)
-
-    // Debounce store update to keep typing smooth
     if (timerRef.current) clearTimeout(timerRef.current)
     timerRef.current = setTimeout(() => {
       onUpdate({ body: newVal })
     }, 300)
   }
 
-  const auth = workingRequest.auth_config || { type: 'No Auth' }
+  const handleEditorMount = (editor: monaco.editor.IStandaloneCodeEditor, monacoInstance: any): void => {
+    editor.onDidChangeModelContent(() => {
+      handleBodyChange(editor.getValue())
+    })
 
-  const { environments, activeEnvironmentId } = useDataStore()
-  const activeEnv = environments.find((e) => e.id === activeEnvironmentId)
-  const envVars = activeEnv?.variables || {}
-
-  // Use refs so the hover provider always sees latest values without re-registering
-  const envVarsRef = useRef(envVars)
-  const activeEnvNameRef = useRef(activeEnv?.name)
-  
-  useEffect(() => {
-    envVarsRef.current = envVars
-    activeEnvNameRef.current = activeEnv?.name
-  }, [envVars, activeEnv?.name])
-
-  const hoverProviderRef = useRef<unknown>(null)
-
-  useEffect(() => {
-    return () => {
-      if (hoverProviderRef.current) {
-        hoverProviderRef.current.dispose()
-      }
-    }
-  }, [])
-
-  const handleAuthChange = (update: Partial<AuthConfig>): void => {
-    onUpdate({ auth_config: { ...auth, ...update } })
-  }
-
-  const handleEditorMount = (_editor: any, monaco: any): void => {
-    if (hoverProviderRef.current) {
-      hoverProviderRef.current.dispose()
-    }
-
-    // Register hover provider for environment variables {{variable}}
-    const provider = {
-      provideHover: (model, position) => {
-        const line = model.getLineContent(position.lineNumber)
-        const regex = /\{\{([^}]+)\}\}/g
-        let match
-        while ((match = regex.exec(line)) !== null) {
-          const startColumn = match.index + 1
-          const endColumn = startColumn + match[0].length
-          if (position.column >= startColumn && position.column <= endColumn) {
-            const varName = match[1]
-            const val = envVarsRef.current[varName]
-            if (val !== undefined) {
-              return {
-                range: new monaco.Range(
-                  position.lineNumber,
-                  startColumn,
-                  position.lineNumber,
-                  endColumn
-                ),
-                contents: [
-                  { value: `**Variable:** \`${varName}\`` },
-                  { value: `**Current Value:** \`${val}\`` },
-                  {
-                    value: `*From environment: ${activeEnvNameRef.current || 'Active Environment'}*`
-                  }
-                ]
-              }
-            }
-          }
+    editor.onMouseDown((e) => {
+      if (e.target.type !== monacoInstance.editor.MouseTargetType.CONTENT_TEXT) return
+      const position = e.target.position
+      if (!position) return
+      const model = editor.getModel()
+      if (!model) return
+      const lineContent = model.getLineContent(position.lineNumber)
+      const regex = /\{\{([^}]+)\}\}/g
+      let match
+      while ((match = regex.exec(lineContent)) !== null) {
+        const start = match.index + 1
+        const end = start + match[0].length
+        if (position.column >= start && position.column <= end) {
+          onSetVar(match[1].trim())
+          break
         }
-        return null
       }
-    }
-
-    hoverProviderRef.current = monaco.languages.registerHoverProvider('json', provider)
-    // Also register for other potential types
-    monaco.languages.registerHoverProvider('plaintext', provider)
-    monaco.languages.registerHoverProvider('javascript', provider)
+    })
   }
+
+  useEffect(() => {
+    setLocalBody(workingRequest.body || '')
+  }, [workingRequest.body])
 
   return (
     <div className="h-full w-full overflow-hidden">
@@ -690,13 +492,23 @@ export const MainArea = (): React.JSX.Element => {
     saveActiveRequest,
     activeEnvironmentId,
     environments,
+    updateEnvironment,
     presenceByRequest,
     locksByRequest
   } = useDataStore()
 
   const { user } = useAuthStore()
-
   const [showCollabPanel, setShowCollabPanel] = useState(false)
+  const [settingVar, setSettingVar] = useState<string | null>(null)
+  
+  const activeEnv = environments.find((e) => e.id === activeEnvironmentId) ?? null
+
+  const handleSetVar = async (key: string, val: string) => {
+    if (!activeEnv) return
+    const newVars = { ...activeEnv.variables, [key]: val }
+    await updateEnvironment(activeEnv.id, activeEnv.name, newVars)
+    toast.success(`Variable "${key}" updated`)
+  }
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent): void => {
@@ -762,6 +574,7 @@ export const MainArea = (): React.JSX.Element => {
                   url={workingRequest.url}
                   isLocked={isLockedByOthers}
                   onUpdate={(update): void => setWorkingRequest(update)}
+                  onSetVar={setSettingVar}
                 />
 
                 {/* Navbar Environment Selector */}
@@ -915,6 +728,7 @@ export const MainArea = (): React.JSX.Element => {
               workingRequest={workingRequest}
               isLocked={isLockedByOthers}
               onUpdate={(update): void => setWorkingRequest(update)}
+              onSetVar={setSettingVar}
             />
           </div>
         </div>
@@ -927,6 +741,17 @@ export const MainArea = (): React.JSX.Element => {
 
       {/* Right Sidebar: Collaboration Panel */}
       {showCollabPanel && <CollaborationPanel requestId={activeTabRequest.requestId} />}
+
+      {/* Set Variable Modal */}
+      {settingVar && (
+        <SetVarModal
+          varName={settingVar}
+          initialValue={String(activeEnv?.variables[settingVar] || '')}
+          activeEnv={activeEnv}
+          onSave={handleSetVar}
+          onClose={() => setSettingVar(null)}
+        />
+      )}
     </div>
   )
 }

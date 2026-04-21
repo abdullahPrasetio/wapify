@@ -119,3 +119,46 @@ export interface SidebarItem {
   children?: SidebarItem[]
   data?: Team | Collection | Folder | ApiRequest
 }
+
+// ─── Documentation Types ──────────────────────────────────────────────────────
+export interface DocRequest {
+  id: number
+  name: string
+  description: string
+  method: string
+  url: string
+  headers: Record<string, unknown>
+  body: Record<string, unknown>
+}
+
+export interface DocFolder {
+  id: number
+  name: string
+  parent_id: number | null
+  requests: DocRequest[]
+}
+
+export interface CollectionDocs {
+  collection_id: number
+  collection_name: string
+  description: string
+  folders: DocFolder[]
+  root_requests: DocRequest[]
+}
+
+// ─── Mock Server Types ────────────────────────────────────────────────────────
+export interface MockEndpoint {
+  id: number
+  collection_id: number
+  request_id: number | null
+  method: string
+  path: string
+  status_code: number
+  response_headers: Record<string, string>
+  response_body: string
+  delay_ms: number
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+

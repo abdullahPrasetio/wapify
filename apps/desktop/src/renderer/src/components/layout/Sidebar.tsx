@@ -19,7 +19,9 @@ import {
   Trash2,
   Download,
   Copy,
-  MoreVertical
+  MoreVertical,
+  BookOpen,
+  Server
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { useAuthStore } from '../../store/useAuthStore'
@@ -30,6 +32,9 @@ import type { Collection, ApiRequest } from '../../types'
 import { ImportModal } from '../modals/ImportModal'
 import { EnvironmentModal } from '../modals/EnvironmentModal'
 import { PromptModal } from '../modals/PromptModal'
+import { ServerSettingsModal } from '../modals/ServerSettingsModal'
+import { DocumentationPanel } from './DocumentationPanel'
+import { MockServerPanel } from './MockServerPanel'
 
 const METHOD_COLORS: Record<string, string> = {
   GET: 'text-success',
@@ -305,6 +310,8 @@ const CollectionItem = ({ collection }: CollectionItemProps): React.JSX.Element 
   const isExpanded = !!expandedItems[`collection-${collection.id}`]
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
   const [promptType, setPromptType] = useState<'request' | 'folder' | null>(null)
+  const [showDocs, setShowDocs] = useState(false)
+  const [showMockServer, setShowMockServer] = useState(false)
 
   const handleExpand = async (): Promise<void> => {
     if (!isExpanded && !requestsByCollection[collection.id]) {
@@ -378,6 +385,16 @@ const CollectionItem = ({ collection }: CollectionItemProps): React.JSX.Element 
             { label: 'Add Request', icon: FilePlus, onClick: handleAddRequest },
             { label: 'Add Folder', icon: FolderPlus, onClick: handleAddFolder },
             {
+              label: 'View Documentation',
+              icon: BookOpen,
+              onClick: (): void => setShowDocs(true)
+            },
+            {
+              label: 'Mock Server',
+              icon: Server,
+              onClick: (): void => setShowMockServer(true)
+            },
+            {
               label: 'Export Collection',
               icon: Download,
               onClick: (): Promise<void> => exportCollection(collection.id)
@@ -389,6 +406,23 @@ const CollectionItem = ({ collection }: CollectionItemProps): React.JSX.Element 
               variant: 'danger'
             }
           ]}
+        />
+      )}
+
+      {showDocs && (
+        <DocumentationPanel
+          collectionId={collection.id}
+          collectionName={collection.name}
+          onClose={() => setShowDocs(false)}
+        />
+      )}
+
+      {showMockServer && (
+        <MockServerPanel
+          collectionId={collection.id}
+          collectionName={collection.name}
+          requests={requests}
+          onClose={() => setShowMockServer(false)}
         />
       )}
 
@@ -443,6 +477,7 @@ const CollectionItem = ({ collection }: CollectionItemProps): React.JSX.Element 
 
 export const Sidebar = (): React.JSX.Element => {
   const { user, logout } = useAuthStore()
+  const [showServerSettings, setShowServerSettings] = useState(false)
   const {
     teams,
     activeTeamId,
@@ -778,7 +813,11 @@ export const Sidebar = (): React.JSX.Element => {
             <div className="text-[10px] text-muted truncate">{user?.email}</div>
           </div>
           <div className="flex items-center gap-2 shrink-0 ml-2">
-            <button title="Settings" className="text-muted hover:text-text transition-colors">
+            <button 
+              onClick={() => setShowServerSettings(true)}
+              title="Server Configuration" 
+              className="text-muted hover:text-text transition-colors"
+            >
               <Settings size={14} />
             </button>
             <button
@@ -791,6 +830,8 @@ export const Sidebar = (): React.JSX.Element => {
           </div>
         </div>
       </div>
+
+      {showServerSettings && <ServerSettingsModal onClose={() => setShowServerSettings(false)} />}
 
       <PromptModal
         title="New Collection"
