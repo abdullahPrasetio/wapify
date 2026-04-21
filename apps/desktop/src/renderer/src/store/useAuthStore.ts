@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { subscribeWithSelector } from 'zustand/middleware'
 import { apiClient, setAuthToken } from '../api/client'
 import type { User, LoginResponse } from '../types'
 
@@ -15,7 +16,8 @@ interface AuthState {
   clearError: () => void
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
+export const useAuthStore = create<AuthState>()(
+  subscribeWithSelector((set) => ({
   user: null,
   token: null,
   isAuthenticated: false,
@@ -84,4 +86,4 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   clearError: () => set({ error: null })
-}))
+})))

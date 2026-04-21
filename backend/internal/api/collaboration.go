@@ -25,7 +25,7 @@ func SetupCollaborationRoutes(app *fiber.App) {
 
 func createRequestVersion(c *fiber.Ctx) error {
 	requestID := c.Params("id")
-	userID := c.Locals("user_id").(uint)
+	userID := uint(c.Locals("user_id").(float64))
 
 	// Parse body for optional version name
 	var input struct {
@@ -34,7 +34,7 @@ func createRequestVersion(c *fiber.Ctx) error {
 	c.BodyParser(&input)
 
 	var req repository.Request
-	if err := repository.DB.First(&req, requestID).Error; err != nil {
+	if err := repository.DB.Preload("Collection").First(&req, requestID).Error; err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Request not found"})
 	}
 
@@ -86,7 +86,7 @@ func getRequestVersions(c *fiber.Ctx) error {
 func rollbackRequestVersion(c *fiber.Ctx) error {
 	requestID := c.Params("id")
 	versionID := c.Params("version_id")
-	userID := c.Locals("user_id").(uint)
+	userID := uint(c.Locals("user_id").(float64))
 
 	var version repository.RequestVersion
 	if err := repository.DB.First(&version, versionID).Error; err != nil {
@@ -120,7 +120,7 @@ func rollbackRequestVersion(c *fiber.Ctx) error {
 
 func createComment(c *fiber.Ctx) error {
 	requestID := c.Params("id")
-	userID := c.Locals("user_id").(uint)
+	userID := uint(c.Locals("user_id").(float64))
 
 	var input struct {
 		Content string `json:"content"`
@@ -163,7 +163,7 @@ func getComments(c *fiber.Ctx) error {
 
 func deleteComment(c *fiber.Ctx) error {
 	commentID := c.Params("comment_id")
-	userID := c.Locals("user_id").(uint)
+	userID := uint(c.Locals("user_id").(float64))
 
 	var comment repository.Comment
 	if err := repository.DB.Preload("Request.Collection").First(&comment, commentID).Error; err != nil {

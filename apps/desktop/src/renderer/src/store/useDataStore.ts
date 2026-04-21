@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { persist, createJSONStorage } from 'zustand/middleware'
+import { persist, createJSONStorage, subscribeWithSelector } from 'zustand/middleware'
 import { apiClient } from '../api/client'
 import { wsClient } from '../api/websocket'
 import type {
@@ -284,7 +284,8 @@ const injectAuth = (
 }
 
 export const useDataStore = create<DataState>()(
-  persist(
+  subscribeWithSelector(
+    persist(
     (set, get) => ({
       teams: [],
       teamsLoading: false,
@@ -621,6 +622,17 @@ export const useDataStore = create<DataState>()(
 
             set({ tabs: updatedTabs })
             await get().fetchCollectionContents(updatedReq.collection_id)
+
+            // Create a version automatically for history
+            try {
+              await apiClient.post(`/api/v1/requests/${updatedReq.id}/versions`, {
+                name: `Auto-save ${new Date().toLocaleString()}`
+              })
+              await get().fetchRequestVersions(updatedReq.id)
+            } catch (vErr) {
+              console.error('Failed to create version during save:', vErr)
+            }
+
             toast.success('Request saved successfully')
           } else {
             toast.error('Failed to save request')
@@ -1415,5 +1427,5 @@ export const useDataStore = create<DataState>()(
         expandedItems: state.expandedItems
       })
     }
-  )
+  ))
 )
