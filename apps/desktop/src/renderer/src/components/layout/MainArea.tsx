@@ -8,15 +8,17 @@ import { Shield, Eye, EyeOff, X, RefreshCw, Send, Save, Lock, Users } from 'luci
 import { ResponseArea } from './ResponseArea'
 import { HistoryDetailView } from './HistoryDetailView'
 import { CollaborationPanel } from './CollaborationPanel'
+import { SaveRequestLocationModal } from '../modals/SaveRequestLocationModal'
 import Editor, { loader } from '@monaco-editor/react'
 import * as monaco from 'monaco-editor'
 import { useState, useRef, useEffect } from 'react'
+import { toast } from 'sonner'
 
 // Configure Monaco to use the bundled version (OFFLINE)
 loader.config({ monaco })
 
 // Register Hover Provider for variables
-const createVarHoverProvider = (language: string) => ({
+const createVarHoverProvider = (_language?: string) => ({
   provideHover: (model: monaco.editor.ITextModel, position: monaco.IPosition) => {
     const lineContent = model.getLineContent(position.lineNumber)
     const vars = useDataStore.getState().environments.find(
@@ -52,7 +54,6 @@ monaco.languages.registerHoverProvider('javascript', createVarHoverProvider('jav
 
 
 const REQUEST_TABS = ['Params', 'Auth', 'Headers', 'Body', 'Pre-request', 'Tests'] as const
-type RequestTabType = (typeof REQUEST_TABS)[number]
 
 const METHOD_COLOR: Record<string, string> = {
   GET: 'text-success',
@@ -67,10 +68,9 @@ interface RequestFormProps {
   url: string
   isLocked: boolean
   onUpdate: (update: { method?: string; url?: string }) => void
-  onSetVar: (key: string) => void
 }
 
-const RequestForm = ({ method, url, isLocked, onUpdate, onSetVar }: RequestFormProps): React.JSX.Element => {
+const RequestForm = ({ method, url, isLocked, onUpdate }: RequestFormProps): React.JSX.Element => {
   return (
     <div className="flex-1 flex relative items-center">
       <select
@@ -91,7 +91,7 @@ const RequestForm = ({ method, url, isLocked, onUpdate, onSetVar }: RequestFormP
           value={url}
           disabled={isLocked}
           onChange={(e): void => onUpdate({ url: e.target.value })}
-          onSetVar={onSetVar}
+
           placeholder="https://api.example.com/v1/resource"
           className="bg-transparent border-none px-4 py-2.5"
         />
@@ -119,6 +119,7 @@ interface EditorAreaProps {
     }>
   ) => void
   onSetVar: (key: string) => void
+  isLocked?: boolean
 }
 
 const EditorArea = ({
@@ -128,12 +129,15 @@ const EditorArea = ({
   onUpdate,
   onSetVar
 }: EditorAreaProps): React.JSX.Element => {
-  const [activeScriptTab, setActiveScriptTab] = useState<'Pre-request' | 'Post-request'>(
-    'Pre-request'
-  )
+
   const [showPassword, setShowPassword] = useState(false)
   const [localBody, setLocalBody] = useState(workingRequest.body)
   const timerRef = useRef<NodeJS.Timeout | null>(null)
+  
+  const auth = workingRequest.auth_config || { type: 'No Auth' }
+  const handleAuthChange = (update: Partial<AuthConfig>): void => {
+    onUpdate({ auth_config: { ...auth, ...update } as AuthConfig })
+  }
 
   const handleBodyChange = (value: string | undefined): void => {
     const newVal = value || ''
@@ -500,6 +504,7 @@ export const MainArea = (): React.JSX.Element => {
   const { user } = useAuthStore()
   const [showCollabPanel, setShowCollabPanel] = useState(false)
   const [settingVar, setSettingVar] = useState<string | null>(null)
+  const [isSaveModalOpen, setIsSaveModalOpen] = useState(false)
   
   const activeEnv = environments.find((e) => e.id === activeEnvironmentId) ?? null
 
@@ -520,7 +525,12 @@ export const MainArea = (): React.JSX.Element => {
       // Ctrl/Cmd + S for Save
       if ((e.metaKey || e.ctrlKey) && e.key === 's') {
         e.preventDefault()
-        saveActiveRequest()
+        const { activeTabId } = useDataStore.getState()
+        if (typeof activeTabId === 'string' && activeTabId.startsWith('draft-')) {
+          setIsSaveModalOpen(true)
+        } else {
+          saveActiveRequest()
+        }
       }
     }
     window.addEventListener('keydown', handleKeyDown)
@@ -574,7 +584,6 @@ export const MainArea = (): React.JSX.Element => {
                   url={workingRequest.url}
                   isLocked={isLockedByOthers}
                   onUpdate={(update): void => setWorkingRequest(update)}
-                  onSetVar={setSettingVar}
                 />
 
                 {/* Navbar Environment Selector */}
@@ -612,15 +621,21 @@ export const MainArea = (): React.JSX.Element => {
                 </button>
 
                 <button
-                  onClick={saveActiveRequest}
+                  onClick={() => {
+                     if (typeof activeTabRequest.requestId === 'string' && activeTabRequest.requestId.startsWith('draft-')) {
+                        setIsSaveModalOpen(true)
+                     } else {
+                        saveActiveRequest()
+                     }
+                  }}
                   className={`px-4 py-2 rounded text-sm font-bold transition-all border ${
-                    activeTabRequest.isDirty
+                    activeTabRequest.isDirty || (typeof activeTabRequest.requestId === 'string' && activeTabRequest.requestId.startsWith('draft-'))
                       ? 'bg-success/10 border-success/30 text-success hover:bg-success/20'
                       : 'bg-surface border-border text-muted hover:text-text'
                   }`}
                   title="Save Request (Cmd+S)"
                 >
-                  {activeTabRequest.isDirty && (
+                  {(activeTabRequest.isDirty || (typeof activeTabRequest.requestId === 'string' && activeTabRequest.requestId.startsWith('draft-'))) && (
                     <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-primary animate-pulse" />
                   )}
                   <Save size={14} className="inline mr-2" />
@@ -740,7 +755,7 @@ export const MainArea = (): React.JSX.Element => {
       </div>
 
       {/* Right Sidebar: Collaboration Panel */}
-      {showCollabPanel && <CollaborationPanel requestId={activeTabRequest.requestId} />}
+      {typeof activeTabRequest.requestId === 'number' && showCollabPanel && <CollaborationPanel requestId={activeTabRequest.requestId} />}
 
       {/* Set Variable Modal */}
       {settingVar && (
@@ -750,6 +765,24 @@ export const MainArea = (): React.JSX.Element => {
           activeEnv={activeEnv}
           onSave={handleSetVar}
           onClose={() => setSettingVar(null)}
+        />
+      )}
+
+      {/* Save Draft Location Modal */}
+      {typeof activeTabRequest.requestId === 'string' && activeTabRequest.requestId.startsWith('draft-') && (
+        <SaveRequestLocationModal
+          isOpen={isSaveModalOpen}
+          onClose={() => setIsSaveModalOpen(false)}
+          draftRequest={{
+            method: activeTabRequest.workingRequest.method as any,
+            url: activeTabRequest.workingRequest.url,
+            headers: activeTabRequest.workingRequest.headers,
+            body: activeTabRequest.workingRequest.body,
+            auth_config: activeTabRequest.workingRequest.auth_config,
+            pre_request_script: activeTabRequest.workingRequest.pre_request_script,
+            post_request_script: activeTabRequest.workingRequest.post_request_script
+          }}
+          draftId={activeTabRequest.requestId}
         />
       )}
     </div>

@@ -1,5 +1,5 @@
 import {
-  Folder,
+  Folder as FolderIcon,
   Plus,
   Search,
   Settings,
@@ -19,16 +19,18 @@ import {
   Trash2,
   Download,
   Copy,
-  MoreVertical,
   BookOpen,
-  Server
+  Server,
+  Edit,
+  Play,
+  PlayCircle,
+  X
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { useAuthStore } from '../../store/useAuthStore'
-import { useDataStore } from '../../store/useDataStore'
+import { useDataStore, CollectionRunResult } from '../../store/useDataStore'
 import { useAppStore } from '../../store/useAppStore'
-import type { Collection, ApiRequest } from '../../types'
-
+import type { Collection, ApiRequest, Folder, RequestExample } from '../../types'
 import { ImportModal } from '../modals/ImportModal'
 import { EnvironmentModal } from '../modals/EnvironmentModal'
 import { PromptModal } from '../modals/PromptModal'
@@ -52,7 +54,7 @@ interface ContextMenuProps {
   onClose: () => void
   items: {
     label: string
-    icon: unknown
+    icon: React.ElementType
     onClick: () => void | Promise<void>
     variant?: 'default' | 'danger'
   }[]
@@ -235,6 +237,51 @@ const FolderItem = ({
   )
 }
 
+const ExampleItem = ({ example }: { example: RequestExample }): React.JSX.Element => {
+  const { openExample, deleteExample } = useDataStore()
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
+
+  const handleContextMenu = (e: React.MouseEvent): void => {
+    e.preventDefault()
+    e.stopPropagation()
+    setContextMenu({ x: e.clientX, y: e.clientY })
+  }
+
+  return (
+    <>
+      <div
+        onClick={() => {
+          openExample(example)
+          useAppStore.getState().setActiveView('request-builder')
+        }}
+        onContextMenu={handleContextMenu}
+        className={`flex items-center px-2 py-1 rounded hover:bg-background cursor-pointer text-xs text-text ${contextMenu ? 'bg-background' : ''}`}
+      >
+        <span className="text-[9px] font-bold text-muted mr-2 bg-surface px-1 py-0.5 rounded">E</span>
+        <span className="truncate text-muted hover:text-text transition-colors">{example.name}</span>
+      </div>
+
+      {contextMenu && (
+        <ContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          onClose={(): void => setContextMenu(null)}
+          items={[
+            {
+              label: 'Delete',
+              icon: Trash2,
+              onClick: (): void => {
+                deleteExample(example.id)
+              },
+              variant: 'danger'
+            }
+          ]}
+        />
+      )}
+    </>
+  )
+}
+
 const RequestItem = ({
   request,
   onSelect,
@@ -246,7 +293,10 @@ const RequestItem = ({
   onDelete: (req: ApiRequest) => void
   onDuplicate: (req: ApiRequest) => void
 }): React.JSX.Element => {
+  const { expandedItems, toggleExpand, renameRequest } = useDataStore()
+  const isExpanded = !!expandedItems[`request-${request.id}`]
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
+  const [isRenaming, setIsRenaming] = useState(false)
 
   const handleContextMenu = (e: React.MouseEvent): void => {
     e.preventDefault()
@@ -254,26 +304,54 @@ const RequestItem = ({
     setContextMenu({ x: e.clientX, y: e.clientY })
   }
 
-  return (
-    <div
-      onClick={(): void => onSelect(request)}
-      onContextMenu={handleContextMenu}
-      className={`flex items-center px-2 py-1 rounded hover:bg-background cursor-pointer text-xs text-text ${contextMenu ? 'bg-background' : ''}`}
-    >
-      <span
-        className={`text-[9px] font-bold mr-2 w-8 text-right shrink-0 ${METHOD_COLORS[request.method] ?? 'text-muted'}`}
-      >
-        {request.method}
-      </span>
-      <span className="truncate">{request.name}</span>
+  const hasExamples = request.examples && request.examples.length > 0
 
-      {contextMenu && (
+  return (
+    <div>
+      <div
+        onClick={(): void => {
+          if (hasExamples) {
+            toggleExpand(`request-${request.id}`)
+          } else {
+            onSelect(request)
+          }
+        }}
+        onDoubleClick={(): void => onSelect(request)}
+        onContextMenu={handleContextMenu}
+        className={`flex items-center px-2 py-1 rounded hover:bg-background cursor-pointer text-xs text-text ${contextMenu ? 'bg-background' : ''}`}
+      >
+        {hasExamples ? (
+          isExpanded ? (
+            <ChevronDown size={12} className="text-muted mr-1 shrink-0" />
+          ) : (
+            <ChevronRight size={12} className="text-muted mr-1 shrink-0" />
+          )
+        ) : (
+          <div className="w-4 h-4 shrink-0" />
+        )}
+        <span
+          className={`text-[9px] font-bold mr-2 w-8 text-right shrink-0 ${METHOD_COLORS[request.method] ?? 'text-muted'}`}
+        >
+          {request.method}
+        </span>
+        <span className="truncate flex-1" onClick={(e) => {
+          // If we clicked the name directly, let's select it even if it has examples
+          e.stopPropagation()
+          onSelect(request)
+        }}>{request.name}</span>
+
+        {contextMenu && (
         <ContextMenu
           x={contextMenu.x}
           y={contextMenu.y}
           onClose={(): void => setContextMenu(null)}
           items={[
             { label: 'Duplicate', icon: Copy, onClick: (): void => onDuplicate(request) },
+            {
+              label: 'Rename',
+              icon: Edit,
+              onClick: (): void => setIsRenaming(true)
+            },
             {
               label: 'Delete',
               icon: Trash2,
@@ -282,6 +360,26 @@ const RequestItem = ({
             }
           ]}
         />
+      )}
+
+      {isRenaming && (
+        <PromptModal
+          title="Rename Request"
+          defaultValue={request.name}
+          isOpen={isRenaming}
+          onClose={() => setIsRenaming(false)}
+          onSubmit={(name) => renameRequest(request.id, name)}
+          submitText="Save"
+        />
+      )}
+      </div>
+
+      {isExpanded && hasExamples && (
+        <div className="ml-6 pl-2 border-l border-border/50 space-y-0.5 py-0.5">
+          {request.examples?.map((ex) => (
+            <ExampleItem key={ex.id} example={ex} />
+          ))}
+        </div>
       )}
     </div>
   )
@@ -303,7 +401,8 @@ const CollectionItem = ({ collection }: CollectionItemProps): React.JSX.Element 
     createFolder,
     deleteCollection,
     deleteRequest,
-    exportCollection
+    exportCollection,
+    runCollection
   } = useDataStore()
   const { setActiveView } = useAppStore()
 
@@ -312,6 +411,10 @@ const CollectionItem = ({ collection }: CollectionItemProps): React.JSX.Element 
   const [promptType, setPromptType] = useState<'request' | 'folder' | null>(null)
   const [showDocs, setShowDocs] = useState(false)
   const [showMockServer, setShowMockServer] = useState(false)
+  const [showRunner, setShowRunner] = useState(false)
+  const [runnerState, setRunnerState] = useState<'idle' | 'running' | 'finished'>('idle')
+  const [runResults, setRunResults] = useState<CollectionRunResult[]>([])
+  const [currentRunningRequest, setCurrentRunningRequest] = useState<string | null>(null)
 
   const handleExpand = async (): Promise<void> => {
     if (!isExpanded && !requestsByCollection[collection.id]) {
@@ -372,7 +475,7 @@ const CollectionItem = ({ collection }: CollectionItemProps): React.JSX.Element 
         ) : (
           <ChevronRight size={14} className="text-muted mr-1 shrink-0" />
         )}
-        <Folder size={14} className="text-primary mr-2 shrink-0" />
+        <FolderIcon size={14} className="text-primary mr-2 shrink-0" />
         <span className="truncate flex-1 font-medium">{collection.name}</span>
       </div>
 
@@ -384,6 +487,11 @@ const CollectionItem = ({ collection }: CollectionItemProps): React.JSX.Element 
           items={[
             { label: 'Add Request', icon: FilePlus, onClick: handleAddRequest },
             { label: 'Add Folder', icon: FolderPlus, onClick: handleAddFolder },
+            {
+              label: 'Run Collection',
+              icon: PlayCircle,
+              onClick: (): void => setShowRunner(true)
+            },
             {
               label: 'View Documentation',
               icon: BookOpen,
@@ -424,6 +532,145 @@ const CollectionItem = ({ collection }: CollectionItemProps): React.JSX.Element 
           requests={requests}
           onClose={() => setShowMockServer(false)}
         />
+      )}
+
+      {showRunner && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-surface border border-border rounded-xl w-full max-w-2xl flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 h-[600px]">
+             <div className="p-4 border-b border-border flex items-center justify-between bg-white/5">
+                <h2 className="text-base font-bold flex items-center gap-2">
+                  <PlayCircle size={18} className="text-primary" />
+                  Collection Runner: {collection.name}
+                </h2>
+                <button 
+                  onClick={() => {
+                    if (runnerState === 'running') {
+                      if (!confirm('Run is in progress. Close anyway?')) return
+                    }
+                    setShowRunner(false)
+                    setRunnerState('idle')
+                    setRunResults([])
+                  }} 
+                  className="text-muted hover:text-text transition-colors"
+                >
+                  <X size={18} />
+                </button>
+             </div>
+             
+             <div className="flex-1 overflow-y-auto p-6">
+                {runnerState === 'idle' && (
+                  <div className="text-center space-y-4 py-12">
+                    <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-2">
+                      <Play size={32} className="text-primary translate-x-0.5" />
+                    </div>
+                    <h3 className="text-lg font-semibold">Ready to start?</h3>
+                    <p className="text-muted text-sm leading-relaxed max-w-sm mx-auto">
+                      This will execute all {requests.length} requests in this collection sequentially using the active environment variables.
+                    </p>
+                    <div className="pt-6">
+                      <button 
+                        onClick={async () => {
+                          setRunnerState('running')
+                          setRunResults([])
+                          await runCollection(collection.id, (result) => {
+                            setRunResults(prev => [...prev, result])
+                            setCurrentRunningRequest(result.name)
+                          })
+                          setRunnerState('finished')
+                          setCurrentRunningRequest(null)
+                        }}
+                        className="px-12 py-3 bg-primary text-white rounded-lg font-bold hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 active:scale-95"
+                      >
+                        Run Collection
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {(runnerState === 'running' || runnerState === 'finished') && (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="space-y-1">
+                        <div className="text-xs font-bold uppercase tracking-wider text-muted">Progress</div>
+                        <div className="text-sm font-medium">
+                          {runnerState === 'running' ? `Running: ${currentRunningRequest}` : 'Run Finished'}
+                        </div>
+                      </div>
+                      <div className="text-right space-y-1">
+                        <div className="text-xs font-bold uppercase tracking-wider text-muted">Results</div>
+                        <div className="text-sm font-bold flex items-center gap-3">
+                          <span className="text-success">{runResults.filter(r => r.status >= 200 && r.status < 300).length} Passed</span>
+                          <span className="text-danger">{runResults.filter(r => r.status === 0 || r.status >= 400).length} Failed</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="w-full bg-background rounded-full h-2 overflow-hidden border border-border">
+                      <div 
+                        className="bg-primary h-full transition-all duration-300"
+                        style={{ width: `${(runResults.length / (requests.length || 1)) * 100}%` }}
+                      />
+                    </div>
+
+                    <div className="space-y-2 pt-4">
+                      {runResults.map((result, idx) => (
+                        <div key={idx} className="bg-background/50 border border-border/50 rounded-lg p-3 flex flex-col gap-2">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${METHOD_COLORS[result.method] ?? 'bg-muted/20 text-muted'}`}>
+                                {result.method}
+                              </span>
+                              <span className="text-xs font-medium">{result.name}</span>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <span className={`text-xs font-mono ${result.status >= 200 && result.status < 300 ? 'text-success' : 'text-danger'}`}>
+                                {result.status || 'ERROR'}
+                              </span>
+                              <span className="text-[10px] text-muted font-mono">{result.time}ms</span>
+                            </div>
+                          </div>
+                          
+                          {result.testResults.length > 0 && (
+                            <div className="grid grid-cols-1 gap-1 pl-4 border-l border-border mt-1">
+                              {result.testResults.map((test, tidx) => (
+                                <div key={tidx} className="flex items-center gap-2 text-[10px]">
+                                  {test.status === 'passed' ? (
+                                    <div className="w-2 h-2 rounded-full bg-success shrink-0" />
+                                  ) : (
+                                    <div className="w-2 h-2 rounded-full bg-danger shrink-0" />
+                                  )}
+                                  <span className={test.status === 'passed' ? 'text-text/70' : 'text-danger font-medium'}>
+                                    {test.name} {test.error && `(${test.error})`}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+             </div>
+
+             <div className="p-4 bg-black/20 flex items-center justify-between border-t border-border/50">
+                <div className="text-[9px] text-muted font-mono uppercase tracking-widest">
+                  Wapify Engine v1.0 Stable
+                </div>
+                {runnerState === 'finished' && (
+                  <button 
+                    onClick={() => {
+                      setRunnerState('idle')
+                      setRunResults([])
+                    }}
+                    className="text-[10px] font-bold text-primary hover:underline uppercase tracking-wider"
+                  >
+                    Run Again
+                  </button>
+                )}
+             </div>
+          </div>
+        </div>
       )}
 
       <PromptModal
@@ -838,7 +1085,7 @@ export const Sidebar = (): React.JSX.Element => {
         placeholder="Collection name..."
         isOpen={isNewCollectionModalOpen}
         onClose={(): void => setIsNewCollectionModalOpen(false)}
-        onSubmit={(val): void => createCollection(val)}
+        onSubmit={(val) => { createCollection(val) }}
       />
     </div>
   )

@@ -12,13 +12,16 @@ import {
   BookOpen,
   Code,
   AlertCircle,
-  PlusCircle
+  PlusCircle,
+  Play,
+  Trash2
 } from 'lucide-react'
 import { apiClient } from '../../api/client'
-import type { CollectionDocs, DocRequest, Environment } from '../../types'
+import type { CollectionDocs, DocRequest } from '../../types'
 import { MethodBadge } from '../ui/MethodBadge'
 import { toast } from 'sonner'
 import { useDataStore } from '../../store/useDataStore'
+import { useAppStore } from '../../store/useAppStore'
 
 interface DocumentationPanelProps {
   collectionId: number
@@ -198,7 +201,7 @@ const VarPopup: React.FC<VarPopupProps> = ({ varName, value, isSet, onSetVar }) 
         )}
 
         <button
-          onClick={onSetVar}
+          onClick={() => onSetVar(varName)}
           className={`w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium border transition-all ${
             isSet 
               ? 'bg-white/5 text-muted hover:bg-white/10 border-white/10' 
@@ -222,7 +225,8 @@ export const DocumentationPanel: React.FC<DocumentationPanelProps> = ({
   collectionName,
   onClose
 }) => {
-  const { environments, activeEnvironmentId, updateEnvironment } = useDataStore()
+  const { environments, activeEnvironmentId, updateEnvironment, openExample, deleteExample } = useDataStore()
+  const { setActiveView } = useAppStore()
   const activeEnv = environments.find((e) => e.id === activeEnvironmentId) ?? null
   const envVars: Record<string, string> = activeEnv?.variables ?? {}
 
@@ -296,7 +300,7 @@ export const DocumentationPanel: React.FC<DocumentationPanelProps> = ({
     }
   }
 
-  const copyToClipboard = useCallback(async (text: string, field: string) => {
+  const onCopy = useCallback(async (text: string, field: string) => {
     await navigator.clipboard.writeText(text)
     setCopiedField(field)
     setTimeout(() => setCopiedField(null), 2000)
@@ -448,8 +452,23 @@ export const DocumentationPanel: React.FC<DocumentationPanelProps> = ({
                 request={selectedRequest}
                 envVars={envVars}
                 copiedField={copiedField}
-                onCopy={copyToClipboard}
+                onCopy={onCopy}
                 onSetVar={(key) => setSettingVar(key)}
+                openExample={openExample}
+                deleteExample={deleteExample}
+                setActiveView={setActiveView}
+                onClose={onClose}
+                refreshDocs={async () => {
+                  const res = await apiClient.get<CollectionDocs>(`/api/v1/collections/${collectionId}/docs`)
+                  if (res.status === 200) {
+                    setDocs(res.data)
+                    // Also update selectedRequest if it was the one modified
+                    if (selectedRequest) {
+                      const updatedReq = [...(res.data.root_requests || []), ...res.data.folders.flatMap(f => f.requests || [])].find(r => r.id === selectedRequest.id)
+                      if (updatedReq) setSelectedRequest(updatedReq)
+                    }
+                  }
+                }}
               />
             ) : (
               <div className="flex flex-col items-center justify-center h-full gap-3 text-muted">
@@ -503,7 +522,23 @@ const RequestDetail: React.FC<{
   copiedField: string | null
   onCopy: (text: string, field: string) => void
   onSetVar: (key: string) => void
-}> = ({ request, envVars, copiedField, onCopy, onSetVar }) => {
+  openExample: (example: any) => void
+  deleteExample: (id: number) => Promise<void>
+  setActiveView: (view: any) => void
+  onClose: () => void
+  refreshDocs: () => Promise<void>
+}> = ({
+  request,
+  envVars,
+  copiedField,
+  onCopy,
+  onSetVar,
+  openExample,
+  deleteExample,
+  setActiveView,
+  onClose,
+  refreshDocs
+}) => {
   const hasHeaders = request.headers && Object.keys(request.headers).length > 0
   const hasBody =
     request.body &&
@@ -622,17 +657,89 @@ const RequestDetail: React.FC<{
         </div>
       )}
 
-      {/* Response placeholder */}
+      {/* Responses & Examples */}
       <div>
         <h3 className="text-xs font-semibold text-muted uppercase tracking-widest mb-3">
-          Responses
+          Responses & Examples
         </h3>
-        <div className="border border-white/10 rounded-lg overflow-hidden">
-          <div className="flex items-center gap-3 px-4 py-3 bg-emerald-500/5 border-b border-white/5">
-            <span className="text-xs font-mono font-bold text-emerald-400">200</span>
-            <span className="text-xs text-muted">Success</span>
+        
+        {request.examples && request.examples.length > 0 ? (
+          <div className="space-y-4">
+            {request.examples.map((ex) => (
+              <div key={ex.id} className="border border-white/10 rounded-lg overflow-hidden">
+                <div className="flex items-center justify-between px-4 py-3 bg-white/5 border-b border-white/5">
+                  <div className="flex items-center gap-3">
+                    <span className={`text-xs font-mono font-bold ${ex.response_status >= 200 && ex.response_status < 300 ? 'text-emerald-400' : 'text-amber-400'}`}>{ex.response_status}</span>
+                    <span className="text-xs text-foreground font-medium">{ex.name}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        openExample(ex)
+                        setActiveView('request-builder')
+                        onClose()
+                      }}
+                      className="flex items-center gap-1 px-2 py-1 rounded text-xs text-emerald-400 hover:text-emerald-300 border border-emerald-500/20 hover:bg-emerald-500/10 transition-all"
+                    >
+                      <Play size={11} fill="currentColor" />
+                      Try
+                    </button>
+                    <button
+                      onClick={() => onCopy(JSON.stringify(ex.response_body, null, 2), `example-${ex.id}`)}
+                      className="flex items-center gap-1 px-2 py-1 rounded text-xs text-muted hover:text-foreground border border-white/10 hover:border-white/20 transition-all"
+                    >
+                      {copiedField === `example-${ex.id}` ? (
+                        <>
+                          <Check size={11} className="text-emerald-400" />
+                          <span className="text-emerald-400">Copied</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy size={11} />
+                          Copy
+                        </>
+                      )}
+                    </button>
+                    <button
+                      onClick={async () => {
+                        if (confirm('Are you sure you want to delete this example?')) {
+                          await deleteExample(ex.id)
+                          await refreshDocs()
+                        }
+                      }}
+                      className="flex items-center gap-1 px-2 py-1 rounded text-xs text-rose-400 hover:text-rose-300 border border-rose-500/20 hover:bg-rose-500/10 transition-all"
+                    >
+                      <Trash2 size={11} />
+                    </button>
+                  </div>
+                </div>
+                {Boolean(ex.response_body) && (
+                  <div className="bg-black/40 p-4 overflow-x-auto">
+                    <pre className="text-[11px] text-foreground/80 font-mono whitespace-pre-wrap leading-relaxed">
+                      {(() => {
+                        try {
+                           return JSON.stringify(JSON.parse(ex.response_body), null, 2)
+                        } catch {
+                           return ex.response_body
+                        }
+                      })()}
+                    </pre>
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
-        </div>
+        ) : (
+          <div className="border border-white/10 rounded-lg overflow-hidden">
+            <div className="flex items-center gap-3 px-4 py-3 bg-emerald-500/5 border-b border-white/5">
+              <span className="text-xs font-mono font-bold text-emerald-400">200</span>
+              <span className="text-xs text-muted">Success (Default Placeholder)</span>
+            </div>
+            <div className="p-4 text-xs text-muted italic bg-black/20">
+              No saved examples available for this request.
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

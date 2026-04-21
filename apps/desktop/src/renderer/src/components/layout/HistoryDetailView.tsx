@@ -1,6 +1,6 @@
 import { useDataStore } from '../../store/useDataStore'
 import { useAppStore } from '../../store/useAppStore'
-import { X, Clock, Database, Globe, ArrowLeft } from 'lucide-react'
+import { X, ArrowLeft } from 'lucide-react'
 import Editor from '@monaco-editor/react'
 import { useState } from 'react'
 

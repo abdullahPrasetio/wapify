@@ -35,7 +35,7 @@ func loadCollectionTree(collectionID string) (*collectionTree, error) {
 	var folders []repository.Folder
 	repository.DB.Where("collection_id = ?", collectionID).Order("order_index asc, id asc").Find(&folders)
 	var requests []repository.Request
-	repository.DB.Where("collection_id = ?", collectionID).Order("order_index asc, id asc").Find(&requests)
+	repository.DB.Where("collection_id = ?", collectionID).Order("order_index asc, id asc").Preload("Examples").Find(&requests)
 	return &collectionTree{Collection: col, Folders: folders, Requests: requests}, nil
 }
 
@@ -58,6 +58,7 @@ type DocRequest struct {
 	URL         string                 `json:"url"`
 	Headers     map[string]interface{} `json:"headers"`
 	Body        map[string]interface{} `json:"body"`
+	Examples    []repository.RequestExample `json:"examples,omitempty"`
 }
 
 // DocResponse is the response structure for the docs viewer
@@ -139,6 +140,7 @@ func toDocRequest(r repository.Request) DocRequest {
 		URL:         r.URL,
 		Headers:     headers,
 		Body:        body,
+		Examples:    r.Examples,
 	}
 }
 

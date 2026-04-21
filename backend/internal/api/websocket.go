@@ -107,7 +107,9 @@ func SetupWebSocketRoutes(router fiber.Router) {
 		for {
 			_, msg, err := c.ReadMessage()
 			if err != nil {
-				log.Println("WS read error:", err)
+				if !websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
+					log.Println("WS read error:", err)
+				}
 				break
 			}
 

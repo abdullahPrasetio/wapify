@@ -47,7 +47,7 @@ func ListRequestsInFolder(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Forbidden", "code": "FORBIDDEN"})
 	}
 	var requests []repository.Request
-	repository.DB.Where("folder_id = ?", folderID).Find(&requests)
+	repository.DB.Preload("Examples").Where("folder_id = ?", folderID).Find(&requests)
 	return c.JSON(requests)
 }
 
@@ -105,7 +105,7 @@ func ListRequestsInCollection(c *fiber.Ctx) error {
 	}
 	var requests []repository.Request
 	// Return all requests in collection (including nested ones)
-	repository.DB.Where("collection_id = ?", collectionID).Find(&requests)
+	repository.DB.Preload("Examples").Where("collection_id = ?", collectionID).Find(&requests)
 	return c.JSON(requests)
 }
 
@@ -152,7 +152,7 @@ func CreateRequestInCollection(c *fiber.Ctx) error {
 func GetRequest(c *fiber.Ctx) error {
 	requestID := c.Params("id")
 	var request repository.Request
-	if err := repository.DB.First(&request, requestID).Error; err != nil {
+	if err := repository.DB.Preload("Examples").First(&request, requestID).Error; err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Request not found", "code": "NOT_FOUND"})
 	}
 	var collection repository.Collection

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { Check, AlertCircle, PlusCircle } from 'lucide-react'
+import { Check } from 'lucide-react'
 import { useDataStore } from '../../store/useDataStore'
 import { toast } from 'sonner'
 

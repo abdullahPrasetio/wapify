@@ -7,6 +7,7 @@ import type {
   Collection,
   Folder,
   ApiRequest,
+  RequestExample,
   Environment,
   IpcResponse,
   RequestHistory
@@ -86,7 +87,7 @@ export interface LogEntry {
   timestamp: string
   level: 'log' | 'info' | 'warn' | 'error'
   message: string
-  requestId?: number
+  requestId?: number | string
 }
 
 export interface RequestVersion {
@@ -120,13 +121,23 @@ export interface Activity {
 }
 
 export interface RequestTab {
-  requestId: number
+  requestId: number | string
   name: string
   method: string
   workingRequest: WorkingRequest
   lastResponse: IpcResponse | null
   isSending: boolean
   isDirty: boolean
+  testResults: { name: string; status: 'passed' | 'failed'; error?: string }[]
+}
+
+export interface CollectionRunResult {
+  requestId: number
+  name: string
+  method: string
+  url: string
+  status: number
+  time: number
   testResults: { name: string; status: 'passed' | 'failed'; error?: string }[]
 }
 
@@ -156,7 +167,7 @@ interface DataState {
 
   // Multi-Tab System
   tabs: RequestTab[]
-  activeTabId: number | null // refers to requestId
+  activeTabId: number | string | null // refers to requestId
 
   // Environments (for active team)
   environments: Environment[]
@@ -183,13 +194,17 @@ interface DataState {
   fetchTeams: () => Promise<void>
   setActiveTeam: (teamId: number) => Promise<void>
   createTeam: (name: string, description: string) => Promise<void>
-  fetchCollections: (teamId: number) => Promise<void>
+  fetchCollections: (teamId: number) => Promise<Collection[] | null>
   fetchCollectionContents: (collectionId: number) => Promise<void>
 
   // Tab Actions
   openRequestInTab: (request: ApiRequest) => void
-  setActiveTab: (requestId: number) => void
-  closeTab: (requestId: number) => void
+  openDraftRequest: (initialData: Partial<ApiRequest>, name?: string) => void
+  openExample: (example: RequestExample) => void
+  deleteExample: (id: number) => Promise<void>
+  renameRequest: (id: number, name: string) => Promise<void>
+  setActiveTab: (requestId: number | string) => void
+  closeTab: (requestId: number | string) => void
   setWorkingRequest: (update: Partial<WorkingRequest>) => void
 
   // CRUD Actions
@@ -228,6 +243,9 @@ interface DataState {
   deleteRequest: (id: number) => Promise<void>
   exportCollection: (id: number) => Promise<void>
   clearLogs: () => void
+
+  saveExample: (requestId: number, name: string) => Promise<void>
+  runCollection: (collectionId: number, onProgress?: (result: CollectionRunResult) => void) => Promise<CollectionRunResult[]>
 }
 
 const replaceVariables = (text: string, variables: Record<string, string>): string => {
@@ -461,6 +479,7 @@ export const useDataStore = create<DataState>()(
           }
         } catch {
           set({ collectionsLoading: false })
+          return null
         }
       },
 
@@ -542,11 +561,80 @@ export const useDataStore = create<DataState>()(
         })
       },
 
-      setActiveTab: (requestId: number) => {
+      openDraftRequest: (initialData, name = 'Draft Request') => {
+        const { tabs } = get()
+        const draftId = `draft-${Date.now()}`
+        
+        const newTab: RequestTab = {
+          requestId: draftId,
+          name: name,
+          method: initialData.method || 'GET',
+          workingRequest: {
+            method: initialData.method || 'GET',
+            url: initialData.url || '',
+            headers: (initialData.headers as Record<string, string>) || {},
+            body: (typeof initialData.body === 'string' ? initialData.body : JSON.stringify(initialData.body, null, 2)) || '',
+            auth_config: (initialData.auth_config as AuthConfig) || { type: 'No Auth' },
+            pre_request_script: initialData.pre_request_script || '',
+            post_request_script: initialData.post_request_script || ''
+          },
+          lastResponse: null,
+          isSending: false,
+          isDirty: true,
+          testResults: []
+        }
+        
+        set({
+          tabs: [...tabs, newTab],
+          activeTabId: draftId
+        })
+      },
+
+      openExample: (example) => {
+        const { tabs } = get()
+        const exampleId = `example-${example.id}`
+        const existingTab = tabs.find((t) => t.requestId === exampleId)
+
+        if (existingTab) {
+          set({ activeTabId: exampleId })
+          return
+        }
+
+        const newTab: RequestTab = {
+          requestId: exampleId,
+          name: `[Example] ${example.name}`,
+          method: example.request_method as any,
+          workingRequest: {
+            method: example.request_method as any,
+            url: example.request_url,
+            headers: (example.request_headers as Record<string, string>) || {},
+            body: (typeof example.request_body === 'string' ? example.request_body : JSON.stringify(example.request_body, null, 2)) || '',
+            auth_config: { type: 'No Auth' },
+            pre_request_script: '',
+            post_request_script: ''
+          },
+          lastResponse: {
+            status: example.response_status,
+            headers: (example.response_headers as Record<string, string[]>) || {},
+            data: typeof example.response_body === 'string' ? example.response_body : JSON.stringify(example.response_body, null, 2),
+            timing: 0
+          },
+          isSending: false,
+          isDirty: false,
+          testResults: []
+        }
+
+        set({
+          tabs: [...tabs, newTab],
+          activeTabId: exampleId
+        })
+      },
+
+      setActiveTab: (requestId) => {
         set({ activeTabId: requestId })
       },
 
-      closeTab: (requestId: number) => {
+      closeTab: (requestId) => {
         const { tabs, activeTabId } = get()
         const newTabs = tabs.filter((t) => t.requestId !== requestId)
 
@@ -575,14 +663,22 @@ export const useDataStore = create<DataState>()(
 
         set({ tabs: newTabs })
 
-        // Broadcast lock intent over WS
-        wsClient.send({ type: 'LOCK_REQUEST', request_id: activeTabId })
+        // Broadcast lock intent over WS if not draft
+        if (typeof activeTabId === 'number') {
+          wsClient.send({ type: 'LOCK_REQUEST', request_id: activeTabId })
+        }
       },
 
       saveActiveRequest: async () => {
         const { activeTabId, tabs } = get()
         const activeTab = tabs.find((t) => t.requestId === activeTabId)
         if (!activeTab) return
+
+        if (typeof activeTabId === 'string' && activeTabId.startsWith('draft-')) {
+          // If it's a draft, we cannot save it normally. The UI should prompt for location.
+          toast.info('Please use "Save to Collection" to save a draft request.')
+          return
+        }
 
         const { workingRequest } = activeTab
 
@@ -743,11 +839,36 @@ export const useDataStore = create<DataState>()(
               }
             })
 
-            get().openRequestInTab(newReq)
+            // If we are saving from a draft, we might want to close the draft and open the new request,
+            // but the function doesn't know about draftId yet. We'll handle it in the component.
+            const currentTabs = get().tabs
+            const draftTab = currentTabs.find(t => typeof t.requestId === 'string' && t.requestId.startsWith('draft-'))
+            if (draftTab && get().activeTabId === draftTab.requestId) {
+               // Replace the draft tab with the newly saved request
+               const newTabs = currentTabs.map(t => {
+                 if (t.requestId === draftTab.requestId) {
+                    return {
+                      ...t,
+                      requestId: newReq.id,
+                      name: newReq.name,
+                      isDirty: false
+                    }
+                 }
+                 return t
+               })
+               set({ tabs: newTabs, activeTabId: newReq.id })
+            } else {
+               get().openRequestInTab(newReq)
+            }
+            
             toast.success(`Request "${name}" created successfully`)
           }
         } catch (err: unknown) {
-          const msg = err.response?.data?.error || err.message || 'Unknown network error'
+          const msg = err && typeof err === 'object' && 'response' in err
+            ? (err as any).response?.data?.error
+            : err instanceof Error
+            ? err.message
+            : 'Unknown network error'
           toast.error(`Failed to create request: ${msg}`)
         }
       },
@@ -1112,7 +1233,8 @@ export const useDataStore = create<DataState>()(
             )
             await fn(context.wap, context.pm, context.moment, context._, context.console)
           } catch (err: unknown) {
-            toast.error(`Pre-request Error: ${err.message}`)
+            toast.error(`Pre-request Error: ${err instanceof Error ? err.message : String(err)}`)
+            return
           }
         }
 
@@ -1415,7 +1537,255 @@ export const useDataStore = create<DataState>()(
         })
       },
 
-      clearLogs: () => set({ logs: [] })
+      clearLogs: () => {
+        set({ logs: [] })
+      },
+
+      saveExample: async (requestId: number, name: string) => {
+        const { tabs } = get()
+        const tab = tabs.find((t) => t.requestId === requestId)
+        if (!tab || !tab.lastResponse) {
+           toast.error('No response available to save as example')
+           return
+        }
+
+        const payload = {
+            name: name,
+            request_method: tab.workingRequest.method,
+            request_url: tab.workingRequest.url,
+            request_headers: tab.workingRequest.headers,
+            request_body: typeof tab.workingRequest.body === 'string' ? tab.workingRequest.body : JSON.stringify(tab.workingRequest.body),
+            response_status: tab.lastResponse.status,
+            response_headers: tab.lastResponse.headers,
+            response_body: typeof tab.lastResponse.data === 'string' ? tab.lastResponse.data : JSON.stringify(tab.lastResponse.data)
+        }
+
+        try {
+           const res = await apiClient.post(`/api/v1/requests/${requestId}/examples`, payload)
+           if (res.status === 201) {
+              toast.success('Response saved as example')
+              // refresh the collection so the examples array is updated
+              const req = get().requests.find(r => r.id === requestId)
+              if (req) {
+                 await get().fetchCollectionContents(req.collection_id)
+              }
+           }
+        } catch (err: unknown) {
+           toast.error('Failed to save example')
+        }
+      },
+
+      deleteExample: async (id: number) => {
+        try {
+          const res = await apiClient.delete(`/api/v1/examples/${id}`)
+          if (res.status === 200) {
+            toast.success('Example deleted')
+            const req = get().requests.find(r => r.examples?.some(e => e.id === id))
+            if (req) {
+              await get().fetchCollectionContents(req.collection_id)
+            }
+          }
+        } catch {
+          toast.error('Failed to delete example')
+        }
+      },
+
+      renameRequest: async (id: number, name: string) => {
+        try {
+          const res = await apiClient.put(`/api/v1/requests/${id}`, { name })
+          if (res.status === 200) {
+            toast.success('Request renamed')
+            const req = get().requests.find(r => r.id === id)
+            if (req) {
+              await get().fetchCollectionContents(req.collection_id)
+            }
+            
+            // Also update the name in tabs if open
+            const { tabs } = get()
+            set({
+              tabs: tabs.map(t => t.requestId === id ? { ...t, name } : t)
+            })
+          }
+        } catch {
+          toast.error('Failed to rename request')
+        }
+      },
+
+      runCollection: async (collectionId, onProgress) => {
+        const { fetchCollectionContents, environments, activeEnvironmentId, updateActiveEnvironmentVariable } = get()
+        
+        // Ensure we have the latest content
+        await fetchCollectionContents(collectionId)
+        
+        const { requestsByCollection, requestsByFolder, foldersByCollection } = get()
+        
+        // Flatten all requests (recursive)
+        const allRequests: ApiRequest[] = []
+        
+        // Add root requests
+        const rootRequests = requestsByCollection[collectionId] || []
+        allRequests.push(...rootRequests)
+
+        // Add folder requests (recursive helper)
+        const addFolderRequests = (folderId: number) => {
+          const folderRequests = requestsByFolder[folderId] || []
+          allRequests.push(...folderRequests)
+          
+          const subfolders = (foldersByCollection[collectionId] || []).filter(f => f.parent_folder_id === folderId)
+          subfolders.forEach(f => addFolderRequests(f.id))
+        }
+
+        const rootFolders = (foldersByCollection[collectionId] || []).filter(f => f.parent_folder_id === null)
+        rootFolders.forEach(f => addFolderRequests(f.id))
+        
+        if (allRequests.length === 0) {
+          toast.error('No requests found in this collection')
+          return []
+        }
+
+        const activeEnv = environments.find(e => e.id === activeEnvironmentId)
+        const vars = { ...(activeEnv?.variables || {}) }
+        const results: CollectionRunResult[] = []
+
+        // Sequential execution
+        for (const req of allRequests) {
+          const normalizedReq = normalizeRequest(req)
+          const workingRequest = {
+            method: normalizedReq.method,
+            url: normalizedReq.url,
+            headers: normalizedReq.headers || {},
+            body: normalizedReq.body as string,
+            auth_config: (normalizedReq.auth_config as AuthConfig) || { type: 'No Auth' },
+            pre_request_script: normalizedReq.pre_request_script || '',
+            post_request_script: normalizedReq.post_request_script || ''
+          }
+
+          // 1. Pre-request Script
+          if (workingRequest.pre_request_script) {
+            try {
+              const wap = {
+                set: (key: string, val: unknown) => { vars[key] = String(val) },
+                environment: {
+                  set: (key: string, val: unknown) => {
+                    const strVal = String(val)
+                    vars[key] = strVal
+                    updateActiveEnvironmentVariable(key, strVal)
+                  },
+                  get: (key: string) => vars[key]
+                },
+                collectionVariables: {
+                  set: (key: string, val: unknown) => {
+                    const strVal = String(val)
+                    vars[key] = strVal
+                    updateActiveEnvironmentVariable(key, strVal)
+                  },
+                  get: (key: string) => vars[key]
+                },
+                request: workingRequest,
+                setEnv: (key: string, val: unknown) => {
+                  const strVal = String(val)
+                  vars[key] = strVal
+                  updateActiveEnvironmentVariable(key, strVal)
+                }
+              }
+              const context = { wap, pm: wap, moment, _, console }
+              const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor
+              const fn = new AsyncFunction('wap', 'pm', 'moment', '_', 'console', workingRequest.pre_request_script)
+              await fn(context.wap, context.pm, context.moment, context._, context.console)
+            } catch (err) {
+              console.error(`Runner Pre-request Error for ${req.name}:`, err)
+            }
+          }
+
+          // Substitutions
+          let substitutedUrl = replaceVariables(workingRequest.url, vars)
+          const finalHeaders = injectAuth(workingRequest.headers, workingRequest.auth_config, vars)
+          const substitutedHeaders: Record<string, string> = {}
+          Object.entries(finalHeaders).forEach(([k, v]) => { substitutedHeaders[k] = replaceVariables(v, vars) })
+          const substitutedBody = replaceVariables(workingRequest.body, vars)
+
+          try {
+            const start = Date.now()
+            const response = await apiClient.executeRequest(
+              workingRequest.method,
+              substitutedUrl,
+              substitutedHeaders,
+              substitutedBody
+            )
+            const time = Date.now() - start
+
+            // 2. Post-request Script (Tests)
+            const testResults: { name: string; status: 'passed' | 'failed'; error?: string }[] = []
+            if (workingRequest.post_request_script) {
+              try {
+                const wap = {
+                  response: {
+                    status: response.status,
+                    data: response.data,
+                    json: () => response.data,
+                    to: { have: { status: (code: number) => { if (response.status !== code) throw new Error(`Expected status ${code} but got ${response.status}`) } } }
+                  },
+                  expect: (val: unknown) => ({
+                    to: { 
+                      equal: (exp: unknown) => { if (val !== exp) throw new Error(`Expected ${exp} but got ${val}`) },
+                      include: (sub: string) => { if (typeof val === 'string' && !val.includes(sub)) throw new Error(`Expected include "${sub}"`) }
+                    }
+                  }),
+                  test: (name: string, fn: () => void) => {
+                    try { fn(); testResults.push({ name, status: 'passed' }) }
+                    catch (err: any) { testResults.push({ name, status: 'failed', error: err.message || String(err) }) }
+                  }
+                }
+                const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor
+                const fn = new AsyncFunction('wap', 'pm', 'moment', '_', 'console', workingRequest.post_request_script)
+                await fn(wap, wap, moment, _, console)
+              } catch (err) {
+                console.error(`Runner Post-request Error for ${req.name}:`, err)
+              }
+            }
+
+            const result: CollectionRunResult = {
+              requestId: req.id,
+              name: req.name,
+              method: req.method,
+              url: substitutedUrl,
+              status: response.status,
+              time,
+              testResults
+            }
+            results.push(result)
+            if (onProgress) onProgress(result)
+
+            // Save History (Async)
+            apiClient.post('/api/v1/history', {
+              team_id: get().activeTeamId,
+              request_id: req.id,
+              method: req.method,
+              url: substitutedUrl,
+              status_code: response.status,
+              response_time: time,
+              response_size: JSON.stringify(response.data).length,
+              test_results: testResults
+            }).catch(err => console.error('Failed to save runner history:', err))
+
+          } catch (err: any) {
+            const result: CollectionRunResult = {
+              requestId: req.id,
+              name: req.name,
+              method: req.method,
+              url: substitutedUrl,
+              status: 0,
+              time: 0,
+              testResults: [{ name: 'Request execution', status: 'failed', error: err.message || String(err) }]
+            }
+            results.push(result)
+            if (onProgress) onProgress(result)
+          }
+        }
+
+        toast.success(`Run completed for ${collectionId}`)
+        return results
+      }
     }),
     {
       name: 'wapify-data-storage',

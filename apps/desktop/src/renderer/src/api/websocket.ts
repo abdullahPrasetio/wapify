@@ -30,7 +30,7 @@ export class WebSocketClient {
         const state = useDataStore.getState()
         if (state.activeTabId) {
           const tab = state.tabs.find((t) => t.requestId === state.activeTabId)
-          if (tab) {
+          if (tab && typeof tab.requestId === 'number') {
             this.send({ type: 'JOIN_REQUEST', request_id: tab.requestId })
           }
         }
@@ -85,7 +85,7 @@ export class WebSocketClient {
     }
   }
 
-  public send(event: { type: string; request_id?: number; payload?: any }) {
+  public send(event: { type: string; request_id?: number | string; payload?: any }) {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(event))
     }
@@ -103,7 +103,7 @@ export class WebSocketClient {
       case 'ENTITY_UPDATED':
         // Jika entity yang diupdate adalah request yang sedang kita buka, fetch ulang
         if (message.payload?.entity_type === 'REQUEST') {
-          const reqId = message.payload.entity_id
+
           // Optionally, we could show a toast or auto-fetch
           // store.fetchCollectionContents(...)
           window.dispatchEvent(
@@ -149,7 +149,7 @@ export function initWebSocketIntegration() {
           const prevTab = useDataStore
             .getState()
             .tabs.find((t) => t.requestId === previousState.activeTabId)
-          if (prevTab) {
+          if (prevTab && typeof prevTab.requestId === 'number') {
             wsClient.send({ type: 'LEAVE_REQUEST', request_id: prevTab.requestId })
           }
         }
@@ -157,7 +157,7 @@ export function initWebSocketIntegration() {
           const currentTab = useDataStore
             .getState()
             .tabs.find((t) => t.requestId === currentState.activeTabId)
-          if (currentTab) {
+          if (currentTab && typeof currentTab.requestId === 'number') {
             wsClient.send({ type: 'JOIN_REQUEST', request_id: currentTab.requestId })
           }
         }

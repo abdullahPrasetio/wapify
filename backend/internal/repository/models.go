@@ -95,9 +95,27 @@ type Request struct {
 	CreatedAt          time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
 
-	Collection *Collection `gorm:"foreignKey:CollectionID" json:"-"`
-	Folder     *Folder     `gorm:"foreignKey:FolderID" json:"-"`
-	CreatedBy  *User       `gorm:"foreignKey:CreatedByID;references:ID" json:"-"`
+	Collection *Collection      `gorm:"foreignKey:CollectionID" json:"-"`
+	Folder     *Folder          `gorm:"foreignKey:FolderID" json:"-"`
+	CreatedBy  *User            `gorm:"foreignKey:CreatedByID;references:ID" json:"-"`
+	Examples   []RequestExample `gorm:"foreignKey:RequestID" json:"examples"`
+}
+
+type RequestExample struct {
+	ID              uint      `gorm:"primaryKey" json:"id"`
+	RequestID       uint      `gorm:"not null" json:"request_id"`
+	Name            string    `gorm:"not null" json:"name"`
+	RequestMethod   string    `gorm:"not null" json:"request_method"`
+	RequestURL      string    `gorm:"not null" json:"request_url"`
+	RequestHeaders  JSONB     `gorm:"type:jsonb;default:'{}'" json:"request_headers"`
+	RequestBody     string    `gorm:"type:text" json:"request_body"`
+	ResponseStatus  int       `gorm:"not null" json:"response_status"`
+	ResponseHeaders JSONB     `gorm:"type:jsonb;default:'{}'" json:"response_headers"`
+	ResponseBody    string    `gorm:"type:text" json:"response_body"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
+
+	Request *Request `gorm:"foreignKey:RequestID" json:"-"`
 }
 
 type Environment struct {

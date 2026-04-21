@@ -94,7 +94,8 @@ export const MockServerPanel: React.FC<MockServerPanelProps> = ({
   const handleQuickMock = async (request: ApiRequest) => {
     try {
       const res = await apiClient.post<MockEndpoint>(
-        `/api/v1/collections/${collectionId}/mock/endpoints/0/from-request/${request.id}`
+        `/api/v1/collections/${collectionId}/mock/endpoints/from-request/${request.id}`,
+        {}
       )
       setEndpoints((prev) => [...prev, res.data as MockEndpoint])
       toast.success(`Mock created from "${request.name}"`)

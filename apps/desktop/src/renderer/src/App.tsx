@@ -1,6 +1,5 @@
 import { useEffect } from 'react'
 import { useAuthStore } from './store/useAuthStore'
-import { useDataStore } from './store/useDataStore'
 import { AppLayout } from './components/layout/AppLayout'
 import { LoginPage } from './components/auth/LoginPage'
 import { Toaster } from 'sonner'
@@ -11,7 +10,7 @@ initWebSocketIntegration()
 
 function App(): React.JSX.Element {
   const { isAuthenticated, logout, rehydrateAuth, isLoading } = useAuthStore()
-  const { fetchHistory } = useDataStore()
+
 
   useEffect(() => {
     rehydrateAuth()

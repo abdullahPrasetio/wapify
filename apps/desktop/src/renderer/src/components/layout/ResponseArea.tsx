@@ -7,10 +7,12 @@ loader.config({ monaco })
 import { Clock, Database, Globe } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
+import { PromptModal } from '../modals/PromptModal'
 
 export const ResponseArea = (): React.JSX.Element => {
-  const { tabs, activeTabId, logs, clearLogs } = useDataStore()
+  const { tabs, activeTabId, logs, clearLogs, saveExample } = useDataStore()
   const [activeTab, setActiveTab] = useState<'Body' | 'Headers' | 'Tests' | 'Console'>('Body')
+  const [isPromptOpen, setIsPromptOpen] = useState(false)
 
   const activeTabRequest = tabs.find((t) => t.requestId === activeTabId)
 
@@ -42,8 +44,25 @@ export const ResponseArea = (): React.JSX.Element => {
 
   const TABS = ['Body', 'Headers', 'Test Results', 'Console']
 
+  const handleSaveExample = (name: string) => {
+    if (typeof activeTabId === 'number') {
+      saveExample(activeTabId, name)
+    } else {
+      toast.error('Cannot save example from a draft request')
+    }
+  }
+
   return (
     <div className="flex-1 flex flex-col overflow-hidden border-t border-border bg-background">
+      <PromptModal
+        isOpen={isPromptOpen}
+        onClose={() => setIsPromptOpen(false)}
+        onSubmit={handleSaveExample}
+        title="Save Example"
+        description="Enter a name for this example response."
+        defaultValue={`Success - ${status} ${getStatusText(status)}`}
+        submitText="Save"
+      />
       {/* Response Header Info */}
       {lastResponse && (
         <div className="h-10 px-4 border-b border-border flex items-center justify-between bg-surface/30 shrink-0">
@@ -66,6 +85,13 @@ export const ResponseArea = (): React.JSX.Element => {
             </div>
           </div>
           <div className="flex items-center gap-3">
+            <button
+              onClick={() => setIsPromptOpen(true)}
+              disabled={typeof activeTabId === 'string' && activeTabId.startsWith('draft-')}
+              className="text-[10px] font-bold text-primary hover:text-primary-hover transition-colors px-2 py-1 bg-primary/10 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Save as Example
+            </button>
             <button
               onClick={(): void => {
                 navigator.clipboard.writeText(formattedData)

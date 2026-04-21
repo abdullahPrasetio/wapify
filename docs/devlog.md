@@ -528,3 +528,34 @@
 ### Langkah Selanjutnya
 - Lanjut ke eksekusi **Fase 4 — Automated Testing** (Collection Runner).
 - Finalisasi fitur export dokumentasi ke Swagger/OpenAPI.
+
+---
+
+## [2026-04-21] — Implementation of Request Examples & Draft System
+
+**Fase:** Fase 4 — Testing & CI/CD
+**Dikerjakan oleh:** Antigravity
+**Status:** ✅ Selesai
+
+### Yang Dikerjakan
+- **Draft Request System**: 
+  - Mengimplementasikan alur kerja penyimpanan `Draft Request`. Draft request memiliki UUID format `draft-[uuid]` yang memungkinkan user mengubah request test sebelum disimpan.
+  - Membangun `SaveRequestLocationModal.tsx` agar user bisa menyimpan draft ke dalam koleksi dan folder yang mereka inginkan.
+  - Integrasi shortcut (Cmd/Ctrl + S) dan button Save agar memunculkan modal penyimpanan lokasi khusus untuk draft requests.
+- **Request Examples (Documentation)**:
+  - Mengembangkan fungsionalitas Backend untuk melakukan _Preload_ pada _Examples_ dari DB saat memanggil API `/api/v1/collections/:id/docs`.
+  - Merender *Examples* dan Response JSON mereka pada **DocumentationPanel**, dengan format yang bersih dan terstruktur untuk menampilkan mock respons dari API.
+- **Typescript Fixing**: Menyelesaikan serangkaian TS errors yang cukup besar terkait implementasi Lock Request, Variable Ghost Input, dan tipe string/number pada `requestId`.
+
+### Perubahan File
+- `apps/desktop/src/renderer/src/components/modals/SaveRequestLocationModal.tsx` — Modal untuk menyimpan draft.
+- `apps/desktop/src/renderer/src/components/layout/DocumentationPanel.tsx` — Penambahan section Examples & Responses.
+- `apps/desktop/src/renderer/src/components/layout/MainArea.tsx` & `Sidebar.tsx` — Sinkronisasi flow Draft Request.
+- `apps/desktop/src/renderer/src/store/useDataStore.ts` — Penambahan manajemen tipe `Draft` dan error handling TypeScript.
+- `backend/internal/api/documentation.go` — Backend documentation preload `Examples`.
+
+### Keputusan & Catatan
+- Memisahkan tipe `requestId` tab menjadi string/number memungkinkan kita mempertahankan satu workflow eksekusi tab yang sama (seperti tab biasa) tanpa mengubah struktur array `tabs` yang drastis, sehingga draft request bisa berjalan persis seperti permanent request.
+
+### Langkah Selanjutnya
+- Melanjutkan implementasi **Collection Runner** UI (`CollectionRunnerModal.tsx`) yang bisa mengeksekusi semua request dalam satu folder/koleksi secara sekuensial.

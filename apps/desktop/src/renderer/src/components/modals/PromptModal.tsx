@@ -10,6 +10,7 @@ interface PromptModalProps {
   isOpen: boolean
   onClose: () => void
   onSubmit: (value: string) => void
+  submitText?: string
 }
 
 export const PromptModal = ({
@@ -19,7 +20,8 @@ export const PromptModal = ({
   defaultValue = '',
   isOpen,
   onClose,
-  onSubmit
+  onSubmit,
+  submitText = 'Create'
 }: PromptModalProps): React.JSX.Element => {
   const [value, setValue] = useState(defaultValue)
 
@@ -80,7 +82,7 @@ export const PromptModal = ({
                 disabled={!value.trim()}
                 className="px-4 py-2 bg-primary hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors"
               >
-                Create
+                {submitText}
               </button>
             </div>
           </form>

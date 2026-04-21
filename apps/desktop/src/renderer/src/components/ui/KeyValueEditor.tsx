@@ -1,6 +1,5 @@
 import { Plus, Trash2, CheckSquare, Square } from 'lucide-react'
 import { useState } from 'react'
-import { useDataStore } from '../../store/useDataStore'
 import { VariableOverlayInput } from './VariableOverlayInput'
 
 interface KeyValueRow {
