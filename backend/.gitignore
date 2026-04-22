@@ -1,0 +1,25 @@
+# Binaries
+main
+server
+wapify-server
+wapify-server-client
+wapify-license
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Database
+/data
+pgdata/
+
+# OS specific files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Dependency directories
+/vendor/

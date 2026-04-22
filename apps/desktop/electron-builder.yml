@@ -33,4 +33,8 @@ nsis:
   artifactName: ${name}-${version}-setup.${ext}
   shortcutName: ${productName}
   createDesktopShortcut: always
+publish:
+  provider: github
+  owner: abdullahPrasetio
+  repo: wapify-desktop-releases
 npmRebuild: false
