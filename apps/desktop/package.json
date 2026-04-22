@@ -1,13 +1,13 @@
 {
   "name": "wapify-desktop",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "An Electron application with React and TypeScript",
   "main": "./out/main/index.js",
   "author": {
     "name": "Waluyo Ade Prasetio",
     "email": "temancode@gmail.com"
   },
-  "homepage": "https://portofolio.temancode.my.id",
+  "homepage": "https://wapify.temancode.my.id",
   "scripts": {
     "format": "prettier --write .",
     "lint": "eslint --cache .",
@@ -29,6 +29,8 @@
     "@electron-toolkit/utils": "^4.0.0",
     "@monaco-editor/react": "^4.7.0",
     "clsx": "^2.1.1",
+    "electron-log": "^5.4.3",
+    "electron-updater": "^6.8.3",
     "keytar": "^7.9.0",
     "lodash": "^4.18.1",
     "lucide-react": "^1.8.0",
@@ -47,7 +49,7 @@
     "@radix-ui/react-icons": "^1.3.2",
     "@radix-ui/react-slot": "^1.2.4",
     "@tailwindcss/postcss": "^4.2.2",
-    "@types/node": "^22.19.1",
+    "@types/node": "^22.19.17",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.1",

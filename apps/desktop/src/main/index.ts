@@ -1,7 +1,14 @@
 import { app, shell, BrowserWindow, ipcMain, net } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
+import { autoUpdater } from 'electron-updater'
+import log from 'electron-log'
 import icon from '../../resources/icon.png?asset'
+
+// Konfigurasi logger
+autoUpdater.logger = log
+log.transports.file.level = 'info'
+log.info('App starting...')
 import keytar from 'keytar'
 
 const KEYTAR_SERVICE = 'io.wapify.desktop'
@@ -138,6 +145,9 @@ app.whenReady().then(() => {
   })
 
   createWindow()
+
+  // Cek update otomatis secara diam-diam (electron-log akan mencatat detailnya di background)
+  autoUpdater.checkForUpdatesAndNotify()
 
   // Handler for getting app version
   ipcMain.handle('wapify:get-version', () => {
