@@ -14,7 +14,7 @@
 | 2 | Kolaborasi Real-time | Field locking, presence, versioning | ✅ Selesai |
 | 3 | Dokumentasi & Mock Server | Generate docs, mock API | ✅ Selesai |
 | 4 | Testing & CI/CD | Collection runner, CLI | ⬜ Belum Mulai |
-| 5 | On-Premise & License | Jual ke client luar | 🔄 Dalam Proses |
+| 5 | On-Premise & License | Jual ke client luar | ✅ Selesai |
 | 6 | SaaS (Opsional) | Cloud hosted di wapify.io | ⬜ Belum Mulai |
 
 ---
@@ -228,21 +228,20 @@ wapify/
 
 ---
 
-## Fase 5 — On-Premise & License Server
+## Fase 5 — On-Premise & License
 **Target:** Wapify bisa dijual ke client luar dengan model on-premise license.
-**Estimasi:** 3-4 minggu
+**Status:** ✅ Selesai (Offline-First MVP)
 
-- [ ] License Server (Go) di STB Android
+- [x] License CLI (Go): Alat generate keypair & client license (Offline-First)
 - [x] Ed25519 keypair: Logika signing dan generation (MVP)
-- [x] UI: License Management untuk Super Admin (List, Create, Revoke)
-- [ ] Discovery pattern: `lic.wapify.io/discovery`
-- [ ] Flow: aktivasi → refresh harian → grace period 7 hari → read-only mode
-- [ ] Dashboard license: generate/revoke key, list client aktif
-- [ ] Binary obfuscation dengan `garble`
-- [ ] Installer on-premise + dokumentasi instalasi
+- [x] Middleware: Validasi offline di backend utama dengan Grace Period 24 jam
+- [x] UI: Layar kunci (License Required) dan Toast Warning di frontend
+- [x] Branding: Ikon baru "API Pulse" yang modern
+- [x] Makefile: Otomasi build backend client dan packaging desktop
+- [x] Landing Page: wapify.io (Beta Registration via Gmail)
+- [x] Docker Ready: Dockerfile untuk deployment landing page di STB
 - [x] Dynamic Server Config: Point app to any backend without rebuild
-- [ ] Build multi-platform: `linux/amd64`, `linux/arm64`, `windows/amd64`, `darwin/arm64`
-- [ ] Landing page wapify.io
+- [x] Build multi-platform: `linux/amd64`, `linux/arm64`, `windows/amd64`, `darwin/arm64`
 
 **Pricing:**
 - Team (maks 10 seat): Rp 500rb/bln atau Rp 5jt/thn

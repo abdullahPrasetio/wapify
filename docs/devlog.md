@@ -26,6 +26,42 @@
 
 ---
 
+## [2026-04-22] — Penyederhanaan Lisensi, Tooling (Makefile), & Landing Page Modern
+**Fase:** Fase 5 — On-Premise & License
+**Dikerjakan oleh:** Gemini
+**Status:** ✅ Selesai
+
+### Yang Dikerjakan
+- **Sistem Lisensi (Simplifikasi)**: Menghapus arsitektur License Server yang kompleks (Central-Client) dan menggantinya dengan sistem **Offline-First Ed25519**.
+- **License CLI**: Membuat alat terminal baru di `backend/cmd/license/main.go` untuk `keygen` dan `generate` lisensi klien secara mandiri.
+- **Backend Cleanup**: Menghapus tabel `licenses`, API manajemen lisensi internal, dan fungsi `PhoneHome` agar backend utama tetap ringan.
+- **Grace Period & Warning**: Implementasi masa tenggang 24 jam setelah lisensi expired dan penambahan *Toast Warning* serta *Lock Screen* di frontend jika lisensi bermasalah.
+- **Makefile**: Membuat sistem otomasi build untuk Backend (Internal/Client), License CLI, dan Electron Desktop (`make build-desktop`, `make keygen`, dll).
+- **Electron Build Fix**: Memperbaiki masalah *Code Signing* macOS (`identity: null`), konfigurasi ikon multi-platform, dan penanganan error `typecheck` pada frontend.
+- **Landing Page**: Membuat project baru `apps/landing-page` menggunakan React + Tailwind v4 + Framer Motion. Fokus pada responsivitas, Dark Mode, alur pendaftaran Beta via Gmail, dan dokumentasi setup.
+- **Branding**: Mendesain ikon baru "API Pulse" (SVG) yang modern dan profesional untuk menggantikan ikon default Electron.
+
+### Perubahan File
+- `backend/cmd/license/main.go` — CLI Tool baru untuk lisensi.
+- `backend/internal/middleware/license.go` — Middleware validasi offline dengan grace period.
+- `apps/desktop/src/renderer/src/App.tsx` & `client.ts` — Integrasi layar kunci dan toast warning lisensi.
+- `Makefile` — Automasi alur kerja project.
+- `apps/landing-page/*` — Project landing page baru.
+- `apps/desktop/resources/icon.svg` — Desain ikon baru.
+- `docs/licensing.md` — Rewrite total dokumentasi lisensi menjadi Offline-First.
+
+### Keputusan & Catatan
+- Memutuskan untuk tidak menggunakan server lisensi terpisah karena fitur ini belum aktif digunakan dan untuk mengurangi kompleksitas bagi pengguna (STB ready).
+- Keamanan tetap terjaga menggunakan Ed25519; lisensi tidak bisa dipalsukan tanpa Private Key milik Waluyo.
+- Landing page dideploy menggunakan Docker (Nginx) agar sangat ringan saat dijalankan di CasaOS STB.
+
+### Langkah Selanjutnya
+- Finalisasi integrasi `wapify run` untuk pipeline CI/CD (Fase 4).
+- Persiapan distribusi binary backend ke STB menggunakan Docker.
+
+
+---
+
 ## [2026-04-21] — Inisialisasi License Management (Fase 5 MVP)
 **Fase:** Fase 5 — On-Premise & License
 **Dikerjakan oleh:** Gemini
