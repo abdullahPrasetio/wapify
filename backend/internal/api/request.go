@@ -47,7 +47,7 @@ func ListRequestsInFolder(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Forbidden", "code": "FORBIDDEN"})
 	}
 	var requests []repository.Request
-	repository.DB.Where("folder_id = ?", folderID).Find(&requests)
+	repository.DB.Preload("Examples").Where("folder_id = ?", folderID).Find(&requests)
 	return c.JSON(requests)
 }
 
@@ -86,6 +86,11 @@ func CreateRequestInFolder(c *fiber.Ctx) error {
 	if err := repository.DB.Create(&request).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to create request", "code": "INTERNAL_SERVER_ERROR"})
 	}
+
+	// Real-time broadcast & logging
+	WSHub.BroadcastEntityUpdate(collection.TeamID, "COLLECTION", collection.ID)
+	LogActivity(repository.DB, collection.TeamID, userID, "CREATED_REQUEST", "REQUEST", request.ID, map[string]interface{}{"name": request.Name})
+
 	return c.Status(fiber.StatusCreated).JSON(request)
 }
 
@@ -100,7 +105,7 @@ func ListRequestsInCollection(c *fiber.Ctx) error {
 	}
 	var requests []repository.Request
 	// Return all requests in collection (including nested ones)
-	repository.DB.Where("collection_id = ?", collectionID).Find(&requests)
+	repository.DB.Preload("Examples").Where("collection_id = ?", collectionID).Find(&requests)
 	return c.JSON(requests)
 }
 
@@ -136,13 +141,18 @@ func CreateRequestInCollection(c *fiber.Ctx) error {
 	if err := repository.DB.Create(&request).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to create request", "code": "INTERNAL_SERVER_ERROR"})
 	}
+
+	// Real-time broadcast & logging
+	WSHub.BroadcastEntityUpdate(collection.TeamID, "COLLECTION", collection.ID)
+	LogActivity(repository.DB, collection.TeamID, userID, "CREATED_REQUEST", "REQUEST", request.ID, map[string]interface{}{"name": request.Name})
+
 	return c.Status(fiber.StatusCreated).JSON(request)
 }
 
 func GetRequest(c *fiber.Ctx) error {
 	requestID := c.Params("id")
 	var request repository.Request
-	if err := repository.DB.First(&request, requestID).Error; err != nil {
+	if err := repository.DB.Preload("Examples").First(&request, requestID).Error; err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Request not found", "code": "NOT_FOUND"})
 	}
 	var collection repository.Collection
@@ -195,6 +205,12 @@ func UpdateRequest(c *fiber.Ctx) error {
 	if err := repository.DB.Save(&request).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to update request", "code": "INTERNAL_SERVER_ERROR"})
 	}
+
+	// Real-time broadcast & logging
+	userID := uint(c.Locals("user_id").(float64))
+	WSHub.BroadcastEntityUpdate(collection.TeamID, "REQUEST", request.ID)
+	LogActivity(repository.DB, collection.TeamID, userID, "UPDATED_REQUEST", "REQUEST", request.ID, nil)
+
 	return c.JSON(request)
 }
 
@@ -212,5 +228,11 @@ func DeleteRequest(c *fiber.Ctx) error {
 	if err := repository.DB.Delete(&request).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to delete request", "code": "INTERNAL_SERVER_ERROR"})
 	}
+
+	// Real-time broadcast & logging
+	userID := uint(c.Locals("user_id").(float64))
+	WSHub.BroadcastEntityUpdate(collection.TeamID, "COLLECTION", collection.ID)
+	LogActivity(repository.DB, collection.TeamID, userID, "DELETED_REQUEST", "REQUEST", request.ID, map[string]interface{}{"name": request.Name})
+
 	return c.JSON(fiber.Map{"message": "Request deleted successfully"})
 }

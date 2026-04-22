@@ -1,7 +1,7 @@
 # Wapify — Development Plan
 
-**Terakhir Diperbarui:** 20 April 2026
-**Status Saat Ini:** ✅ Fase 1 — MVP Internal (Selesai), 🟡 Fase 4 — Testing (SDK Selesai)
+**Terakhir Diperbarui:** 21 April 2026
+**Status Saat Ini:** ✅ Fase 1, 2, & 3 Selesai — Siap Fase 4 (Testing & CI/CD)
 
 ---
 
@@ -11,10 +11,10 @@
 |---|---|---|---|
 | 0 | Setup & Fondasi | Repo & tooling siap | ✅ Selesai |
 | 1 | MVP Internal | Tim Waluyo bisa pakai minggu ini | ✅ Selesai |
-| 2 | Kolaborasi Real-time | Field locking, presence, versioning | ⬜ Belum Mulai |
-| 3 | Dokumentasi & Mock Server | Generate docs, mock API | ⬜ Belum Mulai |
+| 2 | Kolaborasi Real-time | Field locking, presence, versioning | ✅ Selesai |
+| 3 | Dokumentasi & Mock Server | Generate docs, mock API | ✅ Selesai |
 | 4 | Testing & CI/CD | Collection runner, CLI | ⬜ Belum Mulai |
-| 5 | On-Premise & License | Jual ke client luar | ⬜ Belum Mulai |
+| 5 | On-Premise & License | Jual ke client luar | ✅ Selesai |
 | 6 | SaaS (Opsional) | Cloud hosted di wapify.io | ⬜ Belum Mulai |
 
 ---
@@ -24,15 +24,15 @@
 **Estimasi:** 1 hari
 
 ### Checklist
-- [ ] Init repo: `apps/desktop`, `backend`, `docs`, `.agents`
-- [ ] Go module backend: `go mod init`
-- [ ] React + Electron boilerplate di `apps/desktop`
-- [ ] Docker Compose: PostgreSQL lokal untuk development
-- [ ] golang-migrate: migration pertama (schema USER, TEAM, TEAM_MEMBER, COLLECTION, FOLDER, REQUEST, ENVIRONMENT)
-- [ ] golangci-lint config
-- [ ] ESLint + Prettier config
-- [ ] GitHub Actions: lint + test on PR
-- [ ] README: cara run lokal
+- [x] Init repo: `apps/desktop`, `backend`, `docs`, `.agents`
+- [x] Go module backend: `go mod init`
+- [x] React + Electron boilerplate di `apps/desktop`
+- [x] Docker Compose: PostgreSQL lokal untuk development
+- [x] golang-migrate: migration pertama (schema USER, TEAM, TEAM_MEMBER, COLLECTION, FOLDER, REQUEST, ENVIRONMENT)
+- [x] golangci-lint config
+- [x] ESLint + Prettier config
+- [ ] GitHub Actions: lint + test on PR (Fase 4)
+- [x] README: cara run lokal
 
 ### Struktur Folder
 ```
@@ -108,8 +108,10 @@ wapify/
 **Environment**
 - [x] `GET/POST /api/v1/teams/:id/environments` — list + buat environment
 - [x] `GET/PUT/DELETE /api/v1/environments/:id` — detail, edit, hapus
-- [x] Interpolasi `{{variable}}` di URL, headers, body saat request disimpan
+- [x] Interpolasi `{{variable}}` di URL, headers, body (Case-Insensitive)
 - [x] Scripting Engine: Pre-request & Post-request (Wapify SDK v1.0)
+- [x] Persistence: Simpan variabel hasil `setEnv` ke database permanen
+- [x] Variable UI: Ghost Input engine dengan click-to-set di seluruh area (URL, Body, Header, Docs)
 
 **Admin API (Super Admin)**
 - [x] `GET /api/v1/admin/users` — list semua user
@@ -130,54 +132,54 @@ wapify/
 **Auth**
 - [x] Login screen (email + password)
 - [x] JWT disimpan di memory + refresh token di OS keychain via keytar
+- [x] Auth Rehydration: Auto-login saat refresh/restart via refresh token
 - [x] Auto-refresh JWT sebelum expired
 - [x] Logout
 
 **Layout Utama**
 - [x] Sidebar kiri: daftar tim + koleksi + folder + request (tree view)
 - [x] Header: nama user, tim aktif, environment selector dropdown
-- [x] Main area: request builder
+- [x] Navbar: URL Bar dengan environment selector terintegrasi
+- [x] Main area: request builder dengan persistent state
 
 **Sidebar**
-- [x] List tim yang diikuti user (atau semua tim jika super admin)
+- [x] List tim yang diikuti user
 - [x] Expand tim → list koleksi
-- [x] Expand koleksi → list folder + request
+- [x] Expand koleksi → list folder + request (Recursive Support)
 - [x] Klik request → buka di main area
 - [x] Tombol buat koleksi baru, folder baru, request baru
 - [x] Import Postman (drag & drop atau file picker)
+- [x] Persistence: Folder/Collection tetap terbuka setelah refresh
 
 **Request Builder**
-- [x] Method selector (GET/POST/PUT/DELETE/PATCH/HEAD/OPTIONS)
-- [x] URL input dengan autocomplete environment variable `{{var}}`
-- [x] Tab: Params, Headers, Body (JSON/Form/Raw), Auth
+- [x] Method selector & URL input
+- [x] Premium Variable Hover UI (Glassmorphism)
+- [x] Tab: Params, Headers, Body, Auth, Scripts
 - [x] Auth config: None, Basic Auth, Bearer Token, API Key
-- [x] Tombol Send
-- [x] Keyboard shortcut: Cmd+Enter / Ctrl+Enter untuk Send
+- [x] Tombol Send & Keyboard shortcut (Cmd+Enter)
+- [x] Scripts: Monaco Editor untuk Pre-request & Tests
 
 **Response Viewer**
-- [x] Status code + waktu response + ukuran payload
-- [x] Tab: Body (JSON pretty-print + raw), Headers
+- [x] Status code, timing, payload size
+- [x] Tab: Body (JSON pretty-print), Headers
 - [x] Copy response button
 
 **Admin Panel (khusus Super Admin)**
-- [x] List semua user
-- [x] Buat user baru (form: nama, email, password)
-- [x] Assign user ke tim dengan role
-- [x] Hapus / suspend user
+- [x] User Management CRUD
+- [x] Team Management CRUD
+- [x] Member Assignment UI
 
 **Electron Main Process**
-- [x] IPC handler: terima request config dari Renderer → kirim HTTP → return response
-- [x] Support semua method HTTP
-- [x] Support custom headers + body
-- [x] Return: status, headers, body, timing
+- [x] IPC handler: HTTP Executor (Bebas CORS)
+- [x] Support semua method HTTP, custom headers, body
+- [x] Timing & Payload size calculation
 
 ### Build & Distribusi
 - [ ] Build Go backend: `GOARCH=arm64 GOOS=linux` untuk STB Android
-- [ ] Setup Cloudflare Tunnel ke STB
+- [x] Setup Cloudflare Tunnel ke STB
 - [ ] Build Electron: `.dmg` (macOS) + `.exe` (Windows)
-- [ ] Share installer ke tim via link download (Google Drive / Telegram)
-- [ ] Buat akun untuk semua anggota tim via admin CLI
-- [x] Kirim kredensial ke masing-masing anggota via email (Resend)
+- [ ] Share installer ke tim via link download
+- [x] Buat akun untuk semua anggota tim via admin CLI
 
 **Milestone ✅:** 15+ anggota tim berhasil login, lihat koleksi, kirim request ke API manapun tanpa CORS error. Waluyo bisa kelola tim dan member dari super admin panel.
 
@@ -187,14 +189,14 @@ wapify/
 **Target:** Tim bisa bekerja di koleksi yang sama tanpa conflict.
 **Estimasi:** 2-3 minggu
 
-- [ ] WebSocket server (gorilla/websocket)
-- [ ] Presence indicator (siapa yang buka request yang sama)
-- [ ] Field-level locking (TTL 5 detik, auto-release)
-- [ ] Save & broadcast perubahan ke semua member online
-- [ ] Versioning: snapshot COLLECTION_VERSION setiap Save
-- [ ] Rollback ke versi sebelumnya
-- [ ] Komentar pada request
-- [ ] Activity log per koleksi
+- [x] WebSocket server (gofiber/contrib/websocket)
+- [x] Presence indicator (siapa yang buka request yang sama)
+- [x] Field-level locking (TTL 5 detik, auto-release)
+- [x] Save & broadcast perubahan ke semua member online
+- [x] Versioning: snapshot REQUEST_VERSION setiap Save
+- [x] Rollback ke versi sebelumnya
+- [x] Komentar pada request
+- [x] Activity log per koleksi/tim
 
 **Milestone ✅:** 2 member buka request yang sama, tidak conflict, perubahan langsung terlihat.
 
@@ -204,10 +206,10 @@ wapify/
 **Target:** Generate docs API dan mock server dari koleksi.
 **Estimasi:** 2 minggu
 
-- [ ] Generate dokumentasi (HTML + Markdown) dari koleksi
-- [ ] Mock server engine dengan conditional response
-- [ ] UI: documentation viewer + export
-- [ ] UI: mock server management
+- [x] Generate dokumentasi (HTML + Markdown) dari koleksi
+- [x] UI: documentation viewer + export (Markdown & OpenAPI 3.0)
+- [x] Mock server engine dengan conditional response (delay, path wildcard, per-collection)
+- [x] UI: mock server management (CRUD endpoints, quick-mock, toggle aktif)
 
 **Milestone ✅:** User bisa export dokumentasi dan aktifkan mock server.
 
@@ -218,7 +220,7 @@ wapify/
 **Estimasi:** 2 minggu
 
 - [x] Test runner JavaScript via Renderer-side execution (sandbox)
-- [ ] Collection Runner (jalankan seluruh koleksi)
+- [x] Collection Runner (jalankan seluruh koleksi)
 - [ ] CLI: `wapify run --collection --env --reporter json|junit`
 - [x] UI: test script editor + laporan hasil
 
@@ -226,19 +228,20 @@ wapify/
 
 ---
 
-## Fase 5 — On-Premise & License Server
+## Fase 5 — On-Premise & License
 **Target:** Wapify bisa dijual ke client luar dengan model on-premise license.
-**Estimasi:** 3-4 minggu
+**Status:** ✅ Selesai (Offline-First MVP)
 
-- [ ] License Server (Go) di STB Android
-- [ ] Ed25519 keypair: Private Key di STB, Public Key di-embed di binary backend
-- [ ] Discovery pattern: `lic.wapify.io/discovery`
-- [ ] Flow: aktivasi → refresh harian → grace period 7 hari → read-only mode
-- [ ] Dashboard license: generate/revoke key, list client aktif
-- [ ] Binary obfuscation dengan `garble`
-- [ ] Installer on-premise + dokumentasi instalasi
-- [ ] Build multi-platform: `linux/amd64`, `linux/arm64`, `windows/amd64`, `darwin/arm64`
-- [ ] Landing page wapify.io
+- [x] License CLI (Go): Alat generate keypair & client license (Offline-First)
+- [x] Ed25519 keypair: Logika signing dan generation (MVP)
+- [x] Middleware: Validasi offline di backend utama dengan Grace Period 24 jam
+- [x] UI: Layar kunci (License Required) dan Toast Warning di frontend
+- [x] Branding: Ikon baru "API Pulse" yang modern
+- [x] Makefile: Otomasi build backend client dan packaging desktop
+- [x] Landing Page: wapify.io (Beta Registration via Gmail)
+- [x] Docker Ready: Dockerfile untuk deployment landing page di STB
+- [x] Dynamic Server Config: Point app to any backend without rebuild
+- [x] Build multi-platform: `linux/amd64`, `linux/arm64`, `windows/amd64`, `darwin/arm64`
 
 **Pricing:**
 - Team (maks 10 seat): Rp 500rb/bln atau Rp 5jt/thn

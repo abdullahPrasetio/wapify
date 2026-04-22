@@ -1,0 +1,28 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background Squircle with Gradient -->
+  <rect x="32" y="32" width="448" height="448" rx="100" fill="url(#paint0_linear)" />
+  
+  <!-- Subtle Inner Shadow/Glow -->
+  <rect x="42" y="42" width="428" height="428" rx="90" stroke="white" stroke-opacity="0.1" stroke-width="2" />
+
+  <!-- Stylized "W" Pulse -->
+  <path d="M120 180L180 340L256 220L332 340L392 180" stroke="white" stroke-width="45" stroke-linecap="round" stroke-linejoin="round" />
+  
+  <!-- Accent Glow for the "W" -->
+  <path d="M120 180L180 340L256 220L332 340L392 180" stroke="url(#paint1_radial)" stroke-width="45" stroke-linecap="round" stroke-linejoin="round" style="mix-blend-mode: overlay;" />
+
+  <!-- Bottom Reflection/Gloss -->
+  <path d="M480 350C480 421.797 421.797 480 350 480H162C90.203 480 32 421.797 32 350C32 350 120 330 256 330C392 330 480 350 480 350Z" fill="white" fill-opacity="0.05" />
+
+  <!-- Definitions -->
+  <defs>
+    <linearGradient id="paint0_linear" x1="32" y1="32" x2="480" y2="480" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2563EB" />
+      <stop offset="1" stop-color="#0F172A" />
+    </linearGradient>
+    <radialGradient id="paint1_radial" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(256 260) rotate(90) scale(150 200)">
+      <stop stop-color="white" stop-opacity="0.5" />
+      <stop offset="1" stop-color="white" stop-opacity="0" />
+    </radialGradient>
+  </defs>
+</svg>

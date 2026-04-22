@@ -4,13 +4,56 @@ services:
   db:
     image: postgres:15-alpine
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
+      POSTGRES_USER: temancode # Sesuaikan dengan username DB Anda
+      POSTGRES_PASSWORD: # Sesuaikan dengan password DB Anda
       POSTGRES_DB: wapify
     ports:
-      - "5433:5432"
+      - "5433:5432" # Akses dari host di port 5433
     volumes:
       - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  backend_central:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.central # Akan kita buat
+      args:
+        LICENSE_PRIVATE_KEY: ${LICENSE_PRIVATE_KEY} # Ambil dari .env di root project
+    ports:
+      - "8000:8000" # Wapify Central akan berjalan di port 8000
+    environment:
+      PORT: 8000
+      DB_HOST: db
+      DB_USER: temancode
+      DB_PASSWORD: # Sesuaikan
+      DB_NAME: wapify
+      DB_PORT: 5432
+      JWT_SECRET: supersecretjwtkey_central
+      # LICENSE_PRIVATE_KEY akan di passing via build args
+    depends_on:
+      - db
+    restart: unless-stopped
+
+  backend_client:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.client # Akan kita buat
+      args:
+        LICENSE_PUBLIC_KEY: ${LICENSE_PUBLIC_KEY} # Ambil dari .env di root project
+    ports:
+      - "8001:8001" # Wapify Client akan berjalan di port 8001
+    environment:
+      PORT: 8001
+      DB_HOST: db
+      DB_USER: temancode
+      DB_PASSWORD: # Sesuaikan
+      DB_NAME: wapify
+      DB_PORT: 5432
+      JWT_SECRET: supersecretjwtkey_client
+      LICENSE_KEY: ${CLIENT_LICENSE_KEY} # Akan diisi setelah generate dari central
+      WAPIFY_CENTRAL_URL: http://backend_central:8000 # Komunikasi antar container
+    depends_on:
+      - db
     restart: unless-stopped
 
 volumes:

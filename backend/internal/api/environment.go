@@ -46,6 +46,12 @@ func CreateEnvironment(c *fiber.Ctx) error {
 	if err := repository.DB.Create(&env).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to create environment", "code": "INTERNAL_SERVER_ERROR"})
 	}
+
+	// Real-time broadcast & logging
+	userID := uint(c.Locals("user_id").(float64))
+	WSHub.BroadcastEntityUpdate(env.TeamID, "TEAM", env.TeamID)
+	LogActivity(repository.DB, env.TeamID, userID, "CREATED_ENVIRONMENT", "ENVIRONMENT", env.ID, map[string]interface{}{"name": env.Name})
+
 	return c.Status(fiber.StatusCreated).JSON(env)
 }
 
@@ -83,6 +89,12 @@ func UpdateEnvironment(c *fiber.Ctx) error {
 	if err := repository.DB.Save(&env).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to update environment", "code": "INTERNAL_SERVER_ERROR"})
 	}
+
+	// Real-time broadcast & logging
+	userID := uint(c.Locals("user_id").(float64))
+	WSHub.BroadcastEntityUpdate(env.TeamID, "TEAM", env.TeamID)
+	LogActivity(repository.DB, env.TeamID, userID, "UPDATED_ENVIRONMENT", "ENVIRONMENT", env.ID, nil)
+
 	return c.JSON(env)
 }
 
@@ -98,5 +110,11 @@ func DeleteEnvironment(c *fiber.Ctx) error {
 	if err := repository.DB.Delete(&env).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to delete environment", "code": "INTERNAL_SERVER_ERROR"})
 	}
+
+	// Real-time broadcast & logging
+	userID := uint(c.Locals("user_id").(float64))
+	WSHub.BroadcastEntityUpdate(env.TeamID, "TEAM", env.TeamID)
+	LogActivity(repository.DB, env.TeamID, userID, "DELETED_ENVIRONMENT", "ENVIRONMENT", env.ID, map[string]interface{}{"name": env.Name})
+
 	return c.JSON(fiber.Map{"message": "Environment deleted successfully"})
 }

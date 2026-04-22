@@ -95,9 +95,27 @@ type Request struct {
 	CreatedAt          time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
 
-	Collection *Collection `gorm:"foreignKey:CollectionID" json:"-"`
-	Folder     *Folder     `gorm:"foreignKey:FolderID" json:"-"`
-	CreatedBy  *User       `gorm:"foreignKey:CreatedByID;references:ID" json:"-"`
+	Collection *Collection      `gorm:"foreignKey:CollectionID" json:"-"`
+	Folder     *Folder          `gorm:"foreignKey:FolderID" json:"-"`
+	CreatedBy  *User            `gorm:"foreignKey:CreatedByID;references:ID" json:"-"`
+	Examples   []RequestExample `gorm:"foreignKey:RequestID" json:"examples"`
+}
+
+type RequestExample struct {
+	ID              uint      `gorm:"primaryKey" json:"id"`
+	RequestID       uint      `gorm:"not null" json:"request_id"`
+	Name            string    `gorm:"not null" json:"name"`
+	RequestMethod   string    `gorm:"not null" json:"request_method"`
+	RequestURL      string    `gorm:"not null" json:"request_url"`
+	RequestHeaders  JSONB     `gorm:"type:jsonb;default:'{}'" json:"request_headers"`
+	RequestBody     string    `gorm:"type:text" json:"request_body"`
+	ResponseStatus  int       `gorm:"not null" json:"response_status"`
+	ResponseHeaders JSONB     `gorm:"type:jsonb;default:'{}'" json:"response_headers"`
+	ResponseBody    string    `gorm:"type:text" json:"response_body"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
+
+	Request *Request `gorm:"foreignKey:RequestID" json:"-"`
 }
 
 type Environment struct {
@@ -129,3 +147,66 @@ type RequestHistory struct {
 	Team    *Team    `gorm:"foreignKey:TeamID" json:"-"`
 	Request *Request `gorm:"foreignKey:RequestID" json:"-"`
 }
+
+type RequestVersion struct {
+	ID                uint      `gorm:"primaryKey" json:"id"`
+	RequestID         uint      `gorm:"not null" json:"request_id"`
+	CreatedByID       uint      `gorm:"column:created_by;not null" json:"created_by"`
+	Name              *string   `json:"name"`
+	Method            string    `gorm:"not null" json:"method"`
+	URL               string    `gorm:"not null" json:"url"`
+	Headers           JSONB     `gorm:"type:jsonb;default:'{}'" json:"headers"`
+	Body              JSONB     `gorm:"type:jsonb;default:'{}'" json:"body"`
+	AuthConfig        JSONB     `gorm:"type:jsonb;default:'{}'" json:"auth_config"`
+	PreRequestScript  string    `gorm:"type:text" json:"pre_request_script"`
+	PostRequestScript string    `gorm:"type:text" json:"post_request_script"`
+	CreatedAt         time.Time `json:"created_at"`
+
+	Request   *Request `gorm:"foreignKey:RequestID" json:"-"`
+	CreatedBy *User    `gorm:"foreignKey:CreatedByID;references:ID" json:"created_by_user,omitempty"`
+}
+
+type Comment struct {
+	ID        uint      `gorm:"primaryKey" json:"id"`
+	RequestID uint      `gorm:"not null" json:"request_id"`
+	UserID    uint      `gorm:"not null" json:"user_id"`
+	Content   string    `gorm:"not null" json:"content"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+
+	Request *Request `gorm:"foreignKey:RequestID" json:"-"`
+	User    *User    `gorm:"foreignKey:UserID" json:"user,omitempty"`
+}
+
+type ActivityLog struct {
+	ID         uint      `gorm:"primaryKey" json:"id"`
+	TeamID     uint      `gorm:"not null" json:"team_id"`
+	UserID     uint      `gorm:"not null" json:"user_id"`
+	Action     string    `gorm:"not null" json:"action"`
+	EntityType string    `gorm:"not null" json:"entity_type"`
+	EntityID   uint      `gorm:"not null" json:"entity_id"`
+	Details    JSONB     `gorm:"type:jsonb;default:'{}'" json:"details"`
+	CreatedAt  time.Time `json:"created_at"`
+
+	Team *Team `gorm:"foreignKey:TeamID" json:"-"`
+	User *User `gorm:"foreignKey:UserID" json:"user,omitempty"`
+}
+
+type MockEndpoint struct {
+	ID              uint      `gorm:"primaryKey" json:"id"`
+	CollectionID    uint      `gorm:"not null;column:collection_id" json:"collection_id"`
+	RequestID       *uint     `gorm:"column:request_id" json:"request_id"`
+	Method          string    `gorm:"not null" json:"method"`
+	Path            string    `gorm:"not null" json:"path"`
+	StatusCode      int       `gorm:"not null;default:200" json:"status_code"`
+	ResponseHeaders JSONB     `gorm:"type:jsonb;default:'{}'" json:"response_headers"`
+	ResponseBody    string    `gorm:"type:text;default:''" json:"response_body"`
+	DelayMs         int       `gorm:"default:0;column:delay_ms" json:"delay_ms"`
+	IsActive        bool      `gorm:"default:false;column:is_active" json:"is_active"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
+
+	Collection *Collection `gorm:"foreignKey:CollectionID" json:"-"`
+	Request    *Request    `gorm:"foreignKey:RequestID" json:"-"`
+}
+

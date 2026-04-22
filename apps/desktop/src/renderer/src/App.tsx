@@ -1,13 +1,17 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useAuthStore } from './store/useAuthStore'
-import { useDataStore } from './store/useDataStore'
 import { AppLayout } from './components/layout/AppLayout'
 import { LoginPage } from './components/auth/LoginPage'
-import { Toaster } from 'sonner'
+import { Toaster, toast } from 'sonner'
+import { initWebSocketIntegration } from './api/websocket'
+import { Key, AlertCircle, RefreshCw } from 'lucide-react'
+
+// Initialize WebSocket sync logic
+initWebSocketIntegration()
 
 function App(): React.JSX.Element {
   const { isAuthenticated, logout, rehydrateAuth, isLoading } = useAuthStore()
-  const { fetchHistory } = useDataStore()
+  const [licenseError, setLicenseError] = useState<{ message: string; code: string } | null>(null)
 
   useEffect(() => {
     rehydrateAuth()
@@ -17,16 +21,82 @@ function App(): React.JSX.Element {
     const handleAuthExpired = () => {
       logout()
     }
+    const handleLicenseInvalid = (e: Event) => {
+      const detail = (e as CustomEvent).detail
+      setLicenseError(detail)
+    }
+    const handleLicenseWarning = (e: Event) => {
+      const detail = (e as CustomEvent).detail
+      toast.warning(detail.message, {
+        id: 'license-warning', // Prevent duplicates
+        duration: 10000
+      })
+    }
+    const handleAccessDenied = (e: Event) => {
+      const detail = (e as CustomEvent).detail
+      toast.error(detail.message, {
+        id: 'access-denied',
+        duration: 5000
+      })
+    }
+
     window.addEventListener('wapify:auth-expired', handleAuthExpired)
-    return () => window.removeEventListener('wapify:auth-expired', handleAuthExpired)
+    window.addEventListener('wapify:license-invalid', handleLicenseInvalid)
+    window.addEventListener('wapify:license-warning', handleLicenseWarning)
+    window.addEventListener('wapify:access-denied', handleAccessDenied)
+
+    return () => {
+      window.removeEventListener('wapify:auth-expired', handleAuthExpired)
+      window.removeEventListener('wapify:license-invalid', handleLicenseInvalid)
+      window.removeEventListener('wapify:license-warning', handleLicenseWarning)
+      window.removeEventListener('wapify:access-denied', handleAccessDenied)
+    }
   }, [logout])
+
+  if (licenseError) {
+    return (
+      <div className="h-screen w-screen bg-background flex items-center justify-center p-6 relative overflow-hidden">
+        {/* Background blobs for aesthetics */}
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary/10 rounded-full blur-[120px]" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-danger/5 rounded-full blur-[120px]" />
+
+        <div className="max-w-md w-full bg-surface border border-border rounded-2xl p-8 shadow-2xl relative z-10 animate-in fade-in zoom-in duration-300">
+          <div className="w-16 h-16 bg-danger/10 rounded-2xl flex items-center justify-center mb-6 mx-auto">
+            <Key size={32} className="text-danger" />
+          </div>
+          
+          <h1 className="text-2xl font-bold text-center mb-2">License Required</h1>
+          <p className="text-muted text-center text-sm mb-8 leading-relaxed">
+            {licenseError.message}
+          </p>
+
+          <div className="bg-background/50 border border-border rounded-xl p-4 mb-8 flex items-start gap-3">
+            <AlertCircle size={16} className="text-warning shrink-0 mt-0.5" />
+            <div className="text-[11px] text-muted leading-normal">
+              Please update your <strong>LICENSE_KEY</strong> in the server configuration or environment variables to continue using Wapify.
+            </div>
+          </div>
+
+          <button 
+            onClick={() => window.location.reload()}
+            className="w-full py-3 bg-primary hover:bg-primary-hover text-white rounded-lg font-bold transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary/20"
+          >
+            <RefreshCw size={16} />
+            Check Again
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   if (isLoading && !isAuthenticated) {
     return (
       <div className="h-screen w-screen bg-background flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <div className="w-10 h-10 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
-          <span className="text-muted text-sm font-medium animate-pulse">Initializing Wapify...</span>
+          <span className="text-muted text-sm font-medium animate-pulse">
+            Initializing Wapify...
+          </span>
         </div>
       </div>
     )

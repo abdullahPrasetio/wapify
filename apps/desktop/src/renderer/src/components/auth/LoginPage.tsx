@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react'
-import { Loader2, AlertCircle } from 'lucide-react'
+import { Loader2, AlertCircle, Settings } from 'lucide-react'
 import { useAuthStore } from '../../store/useAuthStore'
+import { ServerSettingsModal } from '../modals/ServerSettingsModal'
 
 export const LoginPage = (): React.JSX.Element => {
   const { login, isLoading, error, clearError } = useAuthStore()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showSettings, setShowSettings] = useState(false)
 
   useEffect(() => {
     if (error) {
@@ -23,6 +25,15 @@ export const LoginPage = (): React.JSX.Element => {
 
   return (
     <div className="h-screen w-screen bg-background flex items-center justify-center font-sans overflow-hidden">
+      {/* Settings Trigger (Top Right) */}
+      <button
+        onClick={() => setShowSettings(true)}
+        className="absolute top-6 right-6 p-2 rounded-xl bg-surface border border-border text-muted hover:text-primary hover:border-primary/50 transition-all z-[60] shadow-lg shadow-black/20"
+        title="Server Configuration"
+      >
+        <Settings size={20} />
+      </button>
+
       {/* Background gradient decoration */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-40 -left-40 w-96 h-96 rounded-full bg-primary/10 blur-3xl" />
@@ -110,6 +121,8 @@ export const LoginPage = (): React.JSX.Element => {
           Tidak punya akun? Hubungi administrator.
         </p>
       </div>
+
+      {showSettings && <ServerSettingsModal onClose={() => setShowSettings(false)} />}
     </div>
   )
 }

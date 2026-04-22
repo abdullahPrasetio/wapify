@@ -66,6 +66,21 @@ export interface Folder {
 // ─── Request Types ────────────────────────────────────────────────────────────
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD' | 'OPTIONS'
 
+export interface RequestExample {
+  id: number
+  request_id: number
+  name: string
+  request_method: string
+  request_url: string
+  request_headers: Record<string, unknown>
+  request_body: string
+  response_status: number
+  response_headers: Record<string, unknown>
+  response_body: string
+  created_at: string
+  updated_at: string
+}
+
 export interface ApiRequest {
   id: number
   name: string
@@ -73,7 +88,7 @@ export interface ApiRequest {
   method: HttpMethod
   url: string
   headers: Record<string, string>
-  body: any
+  body: unknown
   auth_config: Record<string, unknown>
   collection_id: number
   folder_id: number | null
@@ -83,6 +98,7 @@ export interface ApiRequest {
   post_request_script: string
   created_at: string
   updated_at: string
+  examples?: RequestExample[]
 }
 
 export interface RequestHistory {
@@ -113,9 +129,65 @@ export interface Environment {
 
 // ─── Sidebar Tree ─────────────────────────────────────────────────────────────
 export interface SidebarItem {
-  type: 'team' | 'collection' | 'folder' | 'request'
+  type: 'team' | 'collection' | 'folder' | 'request' | 'example'
   id: number
   name: string
   children?: SidebarItem[]
-  data?: Team | Collection | Folder | ApiRequest
+  data?: Team | Collection | Folder | ApiRequest | RequestExample
 }
+
+// ─── Documentation Types ──────────────────────────────────────────────────────
+export interface DocRequest {
+  id: number
+  name: string
+  description: string
+  method: string
+  url: string
+  headers: Record<string, unknown>
+  body: Record<string, unknown>
+  examples?: RequestExample[]
+}
+
+export interface DocFolder {
+  id: number
+  name: string
+  parent_id: number | null
+  requests: DocRequest[]
+}
+
+export interface CollectionDocs {
+  collection_id: number
+  collection_name: string
+  description: string
+  folders: DocFolder[]
+  root_requests: DocRequest[]
+}
+
+// ─── Mock Server Types ────────────────────────────────────────────────────────
+export interface MockEndpoint {
+  id: number
+  collection_id: number
+  request_id: number | null
+  method: string
+  path: string
+  status_code: number
+  response_headers: Record<string, string>
+  response_body: string
+  delay_ms: number
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface License {
+  id: number
+  client_name: string
+  email: string
+  license_key: string
+  valid_until: string
+  is_active: boolean
+  created_by: number
+  created_at: string
+  updated_at: string
+}
+

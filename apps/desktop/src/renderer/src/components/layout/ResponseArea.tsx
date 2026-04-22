@@ -7,10 +7,12 @@ loader.config({ monaco })
 import { Clock, Database, Globe } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
+import { PromptModal } from '../modals/PromptModal'
 
 export const ResponseArea = (): React.JSX.Element => {
-  const { tabs, activeTabId, logs, clearLogs } = useDataStore()
+  const { tabs, activeTabId, logs, clearLogs, saveExample } = useDataStore()
   const [activeTab, setActiveTab] = useState<'Body' | 'Headers' | 'Tests' | 'Console'>('Body')
+  const [isPromptOpen, setIsPromptOpen] = useState(false)
 
   const activeTabRequest = tabs.find((t) => t.requestId === activeTabId)
 
@@ -19,7 +21,7 @@ export const ResponseArea = (): React.JSX.Element => {
   const { lastResponse, isSending, testResults } = activeTabRequest
 
   // Filter logs for this request only
-  const filteredLogs = logs.filter(l => l.requestId === activeTabId)
+  const filteredLogs = logs.filter((l) => l.requestId === activeTabId)
 
   if (isSending) {
     return (
@@ -30,15 +32,37 @@ export const ResponseArea = (): React.JSX.Element => {
     )
   }
 
-  const { status, timing, data, headers } = lastResponse || { status: 0, timing: 0, data: null, headers: {} }
+  const { status, timing, data, headers } = lastResponse || {
+    status: 0,
+    timing: 0,
+    data: null,
+    headers: {}
+  }
   const statusColor = status >= 200 && status < 300 ? 'text-success' : 'text-danger'
 
   const formattedData = typeof data === 'object' ? JSON.stringify(data, null, 2) : String(data)
 
   const TABS = ['Body', 'Headers', 'Test Results', 'Console']
 
+  const handleSaveExample = (name: string) => {
+    if (typeof activeTabId === 'number') {
+      saveExample(activeTabId, name)
+    } else {
+      toast.error('Cannot save example from a draft request')
+    }
+  }
+
   return (
     <div className="flex-1 flex flex-col overflow-hidden border-t border-border bg-background">
+      <PromptModal
+        isOpen={isPromptOpen}
+        onClose={() => setIsPromptOpen(false)}
+        onSubmit={handleSaveExample}
+        title="Save Example"
+        description="Enter a name for this example response."
+        defaultValue={`Success - ${status} ${getStatusText(status)}`}
+        submitText="Save"
+      />
       {/* Response Header Info */}
       {lastResponse && (
         <div className="h-10 px-4 border-b border-border flex items-center justify-between bg-surface/30 shrink-0">
@@ -61,6 +85,13 @@ export const ResponseArea = (): React.JSX.Element => {
             </div>
           </div>
           <div className="flex items-center gap-3">
+            <button
+              onClick={() => setIsPromptOpen(true)}
+              disabled={typeof activeTabId === 'string' && activeTabId.startsWith('draft-')}
+              className="text-[10px] font-bold text-primary hover:text-primary-hover transition-colors px-2 py-1 bg-primary/10 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Save as Example
+            </button>
             <button
               onClick={(): void => {
                 navigator.clipboard.writeText(formattedData)
@@ -97,7 +128,7 @@ export const ResponseArea = (): React.JSX.Element => {
             {tab}
             {tab === 'Test Results' && testResults && testResults.length > 0 && (
               <span className="ml-2 px-1 rounded-sm bg-surface text-[9px] border border-border">
-                {testResults.filter(r => r.status === 'passed').length}/{testResults.length}
+                {testResults.filter((r) => r.status === 'passed').length}/{testResults.length}
               </span>
             )}
             {tab === 'Console' && filteredLogs.length > 0 && (
@@ -110,11 +141,11 @@ export const ResponseArea = (): React.JSX.Element => {
       {/* Content Area */}
       <div className="flex-1 overflow-hidden relative">
         {!lastResponse && activeTab !== 'Console' ? (
-           <div className="flex-1 h-full flex flex-col items-center justify-center text-muted bg-background/30">
+          <div className="flex-1 h-full flex flex-col items-center justify-center text-muted bg-background/30">
             <div className="w-16 h-16 rounded-full bg-surface flex items-center justify-center mb-4 border border-border">
               <Globe size={32} className="opacity-20" />
             </div>
-            <p className="text-sm italic">Enter a URL and click Send to see the response</p>
+            <p className="text-sm italic">Select a request and click &quot;Send&quot; to see the response here.</p>
           </div>
         ) : (
           <>
@@ -151,7 +182,9 @@ export const ResponseArea = (): React.JSX.Element => {
                     {Object.entries(headers).map(([key, values]) => (
                       <tr key={key} className="border-b border-border/50 hover:bg-surface/30">
                         <td className="py-2 text-primary font-medium">{key}</td>
-                        <td className="py-2 text-text">{Array.isArray(values) ? values.join(', ') : values}</td>
+                        <td className="py-2 text-text">
+                          {Array.isArray(values) ? values.join(', ') : values}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -163,20 +196,33 @@ export const ResponseArea = (): React.JSX.Element => {
               <div className="p-4 h-full overflow-auto space-y-2">
                 {testResults && testResults.length > 0 ? (
                   testResults.map((res, i) => (
-                    <div key={i} className="flex items-center gap-3 p-3 rounded-md bg-surface/30 border border-border">
-                      <div className={`w-2 h-2 rounded-full ${res.status === 'passed' ? 'bg-success shadow-[0_0_8px_rgba(34,197,94,0.5)]' : 'bg-danger shadow-[0_0_8px_rgba(239,68,68,0.5)]'}`} />
+                    <div
+                      key={i}
+                      className="flex items-center gap-3 p-3 rounded-md bg-surface/30 border border-border"
+                    >
+                      <div
+                        className={`w-2 h-2 rounded-full ${res.status === 'passed' ? 'bg-success shadow-[0_0_8px_rgba(34,197,94,0.5)]' : 'bg-danger shadow-[0_0_8px_rgba(239,68,68,0.5)]'}`}
+                      />
                       <div className="flex-1">
                         <p className="text-xs font-semibold text-text">{res.name}</p>
-                        {res.error && <p className="text-[10px] text-danger mt-1 font-mono italic">{res.error}</p>}
+                        {res.error && (
+                          <p className="text-[10px] text-danger mt-1 font-mono italic">
+                            {res.error}
+                          </p>
+                        )}
                       </div>
-                      <span className={`text-[10px] font-black uppercase tracking-widest ${res.status === 'passed' ? 'text-success' : 'text-danger'}`}>
+                      <span
+                        className={`text-[10px] font-black uppercase tracking-widest ${res.status === 'passed' ? 'text-success' : 'text-danger'}`}
+                      >
                         {res.status}
                       </span>
                     </div>
                   ))
                 ) : (
                   <div className="h-full flex flex-col items-center justify-center text-muted opacity-50 italic py-20">
-                    <p className="text-xs">No test results to display. Add tests in the "Tests" tab.</p>
+                    <p className="text-xs">
+                      No test results to display. Add tests in the "Tests" tab.
+                    </p>
                   </div>
                 )}
               </div>
@@ -185,20 +231,40 @@ export const ResponseArea = (): React.JSX.Element => {
             {activeTab === 'Console' && (
               <div className="h-full flex flex-col overflow-hidden bg-[#0d0d0d]">
                 <div className="px-4 py-2 border-b border-white/5 flex items-center justify-between bg-white/5">
-                  <span className="text-[10px] font-bold text-muted uppercase tracking-widest">Console Output</span>
-                  <button onClick={clearLogs} className="text-[10px] font-bold text-muted hover:text-text transition-colors">Clear</button>
+                  <span className="text-[10px] font-bold text-muted uppercase tracking-widest">
+                    Console Output
+                  </span>
+                  <button
+                    onClick={clearLogs}
+                    className="text-[10px] font-bold text-muted hover:text-text transition-colors"
+                  >
+                    Clear
+                  </button>
                 </div>
                 <div className="flex-1 overflow-auto p-2 font-mono text-[11px] space-y-1">
                   {filteredLogs.length > 0 ? (
                     filteredLogs.map((log) => (
-                      <div key={log.id} className="flex gap-3 px-2 py-1.5 rounded hover:bg-white/5 border-l-2 border-transparent transition-all group">
+                      <div
+                        key={log.id}
+                        className="flex gap-3 px-2 py-1.5 rounded hover:bg-white/5 border-l-2 border-transparent transition-all group"
+                      >
                         <span className="text-muted shrink-0 w-16 opacity-50">{log.timestamp}</span>
-                        <span className={`shrink-0 w-12 font-black uppercase text-[9px] ${
-                          log.level === 'error' ? 'text-danger' : 
-                          log.level === 'warn' ? 'text-warning' : 
-                          log.level === 'info' ? 'text-info' : 'text-muted'
-                        }`}>{log.level}</span>
-                        <span className="text-text/90 break-all whitespace-pre-wrap">{log.message}</span>
+                        <span
+                          className={`shrink-0 w-12 font-black uppercase text-[9px] ${
+                            log.level === 'error'
+                              ? 'text-danger'
+                              : log.level === 'warn'
+                                ? 'text-warning'
+                                : log.level === 'info'
+                                  ? 'text-info'
+                                  : 'text-muted'
+                          }`}
+                        >
+                          {log.level}
+                        </span>
+                        <span className="text-text/90 break-all whitespace-pre-wrap">
+                          {log.message}
+                        </span>
                       </div>
                     ))
                   ) : (

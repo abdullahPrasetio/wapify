@@ -87,6 +87,10 @@ func ImportPostman(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error(), "code": "INTERNAL_SERVER_ERROR"})
 	}
 
+	// Real-time broadcast
+	WSHub.BroadcastEntityUpdate(tid, "TEAM", tid)
+	LogActivity(repository.DB, tid, userID, "IMPORTED_POSTMAN", "TEAM", tid, map[string]interface{}{"collection_name": postman.Info.Name})
+
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{"message": "Import successful"})
 }
 
@@ -188,6 +192,10 @@ func CreateCollection(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to create collection", "code": "INTERNAL_SERVER_ERROR"})
 	}
 
+	// Real-time broadcast & logging
+	WSHub.BroadcastEntityUpdate(tid, "TEAM", tid)
+	LogActivity(repository.DB, tid, userID, "CREATED_COLLECTION", "COLLECTION", collection.ID, map[string]interface{}{"name": collection.Name})
+
 	return c.Status(fiber.StatusCreated).JSON(collection)
 }
 
@@ -244,6 +252,11 @@ func UpdateCollection(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to update collection", "code": "INTERNAL_SERVER_ERROR"})
 	}
 
+	// Real-time broadcast & logging
+	userID := uint(c.Locals("user_id").(float64))
+	WSHub.BroadcastEntityUpdate(collection.TeamID, "TEAM", collection.TeamID)
+	LogActivity(repository.DB, collection.TeamID, userID, "UPDATED_COLLECTION", "COLLECTION", collection.ID, nil)
+
 	return c.JSON(collection)
 }
 
@@ -262,6 +275,11 @@ func DeleteCollection(c *fiber.Ctx) error {
 	if err := repository.DB.Delete(&collection).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to delete collection", "code": "INTERNAL_SERVER_ERROR"})
 	}
+
+	// Real-time broadcast & logging
+	userID := uint(c.Locals("user_id").(float64))
+	WSHub.BroadcastEntityUpdate(collection.TeamID, "TEAM", collection.TeamID)
+	LogActivity(repository.DB, collection.TeamID, userID, "DELETED_COLLECTION", "COLLECTION", collection.ID, map[string]interface{}{"name": collection.Name})
 
 	return c.JSON(fiber.Map{"message": "Collection deleted successfully"})
 }

@@ -210,20 +210,22 @@ Go binary = tinggal install di server client manapun
          └─────────────────┘
 ```
 
-## Arsitektur On-Premise (Nanti, Tanpa Ubah Kode)
+## Arsitektur On-Premise (Secure & Offline-First)
 
 ```
 Client Tim Luar                          Server Client (On-Premise)
 ┌─────────────────┐                      ┌──────────────────────────┐
-│  Electron App   │─── HTTPS ───────────►│  Go Binary (sama persis) │
-└─────────────────┘                      │  + PostgreSQL            │
-                                         └──────────┬───────────────┘
-                                                    │ Daily check
-                                         ┌──────────▼───────────────┐
-                                         │  License Server (STB)    │
-                                         │  (ditambahkan nanti)     │
+│  Electron App   │─── HTTPS ───────────►│  Go Binary (Locked)      │
+└─────────────────┘                      │  - Embedded Public Key   │
+                                         │  - Offline Validation    │
                                          └──────────────────────────┘
 ```
+
+**Mekanisme Lisensi:**
+- **Offline Validation:** Verifikasi integritas lisensi menggunakan algoritma Ed25519 secara lokal tanpa memerlukan koneksi internet ke server pusat.
+- **Grace Period:** Memberikan masa tenggang 24 jam setelah lisensi expired sebelum aplikasi terkunci sepenuhnya.
+- **Binary Locking:** Public Key ditanamkan saat proses kompilasi menggunakan `-ldflags`.
+
 
 ```mermaid
 graph LR

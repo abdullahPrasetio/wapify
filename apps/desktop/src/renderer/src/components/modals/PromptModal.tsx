@@ -10,6 +10,7 @@ interface PromptModalProps {
   isOpen: boolean
   onClose: () => void
   onSubmit: (value: string) => void
+  submitText?: string
 }
 
 export const PromptModal = ({
@@ -19,12 +20,15 @@ export const PromptModal = ({
   defaultValue = '',
   isOpen,
   onClose,
-  onSubmit
+  onSubmit,
+  submitText = 'Create'
 }: PromptModalProps): React.JSX.Element => {
   const [value, setValue] = useState(defaultValue)
 
   useEffect(() => {
-    if (isOpen) setValue(defaultValue)
+    if (isOpen && setValue) {
+      setTimeout(() => setValue(defaultValue), 0)
+    }
   }, [isOpen, defaultValue])
 
   const handleSubmit = (e: React.FormEvent): void => {
@@ -46,7 +50,7 @@ export const PromptModal = ({
               <X size={20} />
             </Dialog.Close>
           </div>
-          
+
           {description && (
             <Dialog.Description className="text-sm text-muted mb-4">
               {description}
@@ -64,7 +68,7 @@ export const PromptModal = ({
                 className="w-full bg-background border border-border rounded-lg px-4 py-2.5 text-sm text-text focus:outline-none focus:border-primary transition-colors"
               />
             </div>
-            
+
             <div className="flex justify-end gap-3 pt-2">
               <button
                 type="button"
@@ -78,7 +82,7 @@ export const PromptModal = ({
                 disabled={!value.trim()}
                 className="px-4 py-2 bg-primary hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors"
               >
-                Create
+                {submitText}
               </button>
             </div>
           </form>

@@ -109,8 +109,16 @@ func Refresh(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not generate token", "code": "INTERNAL_SERVER_ERROR"})
 	}
 
+	// We also return the existing refresh token so the client can keep it
 	return c.JSON(fiber.Map{
 		"token": nt,
+		"refresh_token": req.RefreshToken,
+		"user": fiber.Map{
+			"id":             user.ID,
+			"email":          user.Email,
+			"name":           user.Name,
+			"is_super_admin": user.IsSuperAdmin,
+		},
 	})
 }
 

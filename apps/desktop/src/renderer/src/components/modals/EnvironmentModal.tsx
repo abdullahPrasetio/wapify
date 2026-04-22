@@ -48,43 +48,43 @@ export const EnvironmentModal = (): React.JSX.Element => {
           <div className="flex-1 flex overflow-hidden">
             {/* Sidebar List */}
             <div className="w-64 border-r border-border bg-background/30 p-4 flex flex-col gap-2">
-                {isAddingNew ? (
-                  <div className="mb-2 space-y-2 p-2 bg-primary/5 rounded-lg border border-primary/20 animate-in slide-in-from-top-1 duration-200">
-                    <input
-                      autoFocus
-                      type="text"
-                      placeholder="Env Name..."
-                      value={newEnvName}
-                      onChange={(e) => setNewEnvName(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') handleCreate()
-                        if (e.key === 'Escape') setIsAddingNew(false)
-                      }}
-                      className="w-full bg-background border border-border rounded px-2 py-1 text-xs focus:outline-none focus:border-primary"
-                    />
-                    <div className="flex gap-2">
-                      <button
-                        onClick={handleCreate}
-                        className="flex-1 bg-primary text-white text-[10px] font-bold py-1 rounded hover:bg-primary-hover"
-                      >
-                        Create
-                      </button>
-                      <button
-                        onClick={() => setIsAddingNew(false)}
-                        className="flex-1 bg-surface text-text text-[10px] font-bold py-1 rounded border border-border hover:bg-border"
-                      >
-                        Cancel
-                      </button>
-                    </div>
+              {isAddingNew ? (
+                <div className="mb-2 space-y-2 p-2 bg-primary/5 rounded-lg border border-primary/20 animate-in slide-in-from-top-1 duration-200">
+                  <input
+                    autoFocus
+                    type="text"
+                    placeholder="Env Name..."
+                    value={newEnvName}
+                    onChange={(e) => setNewEnvName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleCreate()
+                      if (e.key === 'Escape') setIsAddingNew(false)
+                    }}
+                    className="w-full bg-background border border-border rounded px-2 py-1 text-xs focus:outline-none focus:border-primary"
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleCreate}
+                      className="flex-1 bg-primary text-white text-[10px] font-bold py-1 rounded hover:bg-primary-hover"
+                    >
+                      Create
+                    </button>
+                    <button
+                      onClick={() => setIsAddingNew(false)}
+                      className="flex-1 bg-surface text-text text-[10px] font-bold py-1 rounded border border-border hover:bg-border"
+                    >
+                      Cancel
+                    </button>
                   </div>
-                ) : (
-                  <button
-                    onClick={() => setIsAddingNew(true)}
-                    className="flex items-center gap-2 text-sm text-primary hover:text-primary-hover font-medium px-2 py-1.5 rounded hover:bg-primary/10 transition-all mb-2 w-full"
-                  >
-                    <Plus size={16} /> New Environment
-                  </button>
-                )}
+                </div>
+              ) : (
+                <button
+                  onClick={() => setIsAddingNew(true)}
+                  className="flex items-center gap-2 text-sm text-primary hover:text-primary-hover font-medium px-2 py-1.5 rounded hover:bg-primary/10 transition-all mb-2 w-full"
+                >
+                  <Plus size={16} /> New Environment
+                </button>
+              )}
 
               <div className="space-y-1 overflow-y-auto">
                 {environments.map((env) => (
