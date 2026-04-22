@@ -8,6 +8,11 @@ export const LoginPage = (): React.JSX.Element => {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showSettings, setShowSettings] = useState(false)
+  const [appVersion, setAppVersion] = useState('')
+
+  useEffect(() => {
+    window.api.getAppVersion().then(setAppVersion)
+  }, [])
 
   useEffect(() => {
     if (error) {
@@ -121,6 +126,12 @@ export const LoginPage = (): React.JSX.Element => {
           Tidak punya akun? Hubungi administrator.
         </p>
       </div>
+
+      {appVersion && (
+        <div className="absolute bottom-6 left-6 text-[10px] font-black uppercase tracking-[0.2em] text-muted opacity-30 select-none">
+          Wapify v{appVersion}
+        </div>
+      )}
 
       {showSettings && <ServerSettingsModal onClose={() => setShowSettings(false)} />}
     </div>

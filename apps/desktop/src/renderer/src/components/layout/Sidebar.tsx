@@ -725,6 +725,12 @@ const CollectionItem = ({ collection }: CollectionItemProps): React.JSX.Element 
 export const Sidebar = (): React.JSX.Element => {
   const { user, logout } = useAuthStore()
   const [showServerSettings, setShowServerSettings] = useState(false)
+  const [appVersion, setAppVersion] = useState<string>('')
+
+  useEffect(() => {
+    window.api.getAppVersion().then(setAppVersion)
+  }, [])
+
   const {
     teams,
     activeTeamId,
@@ -841,7 +847,7 @@ export const Sidebar = (): React.JSX.Element => {
 
         {/* Team Selector */}
         <div className="px-3 py-2 border-b border-border shrink-0">
-          <div className="text-xs font-semibold text-muted uppercase tracking-wider mb-1.5 flex items-center justify-between">
+          <div className="text-xs font-bold text-text/60 uppercase tracking-widest mb-1.5 flex items-center justify-between">
             <div className="flex items-center gap-1.5">
               <Users size={12} />
               Teams
@@ -921,7 +927,7 @@ export const Sidebar = (): React.JSX.Element => {
               </div>
 
               <div className="px-2 pb-2 flex items-center justify-between">
-                <span className="text-[10px] font-bold text-muted uppercase tracking-widest">
+                <span className="text-[10px] font-black text-text/50 uppercase tracking-[0.2em]">
                   List
                 </span>
                 {activeTeam && (
@@ -956,7 +962,7 @@ export const Sidebar = (): React.JSX.Element => {
           ) : (
             <div className="px-2 py-2 space-y-0.5">
               <div className="px-2 py-2 flex items-center justify-between">
-                <span className="text-[10px] font-bold text-muted uppercase tracking-widest">
+                <span className="text-[10px] font-black text-text/50 uppercase tracking-[0.2em]">
                   Recent Activity
                 </span>
                 <button
@@ -1054,26 +1060,33 @@ export const Sidebar = (): React.JSX.Element => {
         </div>
 
         {/* User info + Logout */}
-        <div className="px-3 py-2.5 flex items-center justify-between">
-          <div className="min-w-0">
-            <div className="text-xs font-medium text-text truncate">{user?.name}</div>
-            <div className="text-[10px] text-muted truncate">{user?.email}</div>
-          </div>
-          <div className="flex items-center gap-2 shrink-0 ml-2">
-            <button 
-              onClick={() => setShowServerSettings(true)}
-              title="Server Configuration" 
-              className="text-muted hover:text-text transition-colors"
-            >
-              <Settings size={14} />
-            </button>
-            <button
-              onClick={logout}
-              title="Logout"
-              className="text-muted hover:text-danger transition-colors"
-            >
-              <LogOut size={14} />
-            </button>
+        <div className="px-3 py-2 flex flex-col gap-1 border-t border-border/50 bg-background/50">
+          {appVersion && (
+            <div className="px-1 text-[9px] font-black uppercase tracking-[0.2em] text-muted/70 mb-1">
+              Wapify v{appVersion}
+            </div>
+          )}
+          <div className="flex items-center justify-between">
+            <div className="min-w-0">
+              <div className="text-xs font-bold text-text truncate">{user?.name}</div>
+              <div className="text-[10px] text-muted font-medium truncate">{user?.email}</div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0 ml-2">
+              <button 
+                onClick={() => setShowServerSettings(true)}
+                title="Server Configuration" 
+                className="text-muted hover:text-text transition-colors"
+              >
+                <Settings size={14} />
+              </button>
+              <button
+                onClick={logout}
+                title="Logout"
+                className="text-muted hover:text-danger transition-colors"
+              >
+                <LogOut size={14} />
+              </button>
+            </div>
           </div>
         </div>
       </div>
