@@ -14,7 +14,7 @@
 | 2 | Kolaborasi Real-time | Field locking, presence, versioning | ✅ Selesai |
 | 3 | Dokumentasi & Mock Server | Generate docs, mock API | ✅ Selesai |
 | 4 | Testing & CI/CD | Collection runner, CLI | ⬜ Belum Mulai |
-| 5 | On-Premise & License | Jual ke client luar | ⬜ Belum Mulai |
+| 5 | On-Premise & License | Jual ke client luar | 🔄 Dalam Proses |
 | 6 | SaaS (Opsional) | Cloud hosted di wapify.io | ⬜ Belum Mulai |
 
 ---
@@ -233,7 +233,8 @@ wapify/
 **Estimasi:** 3-4 minggu
 
 - [ ] License Server (Go) di STB Android
-- [ ] Ed25519 keypair: Private Key di STB, Public Key di-embed di binary backend
+- [x] Ed25519 keypair: Logika signing dan generation (MVP)
+- [x] UI: License Management untuk Super Admin (List, Create, Revoke)
 - [ ] Discovery pattern: `lic.wapify.io/discovery`
 - [ ] Flow: aktivasi → refresh harian → grace period 7 hari → read-only mode
 - [ ] Dashboard license: generate/revoke key, list client aktif

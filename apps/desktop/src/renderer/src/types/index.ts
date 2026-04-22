@@ -179,3 +179,15 @@ export interface MockEndpoint {
   updated_at: string
 }
 
+export interface License {
+  id: number
+  client_name: string
+  email: string
+  license_key: string
+  valid_until: string
+  is_active: boolean
+  created_by: number
+  created_at: string
+  updated_at: string
+}
+

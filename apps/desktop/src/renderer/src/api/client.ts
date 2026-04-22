@@ -71,6 +71,37 @@ async function ipcRequest<T>(config: RequestConfig): Promise<IpcResponse<T>> {
     headers
   })
 
+  // Handle License Warnings
+  const licenseWarning = response.headers?.['x-wapify-license-warning']
+  if (licenseWarning) {
+    window.dispatchEvent(
+      new CustomEvent('wapify:license-warning', {
+        detail: { message: licenseWarning }
+      })
+    )
+  }
+
+  // Handle License Issues (402 Payment Required or 403 License Expired/Invalid)
+  if (config.url.startsWith(getBaseUrl()) && (response.status === 402 || response.status === 403)) {
+    const errorData = response.data as any
+    if (errorData?.code === 'LICENSE_REQUIRED' || errorData?.code === 'INVALID_LICENSE') {
+      window.dispatchEvent(
+        new CustomEvent('wapify:license-invalid', {
+          detail: {
+            message: errorData.error || 'Your license is invalid or has expired.',
+            code: errorData.code
+          }
+        })
+      )
+    } else if (errorData?.code === 'FORBIDDEN') {
+      window.dispatchEvent(
+        new CustomEvent('wapify:access-denied', {
+          detail: { message: errorData.error || 'You do not have permission to perform this action.' }
+        })
+      )
+    }
+  }
+
   // Auto-refresh token if 401 Unauthorized
   if (
     response.status === 401 &&

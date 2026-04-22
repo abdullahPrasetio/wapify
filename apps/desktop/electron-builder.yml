@@ -2,6 +2,7 @@ appId: io.wapify.desktop
 productName: Wapify
 directories:
   buildResources: build
+  output: dist
 files:
   - '!**/.vscode/*'
   - '!src/*'
@@ -11,33 +12,25 @@ files:
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
 asarUnpack:
   - resources/**
-win:
-  executableName: wapify-desktop
-nsis:
-  artifactName: ${name}-${version}-setup.${ext}
-  shortcutName: ${productName}
-  uninstallDisplayName: ${productName}
-  createDesktopShortcut: always
 mac:
-  entitlementsInherit: build/entitlements.mac.plist
-  extendInfo:
-    - NSCameraUsageDescription: Application requests access to the device's camera.
-    - NSMicrophoneUsageDescription: Application requests access to the device's microphone.
-    - NSDocumentsFolderUsageDescription: Application requests access to the user's Documents folder.
-    - NSDownloadsFolderUsageDescription: Application requests access to the user's Downloads folder.
-  notarize: false
-dmg:
-  artifactName: ${name}-${version}.${ext}
+  identity: null
+  target:
+    - dmg
+  icon: build/icon.icns
+win:
+  target: nsis
+  icon: build/icon.ico
+  executableName: wapify-desktop
 linux:
   target:
     - AppImage
-    - snap
     - deb
-  maintainer: electronjs.org
+  icon: build/icon.png
   category: Utility
-appImage:
+dmg:
   artifactName: ${name}-${version}.${ext}
+nsis:
+  artifactName: ${name}-${version}-setup.${ext}
+  shortcutName: ${productName}
+  createDesktopShortcut: always
 npmRebuild: false
-publish:
-  provider: generic
-  url: https://example.com/auto-updates

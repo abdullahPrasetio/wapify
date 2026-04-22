@@ -1,0 +1,22 @@
+FROM golang:1.22-alpine AS builder
+
+WORKDIR /app
+
+COPY go.mod .
+COPY go.sum .
+RUN go mod download
+
+COPY . .
+
+# LICENSE_PUBLIC_KEY is injected using -ldflags at build time
+# This will replace the 'var LicensePublicKey' in main.go
+ARG LICENSE_PUBLIC_KEY
+RUN go build -o /app/server -ldflags="-X main.LicensePublicKey=$LICENSE_PUBLIC_KEY" cmd/server/main.go
+
+FROM alpine:latest
+
+WORKDIR /app
+
+COPY --from=builder /app/server .
+
+CMD ["/app/server"]

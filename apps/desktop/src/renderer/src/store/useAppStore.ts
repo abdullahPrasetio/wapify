@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 
-export type AppView = 'request-builder' | 'admin-users' | 'admin-teams' | 'history-detail'
+export type AppView = 'request-builder' | 'admin-users' | 'admin-teams' | 'admin-licenses' | 'history-detail'
 
 interface AppState {
   // Navigation
