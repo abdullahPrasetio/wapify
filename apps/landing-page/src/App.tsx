@@ -225,8 +225,15 @@ export default function App() {
               ].map((item, i) => (
                 <div key={i} className="p-8 rounded-[2.5rem] bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-white/10 hover:border-primary/50 transition-all group shadow-xl">
                    <item.icon className={`mx-auto mb-6 text-${item.color} group-hover:scale-110 transition-transform`} size={48} />
-                   <h4 className="font-black mb-6 uppercase text-xs tracking-widest">{item.platform}</h4>
-                   <button className="w-full py-4 bg-slate-900 dark:bg-primary text-white rounded-2xl font-black text-[10px] shadow-lg uppercase tracking-widest">Download</button>
+                   <h4 className="font-black dark:text-white mb-6 uppercase text-xs tracking-widest">{item.platform}</h4>
+                   <a 
+                     href="https://github.com/abdullahPrasetio/wapify-desktop-releases/releases/latest" 
+                     target="_blank" 
+                     rel="noopener noreferrer"
+                     className="block w-full py-4 bg-slate-900 dark:bg-primary text-white rounded-2xl font-black text-[10px] shadow-lg uppercase tracking-widest text-center"
+                   >
+                     Download
+                   </a>
                 </div>
               ))}
            </div>

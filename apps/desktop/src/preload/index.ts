@@ -34,6 +34,9 @@ const api = {
   },
   deleteToken: (): Promise<void> => {
     return ipcRenderer.invoke('wapify:delete-token')
+  },
+  getAppVersion: (): Promise<string> => {
+    return ipcRenderer.invoke('wapify:get-version')
   }
 }
 

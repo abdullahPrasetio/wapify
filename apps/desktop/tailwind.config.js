@@ -10,8 +10,8 @@ module.exports = {
         primary: '#7c3aed', // Purple accent
         'primary-hover': '#6d28d9',
         secondary: '#5856d6',
-        text: '#e2e8f0',
-        muted: '#94a3b8',
+        text: '#f1f5f9', // Lebih terang (Slate 100)
+        muted: '#cbd5e1', // Lebih terang (Slate 300)
         border: '#33334d',
         success: '#10b981',
         danger: '#ef4444',

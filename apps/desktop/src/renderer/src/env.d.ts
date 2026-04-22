@@ -1,22 +1,32 @@
-/// <reference types="vite/client" />
+import { ElectronAPI } from '@electron-toolkit/preload'
 
-// Extend the Window interface to include our custom APIs
-// exposed via contextBridge in the preload script
-interface Window {
-  api: {
-    wapifyRequest: (config: {
-      method: string
-      url: string
-      headers?: Record<string, string>
-      body?: string
-    }) => Promise<{
-      status: number
-      headers: Record<string, string[]>
-      data: unknown
-      timing: number
-    }>
-    setToken: (token: string) => Promise<void>
-    getToken: () => Promise<string | null>
-    deleteToken: () => Promise<void>
+interface RequestConfig {
+  method: string
+  url: string
+  headers?: Record<string, string>
+  body?: string
+}
+
+interface IpcResponse {
+  status: number
+  headers: Record<string, string[]>
+  data: unknown
+  timing: number
+}
+
+interface WapifyAPI {
+  wapifyRequest: (config: RequestConfig) => Promise<IpcResponse>
+  setToken: (token: string) => Promise<void>
+  getToken: () => Promise<string | null>
+  deleteToken: () => Promise<void>
+  getAppVersion: () => Promise<string>
+}
+
+declare global {
+  interface Window {
+    electron: ElectronAPI
+    api: WapifyAPI
   }
 }
+
+export {}

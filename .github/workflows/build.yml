@@ -41,7 +41,10 @@ jobs:
         with:
           # Gunakan RELEASE_TOKEN untuk bisa upload ke repo lain
           github_token: ${{ secrets.RELEASE_TOKEN }}
+          repository: abdullahPrasetio/wapify-desktop-releases
           package_root: apps/desktop
+          # Tambahkan ini agar sinkron dengan GitHub Release
+          release: true
           # Build hanya untuk OS yang sedang berjalan di matrix
           args: --${{ matrix.os == 'ubuntu-latest' && 'linux' || (matrix.os == 'windows-latest' && 'win' || 'mac') }} --publish always
         env:
