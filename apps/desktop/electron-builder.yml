@@ -18,6 +18,7 @@ mac:
   identity: null
   target:
     - dmg
+    - zip
   icon: build/icon.icns
 win:
   target: nsis
