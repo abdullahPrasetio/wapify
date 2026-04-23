@@ -1,0 +1,23 @@
+# Ignore environment files
+.env
+.env.*
+!.env.example
+
+# Ignore local binaries
+main
+server
+wapify-server
+wapify-server-client
+wapify-license
+
+# Ignore git and logs
+.git
+.gitignore
+*.log
+
+# Ignore data and database files
+pgdata/
+data/
+
+# Ignore vendor and modules (let docker download them)
+vendor/

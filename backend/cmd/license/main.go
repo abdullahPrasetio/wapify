@@ -16,7 +16,10 @@ import (
 
 func main() {
 	// Load .env if exists to get default LICENSE_PRIVATE_KEY
+	// Try loading from the current backend directory
 	_ = godotenv.Load()
+	_ = godotenv.Load(".env")
+	_ = godotenv.Load("../../.env") // In case it's run from within the cmd/license folder
 
 	if len(os.Args) < 2 {
 		printUsage()
@@ -93,11 +96,13 @@ func generateLicense() {
 	// Determine Expiry
 	var validUntil time.Time
 	switch *duration {
-	case "3minutes":
+	case "1minute", "1minutes":
+		validUntil = time.Now().Add(1 * time.Minute)
+	case "3minute", "3minutes":
 		validUntil = time.Now().Add(3 * time.Minute)
-	case "5minutes":
+	case "5minute", "5minutes":
 		validUntil = time.Now().Add(5 * time.Minute)
-	case "10minutes":
+	case "10minute", "10minutes":
 		validUntil = time.Now().Add(10 * time.Minute)
 	case "1month":
 		validUntil = time.Now().AddDate(0, 1, 0)

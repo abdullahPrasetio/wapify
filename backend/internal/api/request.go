@@ -33,6 +33,7 @@ func SetupRequestRoutes(app *fiber.App) {
 	app.Get("/api/v1/requests/:id", middleware.RequireAuth, GetRequest)
 	app.Put("/api/v1/requests/:id", middleware.RequireAuth, UpdateRequest)
 	app.Delete("/api/v1/requests/:id", middleware.RequireAuth, DeleteRequest)
+	app.Post("/api/v1/requests/:id/duplicate", middleware.RequireAuth, DuplicateRequest)
 }
 
 func ListRequestsInFolder(c *fiber.Ctx) error {
@@ -151,8 +152,10 @@ func CreateRequestInCollection(c *fiber.Ctx) error {
 
 func GetRequest(c *fiber.Ctx) error {
 	requestID := c.Params("id")
+	
+	// Validate that ID is a number to prevent SQL injection or malformed queries
 	var request repository.Request
-	if err := repository.DB.Preload("Examples").First(&request, requestID).Error; err != nil {
+	if err := repository.DB.Preload("Examples").First(&request, "id = ?", requestID).Error; err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Request not found", "code": "NOT_FOUND"})
 	}
 	var collection repository.Collection
@@ -166,7 +169,7 @@ func GetRequest(c *fiber.Ctx) error {
 func UpdateRequest(c *fiber.Ctx) error {
 	requestID := c.Params("id")
 	var request repository.Request
-	if err := repository.DB.First(&request, requestID).Error; err != nil {
+	if err := repository.DB.First(&request, "id = ?", requestID).Error; err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Request not found", "code": "NOT_FOUND"})
 	}
 	var collection repository.Collection
@@ -217,7 +220,7 @@ func UpdateRequest(c *fiber.Ctx) error {
 func DeleteRequest(c *fiber.Ctx) error {
 	requestID := c.Params("id")
 	var request repository.Request
-	if err := repository.DB.First(&request, requestID).Error; err != nil {
+	if err := repository.DB.First(&request, "id = ?", requestID).Error; err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Request not found", "code": "NOT_FOUND"})
 	}
 	var collection repository.Collection
@@ -235,4 +238,47 @@ func DeleteRequest(c *fiber.Ctx) error {
 	LogActivity(repository.DB, collection.TeamID, userID, "DELETED_REQUEST", "REQUEST", request.ID, map[string]interface{}{"name": request.Name})
 
 	return c.JSON(fiber.Map{"message": "Request deleted successfully"})
+}
+
+func DuplicateRequest(c *fiber.Ctx) error {
+	requestID := c.Params("id")
+	var original repository.Request
+	if err := repository.DB.First(&original, "id = ?", requestID).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Request not found", "code": "NOT_FOUND"})
+	}
+
+	var collection repository.Collection
+	repository.DB.First(&collection, original.CollectionID)
+	if !isEditorOrAbove(c, collection.TeamID) {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Forbidden", "code": "FORBIDDEN"})
+	}
+
+	userID := uint(c.Locals("user_id").(float64))
+	
+	// Create a copy
+	newRequest := repository.Request{
+		Name:              original.Name + " Copy",
+		Description:       original.Description,
+		Method:            original.Method,
+		URL:               original.URL,
+		Headers:           original.Headers,
+		Body:              original.Body,
+		AuthConfig:        original.AuthConfig,
+		CollectionID:      original.CollectionID,
+		FolderID:          original.FolderID,
+		CreatedByID:       &userID,
+		OrderIndex:        original.OrderIndex + 1,
+		PreRequestScript:  original.PreRequestScript,
+		PostRequestScript: original.PostRequestScript,
+	}
+
+	if err := repository.DB.Create(&newRequest).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to duplicate request", "code": "INTERNAL_SERVER_ERROR"})
+	}
+
+	// Real-time broadcast
+	WSHub.BroadcastEntityUpdate(collection.TeamID, "COLLECTION", collection.ID)
+	LogActivity(repository.DB, collection.TeamID, userID, "DUPLICATED_REQUEST", "REQUEST", newRequest.ID, map[string]interface{}{"name": newRequest.Name})
+
+	return c.Status(fiber.StatusCreated).JSON(newRequest)
 }

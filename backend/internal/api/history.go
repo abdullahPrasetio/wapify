@@ -1,6 +1,9 @@
 package api
 
 import (
+	"fmt"
+	"log"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/waluyo/wapify-backend/internal/middleware"
 	"github.com/waluyo/wapify-backend/internal/repository"
@@ -79,27 +82,30 @@ func CreateHistory(c *fiber.Ctx) error {
 func DeleteHistory(c *fiber.Ctx) error {
 	id := c.Params("id")
 	userId := c.Locals("user_id").(float64)
-	
+
 	if err := repository.DB.Where("id = ? AND user_id = ?", id, uint(userId)).Delete(&repository.RequestHistory{}).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to delete history", "code": "INTERNAL_SERVER_ERROR"})
 	}
-	
+
 	return c.JSON(fiber.Map{"message": "History deleted"})
 }
 
 func ClearTeamHistory(c *fiber.Ctx) error {
 	teamID := c.Query("team_id")
+	fmt.Println("sini teamID", teamID)
 	if teamID == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "team_id query param is required"})
 	}
 
 	if !isAdminOrAbove(c, parseUint(teamID)) {
+		log.Printf("Access denied to clear team history for team %s", teamID)
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Only Admin or Owner can clear team history"})
 	}
-	
+
 	if err := repository.DB.Where("team_id = ?", teamID).Delete(&repository.RequestHistory{}).Error; err != nil {
+		fmt.Println("sini ", err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to clear history", "code": "INTERNAL_SERVER_ERROR"})
 	}
-	
+
 	return c.JSON(fiber.Map{"message": "Team history cleared"})
 }

@@ -23,13 +23,14 @@ func (j *JSONB) Scan(value interface{}) error {
 }
 
 type User struct {
-	ID           uint      `gorm:"primaryKey" json:"id"`
-	Email        string    `gorm:"uniqueIndex;not null" json:"email"`
-	PasswordHash string    `gorm:"not null" json:"-"`
-	Name         string    `gorm:"not null" json:"name"`
-	IsSuperAdmin bool      `gorm:"default:false" json:"is_super_admin"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	ID            uint      `gorm:"primaryKey" json:"id"`
+	Email         string    `gorm:"uniqueIndex;not null" json:"email"`
+	PasswordHash  string    `gorm:"not null" json:"-"`
+	Name          string    `gorm:"not null" json:"name"`
+	IsSuperAdmin  bool      `gorm:"default:false" json:"is_super_admin"`
+	RoleSignature string    `json:"-"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
 }
 
 type Team struct {
