@@ -516,6 +516,9 @@ export const MainArea = (): React.JSX.Element => {
   }
 
   useEffect(() => {
+    const handleTriggerSaveModal = () => setIsSaveModalOpen(true)
+    window.addEventListener('wapify:trigger-save-modal', handleTriggerSaveModal)
+    
     const handleKeyDown = (e: KeyboardEvent): void => {
       // Ctrl/Cmd + Enter for Send
       if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
@@ -526,7 +529,7 @@ export const MainArea = (): React.JSX.Element => {
       if ((e.metaKey || e.ctrlKey) && e.key === 's') {
         e.preventDefault()
         const { activeTabId } = useDataStore.getState()
-        if (typeof activeTabId === 'string' && activeTabId.startsWith('draft-')) {
+        if (typeof activeTabId === 'string' && (activeTabId.startsWith('draft-') || activeTabId.startsWith('example-'))) {
           setIsSaveModalOpen(true)
         } else {
           saveActiveRequest()
@@ -534,7 +537,10 @@ export const MainArea = (): React.JSX.Element => {
       }
     }
     window.addEventListener('keydown', handleKeyDown)
-    return (): void => window.removeEventListener('keydown', handleKeyDown)
+    return (): void => {
+      window.removeEventListener('wapify:trigger-save-modal', handleTriggerSaveModal)
+      window.removeEventListener('keydown', handleKeyDown)
+    }
   }, [executeActiveRequest, saveActiveRequest])
 
   if (activeView === 'history-detail') {
@@ -769,7 +775,7 @@ export const MainArea = (): React.JSX.Element => {
       )}
 
       {/* Save Draft Location Modal */}
-      {typeof activeTabRequest.requestId === 'string' && activeTabRequest.requestId.startsWith('draft-') && (
+      {typeof activeTabRequest.requestId === 'string' && (activeTabRequest.requestId.startsWith('draft-') || activeTabRequest.requestId.startsWith('example-')) && (
         <SaveRequestLocationModal
           isOpen={isSaveModalOpen}
           onClose={() => setIsSaveModalOpen(false)}
@@ -777,7 +783,13 @@ export const MainArea = (): React.JSX.Element => {
             method: activeTabRequest.workingRequest.method as any,
             url: activeTabRequest.workingRequest.url,
             headers: activeTabRequest.workingRequest.headers,
-            body: activeTabRequest.workingRequest.body,
+            body: (() => {
+              try {
+                return activeTabRequest.workingRequest.body ? JSON.parse(activeTabRequest.workingRequest.body) : {}
+              } catch {
+                return { raw: activeTabRequest.workingRequest.body }
+              }
+            })(),
             auth_config: activeTabRequest.workingRequest.auth_config,
             pre_request_script: activeTabRequest.workingRequest.pre_request_script,
             post_request_script: activeTabRequest.workingRequest.post_request_script

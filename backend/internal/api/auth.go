@@ -1,12 +1,13 @@
 package api
 
 import (
+	"os"
 	"time"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt/v5"
-	"golang.org/x/crypto/bcrypt"
 	"github.com/waluyo/wapify-backend/internal/repository"
-	"os"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type LoginRequest struct {
@@ -34,6 +35,15 @@ func Login(c *fiber.Ctx) error {
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Invalid email or password", "code": "UNAUTHORIZED"})
+	}
+
+	// Verify Data Integrity (Mencegah manipulasi database manual)
+	// Jika signature ada tapi tidak cocok, berarti data diubah langsung di DB
+	if user.RoleSignature != "" && user.RoleSignature != CalculateRoleSignature(user.ID, user.Email, user.IsSuperAdmin) {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"error": "Account data integrity violation detected. Access denied.",
+			"code":  "INTEGRITY_ERROR",
+		})
 	}
 
 	// Create JWT token
@@ -96,6 +106,14 @@ func Refresh(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "User not found", "code": "UNAUTHORIZED"})
 	}
 
+	// Verify Data Integrity (Mandatory check)
+	if user.RoleSignature != CalculateRoleSignature(user.ID, user.Email, user.IsSuperAdmin) {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"error": "Account data integrity violation detected. Access denied.",
+			"code":  "INTEGRITY_ERROR",
+		})
+	}
+
 	// Create new JWT token
 	newToken := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"user_id":        user.ID,
@@ -109,7 +127,6 @@ func Refresh(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not generate token", "code": "INTERNAL_SERVER_ERROR"})
 	}
 
-	// We also return the existing refresh token so the client can keep it
 	return c.JSON(fiber.Map{
 		"token": nt,
 		"refresh_token": req.RefreshToken,
@@ -123,7 +140,5 @@ func Refresh(c *fiber.Ctx) error {
 }
 
 func Logout(c *fiber.Ctx) error {
-	// In MVP, logout can just be handled client side by removing the token,
-	// but we'll provide the endpoint.
 	return c.JSON(fiber.Map{"message": "Logged out successfully"})
 }

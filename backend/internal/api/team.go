@@ -17,6 +17,10 @@ func SetupTeamRoutes(app *fiber.App) {
 
 	teamGroup.Post("/", CreateTeam)
 	teamGroup.Get("/", ListTeams)
+	teamGroup.Get("/:id/members", ListTeamMembers)
+	teamGroup.Post("/:id/members", AddTeamMember)
+	teamGroup.Put("/:id/members/:userId", UpdateTeamMember)
+	teamGroup.Delete("/:id/members/:userId", RemoveTeamMember)
 }
 
 func CreateTeam(c *fiber.Ctx) error {
@@ -44,7 +48,7 @@ func CreateTeam(c *fiber.Ctx) error {
 		UserID: uid,
 		Role:   "Owner",
 	}
-	
+
 	if err := repository.DB.Create(&teamMember).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to assign team role", "code": "INTERNAL_SERVER_ERROR"})
 	}
@@ -55,7 +59,7 @@ func CreateTeam(c *fiber.Ctx) error {
 func ListTeams(c *fiber.Ctx) error {
 	isSuperAdmin := c.Locals("is_super_admin").(bool)
 	userId := c.Locals("user_id").(float64)
-	
+
 	var teams []repository.Team
 
 	if isSuperAdmin {

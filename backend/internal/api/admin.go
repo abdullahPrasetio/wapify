@@ -64,6 +64,12 @@ func CreateUser(c *fiber.Ctx) error {
 			return err
 		}
 
+		// Update RoleSignature setelah ID didapat
+		user.RoleSignature = CalculateRoleSignature(user.ID, user.Email, user.IsSuperAdmin)
+		if err := tx.Save(&user).Error; err != nil {
+			return err
+		}
+
 		// Assign to team if provided
 		if req.TeamID > 0 {
 			role := req.Role

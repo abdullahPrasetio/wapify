@@ -114,7 +114,8 @@ const FolderItem = ({
     createRequest,
     createFolder,
     deleteFolder,
-    deleteRequest
+    deleteRequest,
+    duplicateRequest
   } = useDataStore()
   const { setActiveView } = useAppStore()
 
@@ -148,13 +149,7 @@ const FolderItem = ({
   }
 
   const handleDuplicateRequest = (req: ApiRequest): void => {
-    createRequest(collectionId, folder.id, `${req.name} (Copy)`, {
-      method: req.method,
-      url: req.url,
-      headers: req.headers,
-      body: req.body,
-      auth_config: req.auth_config
-    })
+    duplicateRequest(req.id)
   }
 
   return (
@@ -401,6 +396,7 @@ const CollectionItem = ({ collection }: CollectionItemProps): React.JSX.Element 
     createFolder,
     deleteCollection,
     deleteRequest,
+    duplicateRequest,
     exportCollection,
     runCollection
   } = useDataStore()
@@ -445,13 +441,7 @@ const CollectionItem = ({ collection }: CollectionItemProps): React.JSX.Element 
   }
 
   const handleDuplicateRequest = (req: ApiRequest): void => {
-    createRequest(collection.id, null, `${req.name} (Copy)`, {
-      method: req.method,
-      url: req.url,
-      headers: req.headers,
-      body: req.body,
-      auth_config: req.auth_config
-    })
+    duplicateRequest(req.id)
   }
 
   const handleSelectRequest = (req: ApiRequest): void => {

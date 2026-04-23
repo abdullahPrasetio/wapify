@@ -46,6 +46,26 @@ func GetTeamDetail(c *fiber.Ctx) error {
 	})
 }
 
+func ListTeamMembers(c *fiber.Ctx) error {
+	teamID := c.Params("id")
+
+	var team repository.Team
+	if err := repository.DB.First(&team, teamID).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Team not found", "code": "NOT_FOUND"})
+	}
+
+	if !canAccessTeam(c, team.ID) {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Forbidden", "code": "FORBIDDEN"})
+	}
+
+	var members []repository.TeamMember
+	if err := repository.DB.Preload("User").Where("team_id = ?", team.ID).Find(&members).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to fetch members", "code": "INTERNAL_SERVER_ERROR"})
+	}
+
+	return c.JSON(members)
+}
+
 func UpdateTeam(c *fiber.Ctx) error {
 	teamID := c.Params("id")
 
@@ -246,14 +266,4 @@ func isEditorOrAbove(c *fiber.Ctx, teamID uint) bool {
 	var member repository.TeamMember
 	err := repository.DB.Where("team_id = ? AND user_id = ? AND role IN ('Owner','Admin','Editor')", teamID, userID).First(&member).Error
 	return err == nil
-}
-
-func parseUint(s string) uint {
-	var n uint
-	for _, c := range s {
-		if c >= '0' && c <= '9' {
-			n = n*10 + uint(c-'0')
-		}
-	}
-	return n
 }

@@ -1,4 +1,4 @@
-FROM golang:1.22-alpine AS builder
+FROM golang:1.25-alpine3.22 AS builder
 
 WORKDIR /app
 
@@ -9,13 +9,15 @@ RUN go mod download
 COPY . .
 
 # LICENSE_PUBLIC_KEY is injected using -ldflags at build time
-# This will replace the 'var LicensePublicKey' in main.go
 ARG LICENSE_PUBLIC_KEY
 RUN go build -o /app/server -ldflags="-X main.LicensePublicKey=$LICENSE_PUBLIC_KEY" cmd/server/main.go
 
 FROM alpine:latest
 
 WORKDIR /app
+
+# Install tzdata for Asia/Jakarta time zone
+RUN apk add --no-cache tzdata
 
 COPY --from=builder /app/server .
 

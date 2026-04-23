@@ -17,6 +17,8 @@ func CheckLicense(publicKey string) fiber.Handler {
 		// 1. Jika ada Private Key, berarti ini server Central (STB Anda).
 		// Kita tidak perlu cek lisensi di sini karena ini adalah sumbernya.
 		if os.Getenv("LICENSE_PRIVATE_KEY") != "" {
+			fmt.Println("License Private Key found, skipping license check")
+			fmt.Println("License Key:", os.Getenv("LICENSE_PRIVATE_KEY"))
 			return c.Next()
 		}
 
