@@ -96,6 +96,13 @@ On-Premise License          Export code, cURL import,
                             Drag-drop, Mock dynamic
 ```
 
+**Fitur Coming Soon (Fase 6+):**
+Untuk menjaga fokus pada stabilitas fitur utama, beberapa elemen UI berikut diarahkan ke modal "Coming Soon":
+- **Documentation Viewer (Integrated):** Penampil dokumentasi langsung di tab utama.
+- **Cookie Manager:** Sinkronisasi dan isolasi cookie per workspace.
+- **Advanced Send Options:** Dropdown menu pada tombol Send untuk fungsi tambahan.
+- **Request Sharing:** Berbagi request via link publik atau internal.
+
 ---
 
 # Fitur Lengkap

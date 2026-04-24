@@ -4,7 +4,7 @@ interface RequestConfig {
   method: string
   url: string
   headers?: Record<string, string>
-  body?: string
+  body?: any
 }
 
 interface IpcResponse {
@@ -20,6 +20,7 @@ interface WapifyAPI {
   getToken: () => Promise<string | null>
   deleteToken: () => Promise<void>
   getAppVersion: () => Promise<string>
+  parseCurl: (curlCommand: string) => Promise<any>
 }
 
 declare global {

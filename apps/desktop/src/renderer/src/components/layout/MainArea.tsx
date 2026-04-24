@@ -4,14 +4,18 @@ import { useAuthStore } from '../../store/useAuthStore'
 import { KeyValueEditor } from '../ui/KeyValueEditor'
 import { VariableOverlayInput } from '../ui/VariableOverlayInput'
 import { SetVarModal } from '../modals/SetVarModal'
-import { Shield, Eye, EyeOff, X, RefreshCw, Send, Save, Lock, Users, ChevronDown, FileCode2, Terminal as TerminalIcon, Braces, Code, FileText, Globe, Box } from 'lucide-react'
+import { Shield, Eye, EyeOff, X, RefreshCw, Send, Save, Lock, Users, ChevronDown, FileCode2, Terminal as TerminalIcon, Code, Box, Globe, Share2, Link as LinkIcon, BookOpen, Settings, MoreHorizontal, Check } from 'lucide-react'
 import { ResponseArea } from './ResponseArea'
 import { HistoryDetailView } from './HistoryDetailView'
 import { CollaborationPanel } from './CollaborationPanel'
 import { SaveRequestLocationModal } from '../modals/SaveRequestLocationModal'
+import { ImportCurlModal } from '../modals/ImportCurlModal'
+import { ExportCodeModal } from '../modals/ExportCodeModal'
+import { ComingSoonModal } from '../modals/ComingSoonModal'
+import { parseCurlCommand } from '../../utils/curlParser'
 import Editor, { loader } from '@monaco-editor/react'
 import * as monaco from 'monaco-editor'
-import { useState, useRef, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { toast } from 'sonner'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 
@@ -76,25 +80,28 @@ interface RequestFormProps {
 const RequestForm = ({ method, url, isLocked, onUpdate }: RequestFormProps): React.JSX.Element => {
   return (
     <div className="flex-1 flex relative items-center">
-      <select
-        value={method}
-        disabled={isLocked}
-        onChange={(e): void => onUpdate({ method: e.target.value })}
-        className={`bg-surface font-black text-xs px-4 py-2.5 border-r border-border focus:outline-none shrink-0 ${METHOD_COLOR[method] ?? 'text-muted'} ${isLocked ? 'opacity-50 cursor-not-allowed' : ''}`}
-      >
-        {['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'].map((m) => (
-          <option key={m} value={m} className="text-text font-sans">
-            {m}
-          </option>
-        ))}
-      </select>
+      <div className="relative flex items-center shrink-0">
+        <select
+          value={method}
+          disabled={isLocked}
+          onChange={(e): void => onUpdate({ method: e.target.value })}
+          className={`bg-surface font-black text-xs pl-4 pr-8 py-2.5 border-r border-border focus:outline-none appearance-none cursor-pointer ${METHOD_COLOR[method] ?? 'text-muted'} ${isLocked ? 'opacity-50 cursor-not-allowed' : ''}`}
+        >
+          {['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'].map((m) => (
+            <option key={m} value={m} className="text-text font-sans">
+              {m}
+            </option>
+          ))}
+        </select>
+        <ChevronDown size={12} className="absolute right-3 text-muted pointer-events-none" />
+      </div>
 
       <div className="flex-1 relative flex items-center h-full">
         <VariableOverlayInput
           value={url}
           disabled={isLocked}
-          onChange={(e): void => onUpdate({ url: e.target.value })}
-
+          onChange={(e): void => onUpdate({ url: (e.target as any).value })}
+          multiline={true}
           placeholder="https://api.example.com/v1/resource"
           className="bg-transparent border-none px-4 py-2.5"
         />
@@ -108,7 +115,6 @@ interface EditorAreaProps {
   requestId: string | number
   workingRequest: WorkingRequest
   onUpdate: (update: Partial<WorkingRequest>) => void
-  onSetVar: (key: string) => void
   isLocked?: boolean
 }
 
@@ -117,8 +123,7 @@ const EditorArea = ({
   requestId,
   workingRequest,
   isLocked,
-  onUpdate,
-  onSetVar
+  onUpdate
 }: EditorAreaProps): React.JSX.Element => {
 
   const [showPassword, setShowPassword] = useState(false)
@@ -256,7 +261,7 @@ const EditorArea = ({
            )}
 
            {(workingRequest.body_type === 'form-data' || workingRequest.body_type === 'x-www-form-urlencoded') && (
-             <div className="p-4 h-full overflow-auto">
+             <div className="absolute inset-0 overflow-auto p-4">
                 <KeyValueEditor
                   key={`body-${requestId}-${workingRequest.body_type}`}
                   initialData={Array.isArray(workingRequest.body) ? 
@@ -316,18 +321,20 @@ const EditorArea = ({
                   fontSize: 12,
                   lineNumbers: 'off',
                   scrollBeyondLastLine: false,
-                  padding: { top: 10, left: 10 },
+                  padding: { top: 10 },
                   readOnly: isLocked
                 }}
               />
             </div>
           ) : (
-            <KeyValueEditor
-              key={`headers-${requestId}`}
-              initialData={workingRequest.headers || {}}
-              disabled={isLocked}
-              onChange={(data): void => onUpdate({ headers: data as Record<string, string> })}
-            />
+            <div className="flex-1 overflow-auto">
+              <KeyValueEditor
+                key={`headers-${requestId}`}
+                initialData={workingRequest.headers || {}}
+                disabled={isLocked}
+                onChange={(data): void => onUpdate({ headers: data as Record<string, string> })}
+              />
+            </div>
           )}
       </div>
 
@@ -591,15 +598,65 @@ export const MainArea = (): React.JSX.Element => {
     environments,
     updateEnvironment,
     presenceByRequest,
-    locksByRequest
+    locksByRequest,
+    collections,
+    requests,
+    foldersByCollection
   } = useDataStore()
 
   const { user } = useAuthStore()
   const [showCollabPanel, setShowCollabPanel] = useState(false)
   const [settingVar, setSettingVar] = useState<string | null>(null)
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false)
-  
+  const [isImportCurlOpen, setIsImportCurlOpen] = useState(false)
+  const [isExportCodeOpen, setIsExportCodeOpen] = useState(false)
+  const [comingSoon, setComingSoon] = useState<{ isOpen: boolean; feature: string }>({
+    isOpen: false,
+    feature: ''
+  })
+  const [builderHeight, setBuilderHeight] = useState(60) // in percentage
+  const [isResizing, setIsResizing] = useState(false)
+
   const activeEnv = environments.find((e) => e.id === activeEnvironmentId) ?? null
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizing) return
+      const height = (e.clientY / window.innerHeight) * 100
+      if (height > 10 && height < 95) {
+        setBuilderHeight(height)
+      }
+    }
+    const handleMouseUp = () => setIsResizing(false)
+
+    if (isResizing) {
+      window.addEventListener('mousemove', handleMouseMove)
+      window.addEventListener('mouseup', handleMouseUp)
+    }
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove)
+      window.removeEventListener('mouseup', handleMouseUp)
+    }
+  }, [isResizing])
+
+  // Handle auto-detect cURL on URL change
+  const handleUrlChange = async (newUrl: string) => {
+    if (newUrl.trim().startsWith('curl ')) {
+      const parsed = await parseCurlCommand(newUrl)
+      if (parsed) {
+        setWorkingRequest({
+          method: parsed.method,
+          url: parsed.url,
+          headers: parsed.headers,
+          body: parsed.body,
+          body_type: parsed.bodyType
+        })
+        toast.success('cURL command imported and parsed')
+        return
+      }
+    }
+    setWorkingRequest({ url: newUrl })
+  }
 
   const handleSetVar = async (key: string, val: string) => {
     if (!activeEnv) return
@@ -663,6 +720,17 @@ export const MainArea = (): React.JSX.Element => {
 
   const { workingRequest } = activeTabRequest
 
+  const activeRequestDetails = typeof activeTabRequest.requestId === 'number'
+    ? requests.find((r) => r.id === activeTabRequest.requestId)
+    : null
+
+  const parentCollection = activeRequestDetails
+    ? collections.find((c) => c.id === activeTabRequest.requestId.toString().startsWith('draft') ? null : activeRequestDetails.collection_id)
+    : null
+
+  const collectionName = parentCollection?.name || 'My Collection'
+  const requestName = activeTabRequest.name
+
   const currentPresence = presenceByRequest[activeTabRequest.requestId] || []
   const currentLock = locksByRequest[activeTabRequest.requestId]
   const isLockedByOthers = currentLock && user ? currentLock.user_id !== user.id : false
@@ -673,16 +741,75 @@ export const MainArea = (): React.JSX.Element => {
         <RequestTabs />
 
         {/* Top half: Request Builder */}
-        <div className="flex-[0.6] flex flex-col min-h-0 border-b border-border">
+        <div 
+          className="flex flex-col min-h-0 border-b border-border bg-background relative shrink-0"
+          style={{ height: `${builderHeight}%` }}
+        >
+          {/* New Request Header: Path & Name */}
+          <div className="px-4 py-3 flex items-center justify-between border-b border-border/50">
+            <div className="flex items-center gap-2 overflow-hidden">
+               <div className="flex items-center justify-center w-6 h-6 rounded bg-surface border border-border shrink-0">
+                  <Globe size={12} className="text-info" />
+               </div>
+               <div className="flex items-center gap-1.5 text-xs overflow-hidden">
+                  <span className="text-muted truncate max-w-[200px]">{collectionName}</span>
+                  <span className="text-muted/50">/</span>
+                  <span className="text-text font-bold truncate">{requestName}</span>
+               </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+               <div className="flex items-center bg-surface border border-border rounded divide-x divide-border">
+                  <button 
+                    onClick={() => {
+                      if (typeof activeTabRequest.requestId === 'string' && (activeTabRequest.requestId.startsWith('draft-') || activeTabRequest.requestId.startsWith('example-'))) {
+                        setIsSaveModalOpen(true)
+                      } else {
+                        saveActiveRequest()
+                      }
+                    }}
+                    className="flex items-center gap-2 px-3 py-1.5 hover:bg-border/30 transition-colors text-xs font-medium text-text"
+                  >
+                    <Save size={14} className="text-muted" />
+                    <span>Save</span>
+                  </button>
+                  <button className="px-2 py-1.5 hover:bg-border/30 transition-colors">
+                    <ChevronDown size={14} className="text-muted" />
+                  </button>
+               </div>
+
+               <div className="flex items-center bg-surface border border-border rounded divide-x divide-border">
+                  <button 
+                    onClick={() => setComingSoon({ isOpen: true, feature: 'Request Sharing' })}
+                    className="px-4 py-1.5 hover:bg-border/30 transition-colors text-xs font-medium text-text"
+                  >
+                    Share
+                  </button>
+                  <button 
+                    onClick={() => setComingSoon({ isOpen: true, feature: 'Request Sharing' })}
+                    className="px-2 py-1.5 hover:bg-border/30 transition-colors"
+                  >
+                    <LinkIcon size={14} className="text-muted" />
+                  </button>
+               </div>
+            </div>
+          </div>
+
           {/* URL Bar Area */}
-          <div className="p-4 border-b border-border bg-surface/50 shrink-0">
-            <div className="flex gap-3">
-              <div className="flex-1 flex shadow-sm rounded-md overflow-hidden border border-border focus-within:border-primary transition-colors bg-surface">
+          <div className="p-4 flex flex-col gap-3">
+            <div className="flex gap-2">
+              <div className="flex-1 flex shadow-sm rounded border border-border focus-within:border-primary transition-colors bg-surface overflow-hidden">
                 <RequestForm
                   method={workingRequest.method}
                   url={workingRequest.url}
                   isLocked={isLockedByOthers}
-                  onUpdate={(update): void => setWorkingRequest(update)}
+                  onUpdate={(update): void => {
+                    if (update.url !== undefined) {
+                      handleUrlChange(update.url)
+                    } else {
+                      setWorkingRequest(update)
+                    }
+                  }}
                 />
 
                 {/* Navbar Environment Selector */}
@@ -705,131 +832,147 @@ export const MainArea = (): React.JSX.Element => {
                 </div>
               </div>
 
-              <div className="flex gap-2">
+              <div className="flex shadow-sm rounded overflow-hidden">
                 <button
                   onClick={executeActiveRequest}
                   disabled={activeTabRequest.isSending}
-                  className="bg-primary hover:bg-primary-hover text-white px-6 py-2 rounded text-sm font-bold transition-all shadow-lg shadow-primary/20 flex items-center gap-2 disabled:opacity-50"
+                  className="bg-primary hover:bg-primary-hover text-white px-6 py-2 text-sm font-bold transition-all flex items-center gap-2 disabled:opacity-50 rounded"
                 >
                   {activeTabRequest.isSending ? (
                     <RefreshCw size={14} className="animate-spin" />
                   ) : (
-                    <Send size={14} />
+                    <span>Send</span>
                   )}
-                  Send
-                </button>
-
-                <button
-                  onClick={() => {
-                     if (typeof activeTabRequest.requestId === 'string' && (activeTabRequest.requestId.startsWith('draft-') || activeTabRequest.requestId.startsWith('example-'))) {
-                        setIsSaveModalOpen(true)
-                     } else {
-                        saveActiveRequest()
-                     }
-                  }}
-                  className={`px-4 py-2 rounded text-sm font-bold transition-all border ${
-                    activeTabRequest.isDirty || (typeof activeTabRequest.requestId === 'string' && (activeTabRequest.requestId.startsWith('draft-') || activeTabRequest.requestId.startsWith('example-')))
-                      ? 'bg-success/10 border-success/30 text-success hover:bg-success/20'
-                      : 'bg-surface border-border text-muted hover:text-text'
-                  }`}
-                  title="Save Request (Cmd+S)"
-                >
-                  {(activeTabRequest.isDirty || (typeof activeTabRequest.requestId === 'string' && (activeTabRequest.requestId.startsWith('draft-') || activeTabRequest.requestId.startsWith('example-')))) && (
-                    <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-primary animate-pulse" />
-                  )}
-                  <Save size={14} className="inline mr-2" />
-                  Save
-                </button>
-
-                <button
-                  onClick={() => setShowCollabPanel(!showCollabPanel)}
-                  className={`px-4 py-2 rounded text-sm font-bold transition-all border ${
-                    showCollabPanel
-                      ? 'bg-primary/20 border-primary/50 text-primary'
-                      : 'bg-surface border-border text-muted hover:text-text'
-                  }`}
-                  title="Versions & Comments"
-                >
-                  <Users size={14} className="inline mr-2" />
-                  Collab
                 </button>
               </div>
             </div>
 
-            {/* Presence & Locking Status Bar */}
-            {(currentPresence.length > 0 || currentLock) && (
-              <div className="flex items-center justify-between px-4 py-2 bg-background/50 border-t border-border text-[10px]">
-                <div className="flex items-center gap-3">
-                  {/* Visual Avatars */}
-                  <div className="flex -space-x-2">
-                    {currentPresence.map((p) => (
-                      <div
-                        key={p.user_id}
-                        title={p.user_name}
-                        className={`w-6 h-6 rounded-full border-2 border-background flex items-center justify-center font-bold text-[10px] text-white shadow-sm ring-1 ring-border transition-transform hover:scale-110 hover:z-10 cursor-help ${
-                          [
-                            'bg-blue-500',
-                            'bg-purple-500',
-                            'bg-pink-500',
-                            'bg-indigo-500',
-                            'bg-orange-500',
-                            'bg-cyan-500'
-                          ][p.user_id % 6]
-                        }`}
-                      >
-                        {p.user_name.charAt(0).toUpperCase()}
-                      </div>
-                    ))}
-                  </div>
-                  {currentPresence.length > 0 && (
-                    <span className="text-muted font-medium ml-1 font-sans">
-                      {currentPresence.length} {currentPresence.length === 1 ? 'person' : 'people'} viewing
-                    </span>
-                  )}
-                </div>
-                <div className="flex items-center gap-3">
-                  {currentLock && (
-                    <div
-                      className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full border ${
-                        isLockedByOthers
-                          ? 'bg-warning/10 border-warning/30 text-warning'
-                          : 'bg-success/10 border-success/30 text-success'
-                      }`}
-                    >
-                      <Lock size={10} className={isLockedByOthers ? 'animate-pulse' : ''} />
-                      <span className="font-bold uppercase tracking-wider text-[9px]">
-                        {isLockedByOthers ? `Locked by ${currentLock.user_name}` : 'Locked by you'}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
+            {/* Quick Actions (Moved below URL Bar) */}
+            <div className="flex items-center justify-between">
+               <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setIsImportCurlOpen(true)}
+                    className="px-2 py-1 text-muted hover:text-text rounded text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 transition-colors"
+                  >
+                    <TerminalIcon size={12} />
+                    Import cURL
+                  </button>
+                  <button
+                    onClick={() => setIsExportCodeOpen(true)}
+                    className="px-2 py-1 text-muted hover:text-text rounded text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 transition-colors"
+                  >
+                    <Code size={12} />
+                    Export
+                  </button>
+                  <button
+                    onClick={() => setShowCollabPanel(!showCollabPanel)}
+                    className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 transition-colors ${
+                      showCollabPanel ? 'text-primary bg-primary/10' : 'text-muted hover:text-text'
+                    }`}
+                  >
+                    <Users size={12} />
+                    Collab
+                  </button>
+               </div>
+
+               {/* Presence & Locking Status */}
+               {(currentPresence.length > 0 || currentLock) && (
+                 <div className="flex items-center gap-3">
+                   <div className="flex -space-x-1.5">
+                     {currentPresence.map((p) => (
+                       <div
+                         key={p.user_id}
+                         title={p.user_name}
+                         className={`w-5 h-5 rounded-full border border-background flex items-center justify-center font-bold text-[8px] text-white shadow-sm cursor-help ${
+                           [
+                             'bg-blue-500',
+                             'bg-purple-500',
+                             'bg-pink-500',
+                             'bg-indigo-500',
+                             'bg-orange-500',
+                             'bg-cyan-500'
+                           ][p.user_id % 6]
+                         }`}
+                       >
+                         {p.user_name.charAt(0).toUpperCase()}
+                       </div>
+                     ))}
+                   </div>
+                   {currentLock && (
+                     <div
+                       className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full border text-[8px] font-bold uppercase tracking-wider ${
+                         isLockedByOthers
+                           ? 'bg-warning/10 border-warning/30 text-warning'
+                           : 'bg-success/10 border-success/30 text-success'
+                       }`}
+                     >
+                       <Lock size={8} className={isLockedByOthers ? 'animate-pulse' : ''} />
+                       {isLockedByOthers ? currentLock.user_name : 'You'}
+                     </div>
+                   )}
+                 </div>
+               )}
+            </div>
           </div>
 
           {/* Tabs Area */}
-          <div className="flex px-4 border-b border-border bg-surface/30 shrink-0">
-            {REQUEST_TABS.map((tab) => (
-              <div
-                key={tab}
-                onClick={(): void => setActiveTab(tab)}
-                className={`px-4 py-2.5 text-xs font-black uppercase tracking-widest cursor-pointer border-b-2 transition-colors flex items-center gap-1.5 ${
-                  activeTab === tab
-                    ? 'border-primary text-primary'
-                    : 'border-transparent text-muted hover:text-text'
+          <div className="flex px-4 border-b border-border bg-background shrink-0 items-center justify-between">
+            <div className="flex items-center">
+              <div 
+                className={`px-3 py-2 text-xs font-medium cursor-pointer border-b-2 transition-colors flex items-center gap-1.5 ${
+                  activeTab === 'Docs' ? 'border-primary text-primary' : 'border-transparent text-muted hover:text-text'
                 }`}
+                onClick={() => setComingSoon({ isOpen: true, feature: 'Documentation' })}
               >
-                {tab}
-                {((tab === 'Body' &&
-                  workingRequest.body_type !== 'none') ||
-                  (tab === 'Pre-request' && workingRequest.pre_request_script) ||
-                  (tab === 'Tests' && workingRequest.post_request_script) ||
-                  (tab === 'Headers' && Object.keys(workingRequest.headers || {}).length > 0) ||
-                  (tab === 'Auth' && workingRequest.auth_config?.type !== 'No Auth')) && (
-                  <div className="w-1 h-1 rounded-full bg-success shadow-[0_0_5px_rgba(34,197,94,0.8)]" />
-                )}
+                <BookOpen size={14} />
+                Docs
               </div>
-            ))}
+
+              {REQUEST_TABS.map((tab) => (
+                <div
+                  key={tab}
+                  onClick={(): void => setActiveTab(tab)}
+                  className={`px-3 py-2 text-xs font-medium cursor-pointer border-b-2 transition-colors flex items-center gap-1.5 ${
+                    activeTab === tab
+                      ? 'border-primary text-primary'
+                      : 'border-transparent text-muted hover:text-text'
+                  }`}
+                >
+                  {tab}
+                  {((tab === 'Body' &&
+                    workingRequest.body_type !== 'none') ||
+                    (tab === 'Pre-request' && workingRequest.pre_request_script) ||
+                    (tab === 'Tests' && workingRequest.post_request_script) ||
+                    (tab === 'Headers' && Object.keys(workingRequest.headers || {}).length > 0) ||
+                    (tab === 'Auth' && workingRequest.auth_config?.type !== 'No Auth')) && (
+                    <div className="w-1.5 h-1.5 rounded-full bg-success shadow-[0_0_4px_rgba(34,197,94,0.6)]" />
+                  )}
+                  {tab === 'Headers' && Object.keys(workingRequest.headers || {}).length > 0 && (
+                    <span className="text-[10px] text-muted-foreground opacity-70">
+                      ({Object.keys(workingRequest.headers).length})
+                    </span>
+                  )}
+                </div>
+              ))}
+
+              <div 
+                className={`px-3 py-2 text-xs font-medium cursor-pointer border-b-2 transition-colors flex items-center gap-1.5 ${
+                  activeTab === 'Settings' ? 'border-primary text-primary' : 'border-transparent text-muted hover:text-text'
+                }`}
+                onClick={() => setActiveTab('Settings')}
+              >
+                Settings
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-4 pr-2">
+               <button 
+                onClick={() => setComingSoon({ isOpen: true, feature: 'Cookies Management' })}
+                className="text-[11px] font-bold text-primary hover:underline"
+               >
+                 Cookies
+               </button>
+            </div>
           </div>
 
           {/* Tab Content */}
@@ -837,22 +980,55 @@ export const MainArea = (): React.JSX.Element => {
             <EditorArea
               key={`editor-${activeTabRequest.requestId}`}
               activeTab={activeTab}
+              requestId={activeTabRequest.requestId}
               workingRequest={workingRequest}
               isLocked={isLockedByOthers}
               onUpdate={(update): void => setWorkingRequest(update)}
-              onSetVar={setSettingVar}
             />
           </div>
         </div>
 
+        {/* Resizer Bar */}
+        <div 
+          className={`h-1.5 w-full cursor-row-resize hover:bg-primary/40 transition-colors z-20 shrink-0 ${isResizing ? 'bg-primary/60' : 'bg-transparent'}`}
+          onMouseDown={() => setIsResizing(true)}
+        />
+
         {/* Bottom half: Response Area */}
-        <div className="flex-[0.4] flex flex-col min-h-0">
+        <div className="flex-1 flex flex-col min-h-0">
           <ResponseArea />
         </div>
       </div>
 
       {/* Right Sidebar: Collaboration Panel */}
       {typeof activeTabRequest.requestId === 'number' && showCollabPanel && <CollaborationPanel requestId={activeTabRequest.requestId} />}
+
+      {/* Modals */}
+      <ImportCurlModal 
+        isOpen={isImportCurlOpen}
+        onClose={() => setIsImportCurlOpen(false)}
+        onImport={async (data) => {
+          setWorkingRequest({
+            method: data.method,
+            url: data.url,
+            headers: data.headers,
+            body: data.body,
+            body_type: data.bodyType
+          })
+        }}
+      />
+
+      <ExportCodeModal
+        isOpen={isExportCodeOpen}
+        onClose={() => setIsExportCodeOpen(false)}
+        requestData={{
+          method: workingRequest.method,
+          url: workingRequest.url,
+          headers: workingRequest.headers,
+          body: workingRequest.body,
+          body_type: workingRequest.body_type
+        }}
+      />
 
       {/* Set Variable Modal */}
       {settingVar && (
@@ -883,6 +1059,12 @@ export const MainArea = (): React.JSX.Element => {
           draftId={activeTabRequest.requestId}
         />
       )}
+
+      <ComingSoonModal
+        isOpen={comingSoon.isOpen}
+        featureName={comingSoon.feature}
+        onClose={() => setComingSoon({ isOpen: false, feature: '' })}
+      />
     </div>
   )
 }

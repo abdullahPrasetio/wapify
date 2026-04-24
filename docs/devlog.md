@@ -1,4 +1,45 @@
 
+## [2026-04-24] — cURL Import & Code Snippet Export
+**Fase:** Fase 6 — UX & Power Features
+**Dikerjakan oleh:** Gemini
+**Status:** ✅ Selesai
+
+### Yang Dikerjakan
+- **Import dari cURL (Fase 6.4)**:
+    - Integrasi library `curlconverter` untuk memproses perintah cURL menjadi request Wapify.
+    - Implementasi `ImportCurlModal` untuk mengimpor perintah cURL secara manual.
+    - **Smart Auto-Detection**: Menambahkan logika deteksi otomatis saat pengguna mem-paste perintah yang diawali `curl ` ke dalam URL bar, memicu dialog konfirmasi import otomatis.
+- **Export Code Snippet (Fase 6.5)**:
+    - Implementasi `ExportCodeModal` dengan dukungan banyak bahasa pemrograman:
+        - cURL
+        - JavaScript (Fetch & Axios)
+        - Go Native (`net/http`)
+        - Python (`requests`)
+    - Integrasi Monaco Editor (read-only) dengan syntax highlighting untuk setiap bahasa target.
+    - Penambahan fitur "Copy to Clipboard" yang cepat.
+- **Pembersihan Tipe Data (Fixes)**:
+    - Sinkronisasi tipe data `any` untuk body request agar mendukung baik format string (raw) maupun array (form-data/urlencoded).
+    - Memperbaiki berbagai error TypeScript terkait definisi `window.api` dan penggunaan variabel yang hilang di komponen React.
+    - Memperbaiki bug pada `MainArea` dimana `activeTabRequest` digunakan di scope yang salah.
+
+### Perubahan File
+- `apps/desktop/src/renderer/src/utils/curlParser.ts` — Utilitas konversi cURL.
+- `apps/desktop/src/renderer/src/components/modals/ImportCurlModal.tsx` — UI untuk import.
+- `apps/desktop/src/renderer/src/components/modals/ExportCodeModal.tsx` — UI untuk export snippet.
+- `apps/desktop/src/renderer/src/components/layout/MainArea.tsx` — Integrasi tombol dan logika deteksi cURL.
+- `apps/desktop/src/renderer/src/api/client.ts` & `env.d.ts` — Update tipe data untuk mendukung body fleksibel.
+- `apps/desktop/src/renderer/src/store/useDataStore.ts` — Update penanganan body dan script untuk test runner.
+
+### Keputusan & Catatan
+- Memilih `curlconverter` karena library ini sangat handal dan mendukung hampir semua flag cURL standar industri.
+- Menggunakan `JSON.stringify` otomatis saat mengekspor ke JavaScript/Python untuk memastikan snippet valid dan siap pakai.
+
+### Langkah Selanjutnya
+- Implementasi Drag-and-Drop Request & Folder (Fase 6.6).
+- Implementasi Mock Server Dynamic Response (Fase 6.7).
+
+---
+
 ## [2026-04-21] — Implementasi Penuh Collection Runner & Penyempurnaan Manajemen Example
 **Fase:** Fase 4 — Automated Testing & CI/CD
 **Dikerjakan oleh:** Gemini
@@ -23,6 +64,48 @@
 ### Langkah Selanjutnya
 - Implementasi runner untuk folder individual.
 - Integrasi runner dengan CLI (`wapify run`).
+
+---
+
+## [2026-04-24] — UI Redesign, Resizable Layout & Smart Inputs
+**Fase:** Fase 6 — UX & Power Features
+**Dikerjakan oleh:** Gemini
+**Status:** ✅ Selesai
+
+### Yang Dikerjakan
+- **UI Redesign (Professional Look)**: 
+    - Merombak total `MainArea.tsx` untuk menyertakan **Request Header** yang menampilkan jalur koleksi, nama permintaan, serta tombol *Save* dan *Share* yang lebih modern.
+    - Desain ulang bar URL dengan pemilih metode yang memiliki ikon dropdown dan tombol *Send* yang terpisah (split button).
+    - Memperbaiki tata letak agar lebih bersih dengan memindahkan tombol *Import cURL*, *Export*, dan *Collab* ke baris tindakan cepat di bawah URL bar.
+- **Resizable Layout**:
+    - Menambahkan *Resizer Bar* di antara area Request Builder dan Response Area yang memungkinkan pengguna menggeser tinggi area secara dinamis (hingga 95% tinggi layar), mirip dengan fungsionalitas Postman.
+- **Smart Multiline Inputs**:
+    - Mengoverhaul `VariableOverlayInput` agar mendukung teks multi-baris (*auto-expanding*) saat fokus (mengetik) dan kembali menjadi satu baris (*single-line truncate*) saat kehilangan fokus (*blur*) untuk menjaga kerapihan UI.
+    - Mengubah kolom *Description* pada `KeyValueEditor` menjadi `textarea` yang juga mendukung *auto-expand*.
+- **Persistence Fix**:
+    - Memperbaiki bug di mana tab yang terbuka hilang saat aplikasi di-refresh dengan menambahkan array `tabs` ke dalam konfigurasi `persist` di `useDataStore.ts`.
+- **Coming Soon System**:
+    - Implementasi `ComingSoonModal` untuk fitur yang sedang dalam pengembangan: *Documentation*, *Cookies Management*, dan *Request Sharing*.
+- **Visual & UX Fixes**:
+    - Memperbaiki bug "ghosting" pada variabel di URL bar dengan menyelaraskan lapisan visual dan interaksi secara presisi hingga ke level piksel.
+    - Menghapus komponen `Header` global yang redundan untuk memberikan lebih banyak ruang bagi area kerja utama.
+
+### Perubahan File
+- `apps/desktop/src/renderer/src/components/layout/MainArea.tsx` — Perombakan total tata letak dan logika resize.
+- `apps/desktop/src/renderer/src/components/layout/AppLayout.tsx` — Penghapusan Header redundan.
+- `apps/desktop/src/renderer/src/components/ui/VariableOverlayInput.tsx` — Implementasi smart multiline & fix ghosting.
+- `apps/desktop/src/renderer/src/components/ui/KeyValueEditor.tsx` — Perubahan kolom Description ke textarea.
+- `apps/desktop/src/renderer/src/components/modals/ComingSoonModal.tsx` — Komponen modal baru.
+- `apps/desktop/src/renderer/src/store/useDataStore.ts` — Penambahan persistence untuk tab.
+- `apps/desktop/src/renderer/src/store/useAppStore.ts` — Update tipe tab.
+
+### Keputusan & Catatan
+- Memutuskan untuk menggunakan `absolute inset-0` dengan `overflow-auto` pada kontainer editor body/headers untuk memastikan scrolling bekerja sempurna di dalam area yang bisa di-resize.
+- Menggunakan `localStorage` untuk menyimpan tab agar sesi kerja pengguna tetap utuh meskipun terjadi refresh atau crash kecil pada aplikasi.
+
+### Langkah Selanjutnya
+- Implementasi Drag-and-Drop Request & Folder (Fase 6.6).
+- Implementasi Mock Server Dynamic Response (Fase 6.7).
 
 ---
 

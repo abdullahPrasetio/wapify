@@ -16,7 +16,7 @@ interface RequestConfig {
   method: string
   url: string
   headers?: Record<string, string>
-  body?: string
+  body?: any
   skipAuth?: boolean
 }
 
@@ -174,6 +174,6 @@ export const apiClient = {
     method: string,
     url: string,
     headers?: Record<string, string>,
-    body?: string
+    body?: any
   ) => ipcRequest<T>({ method, url, headers, body, skipAuth: true })
 }

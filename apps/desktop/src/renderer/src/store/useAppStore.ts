@@ -19,6 +19,8 @@ interface AppState {
     | 'Tests'
     | 'Console'
     | 'Test Results'
+    | 'Docs'
+    | 'Settings'
   setActiveTab: (
     tab:
       | 'Params'
@@ -29,6 +31,8 @@ interface AppState {
       | 'Tests'
       | 'Console'
       | 'Test Results'
+      | 'Docs'
+      | 'Settings'
   ) => void
 
   // Global Loading State

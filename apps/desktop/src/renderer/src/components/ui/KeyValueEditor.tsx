@@ -166,13 +166,19 @@ export const KeyValueEditor = ({
                   />
                 </td>
                 <td className="p-0">
-                  <input
-                    type="text"
+                  <textarea
+                    rows={1}
                     value={row.description || ''}
                     disabled={disabled}
                     onChange={(e) => handleRowChange(row.id, 'description', e.target.value)}
+                    onInput={(e) => {
+                      const target = e.target as HTMLTextAreaElement
+                      target.style.height = 'auto'
+                      target.style.height = `${target.scrollHeight}px`
+                    }}
                     placeholder="Description"
-                    className={`w-full bg-transparent px-4 py-2.5 focus:outline-none text-text placeholder:text-muted/30 ${disabled ? 'cursor-not-allowed' : ''} ${isLastEmpty ? 'opacity-30' : ''}`}
+                    className={`w-full bg-transparent px-4 py-2.5 focus:outline-none text-text placeholder:text-muted/30 resize-none overflow-hidden whitespace-pre-wrap break-all ${disabled ? 'cursor-not-allowed' : ''} ${isLastEmpty ? 'opacity-30' : ''}`}
+                    style={{ height: 'auto' }}
                   />
                 </td>
                 <td className="px-3 py-1 text-center">

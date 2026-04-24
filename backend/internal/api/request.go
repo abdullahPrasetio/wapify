@@ -64,33 +64,47 @@ func CreateRequestInFolder(c *fiber.Ctx) error {
 	if !isEditorOrAbove(c, collection.TeamID) {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Forbidden", "code": "FORBIDDEN"})
 	}
-	var req CreateRequestPayload
-	if err := c.BodyParser(&req); err != nil {
+	
+	var data map[string]interface{}
+	if err := c.BodyParser(&data); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body", "code": "BAD_REQUEST"})
 	}
+
 	userID := uint(c.Locals("user_id").(float64))
 	fid := folder.ID
+	
 	request := repository.Request{
-		Name:         req.Name,
-		Description:  req.Description,
-		Method:       req.Method,
-		URL:          req.URL,
-		Headers:      req.Headers,
-		Body:         req.Body,
-		BodyType:     req.BodyType,
-		AuthConfig:   req.AuthConfig,
-		CollectionID: collection.ID,
-		FolderID:           &fid,
-		CreatedByID:        &userID,
-		OrderIndex:         req.OrderIndex,
-		PreRequestScript:   req.PreRequestScript,
-		PostRequestScript:  req.PostRequestScript,
+		Name:              getString(data, "name"),
+		Description:       getString(data, "description"),
+		Method:            getString(data, "method"),
+		URL:               getString(data, "url"),
+		BodyType:          getString(data, "body_type"),
+		CollectionID:      collection.ID,
+		FolderID:          &fid,
+		CreatedByID:       &userID,
+		OrderIndex:        getInt(data, "order_index"),
+		PreRequestScript:  getString(data, "pre_request_script"),
+		PostRequestScript: getString(data, "post_request_script"),
 	}
+
+	if headers, ok := data["headers"]; ok {
+		request.Headers = repository.JSONB(headers.(map[string]interface{}))
+	}
+	if body, ok := data["body"]; ok {
+		if bArray, ok := body.([]interface{}); ok {
+			request.Body = repository.JSONB{"array": bArray}
+		} else {
+			request.Body = repository.JSONB(body.(map[string]interface{}))
+		}
+	}
+	if auth, ok := data["auth_config"]; ok {
+		request.AuthConfig = repository.JSONB(auth.(map[string]interface{}))
+	}
+
 	if err := repository.DB.Create(&request).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to create request", "code": "INTERNAL_SERVER_ERROR"})
 	}
 
-	// Real-time broadcast & logging
 	WSHub.BroadcastEntityUpdate(collection.TeamID, "COLLECTION", collection.ID)
 	LogActivity(repository.DB, collection.TeamID, userID, "CREATED_REQUEST", "REQUEST", request.ID, map[string]interface{}{"name": request.Name})
 
@@ -121,32 +135,49 @@ func CreateRequestInCollection(c *fiber.Ctx) error {
 	if !isEditorOrAbove(c, collection.TeamID) {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Forbidden", "code": "FORBIDDEN"})
 	}
-	var req CreateRequestPayload
-	if err := c.BodyParser(&req); err != nil {
+
+	var data map[string]interface{}
+	if err := c.BodyParser(&data); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body", "code": "BAD_REQUEST"})
 	}
+
 	userID := uint(c.Locals("user_id").(float64))
 	request := repository.Request{
-		Name:         req.Name,
-		Description:  req.Description,
-		Method:       req.Method,
-		URL:          req.URL,
-		Headers:      req.Headers,
-		Body:         req.Body,
-		BodyType:     req.BodyType,
-		AuthConfig:   req.AuthConfig,
-		CollectionID: collection.ID,
-		FolderID:           req.FolderID,
-		CreatedByID:        &userID,
-		OrderIndex:         req.OrderIndex,
-		PreRequestScript:   req.PreRequestScript,
-		PostRequestScript:  req.PostRequestScript,
+		Name:              getString(data, "name"),
+		Description:       getString(data, "description"),
+		Method:            getString(data, "method"),
+		URL:               getString(data, "url"),
+		BodyType:          getString(data, "body_type"),
+		CollectionID:      collection.ID,
+		CreatedByID:       &userID,
+		OrderIndex:        getInt(data, "order_index"),
+		PreRequestScript:  getString(data, "pre_request_script"),
+		PostRequestScript: getString(data, "post_request_script"),
 	}
+
+	if fIDVal, ok := data["folder_id"].(float64); ok {
+		fid := uint(fIDVal)
+		request.FolderID = &fid
+	}
+
+	if headers, ok := data["headers"]; ok {
+		request.Headers = repository.JSONB(headers.(map[string]interface{}))
+	}
+	if body, ok := data["body"]; ok {
+		if bArray, ok := body.([]interface{}); ok {
+			request.Body = repository.JSONB{"array": bArray}
+		} else {
+			request.Body = repository.JSONB(body.(map[string]interface{}))
+		}
+	}
+	if auth, ok := data["auth_config"]; ok {
+		request.AuthConfig = repository.JSONB(auth.(map[string]interface{}))
+	}
+
 	if err := repository.DB.Create(&request).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to create request", "code": "INTERNAL_SERVER_ERROR"})
 	}
 
-	// Real-time broadcast & logging
 	WSHub.BroadcastEntityUpdate(collection.TeamID, "COLLECTION", collection.ID)
 	LogActivity(repository.DB, collection.TeamID, userID, "CREATED_REQUEST", "REQUEST", request.ID, map[string]interface{}{"name": request.Name})
 
@@ -300,4 +331,19 @@ func DuplicateRequest(c *fiber.Ctx) error {
 	LogActivity(repository.DB, collection.TeamID, userID, "DUPLICATED_REQUEST", "REQUEST", newRequest.ID, map[string]interface{}{"name": newRequest.Name})
 
 	return c.Status(fiber.StatusCreated).JSON(newRequest)
+}
+
+// Helpers
+func getString(m map[string]interface{}, key string) string {
+	if val, ok := m[key].(string); ok {
+		return val
+	}
+	return ""
+}
+
+func getInt(m map[string]interface{}, key string) int {
+	if val, ok := m[key].(float64); ok {
+		return int(val)
+	}
+	return 0
 }

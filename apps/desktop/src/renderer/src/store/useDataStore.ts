@@ -223,7 +223,7 @@ interface DataState {
     folderId: number | null,
     name: string,
     data?: Partial<ApiRequest>
-  ) => Promise<void>
+  ) => Promise<ApiRequest | null>
   createFolder: (collectionId: number, parentFolderId: number | null, name: string) => Promise<void>
 
   // Environment Actions
@@ -558,7 +558,8 @@ export const useDataStore = create<DataState>()(
               auth_config: (normalizedRequest.auth_config as AuthConfig) || { type: 'No Auth' },
               pre_request_script: normalizedRequest.pre_request_script || '',
               post_request_script: normalizedRequest.post_request_script || ''
-            },            lastResponse: null,
+            },
+            lastResponse: null,
             isSending: false,
             isDirty: false,
             testResults: []
@@ -617,6 +618,7 @@ export const useDataStore = create<DataState>()(
               url: example.request_url,
               headers: (example.request_headers as Record<string, string>) || {},
               body: (typeof example.request_body === 'string' ? example.request_body : JSON.stringify(example.request_body, null, 2)) || '',
+              body_type: 'raw-json',
               auth_config: { type: 'No Auth' },
               pre_request_script: '',
               post_request_script: ''
@@ -725,11 +727,15 @@ export const useDataStore = create<DataState>()(
             // Parse body string back to object if possible
             let bodyObj: unknown = {}
             if (workingRequest.body) {
-              try {
-                bodyObj = JSON.parse(workingRequest.body)
-              } catch {
-                // If not valid JSON, send as a raw string wrapped in an object
-                bodyObj = { raw: workingRequest.body }
+              if (Array.isArray(workingRequest.body)) {
+                bodyObj = workingRequest.body
+              } else {
+                try {
+                  bodyObj = JSON.parse(workingRequest.body)
+                } catch {
+                  // If not valid JSON, send as a raw string wrapped in an object
+                  bodyObj = { raw: workingRequest.body }
+                }
               }
             }
 
@@ -825,7 +831,7 @@ export const useDataStore = create<DataState>()(
           folderId: number | null,
           name: string,
           data?: Partial<ApiRequest>
-        ) => {
+        ): Promise<ApiRequest | null> => {
           try {
             const url = folderId
               ? `/api/v1/folders/${folderId}/requests`
@@ -849,59 +855,70 @@ export const useDataStore = create<DataState>()(
 
             if (response.status === 201) {
               const newReq = response.data as ApiRequest
+              const normalizedReq = normalizeRequest(newReq)
 
-              set((state) => {
-                const colId = collectionId
-                const fId = folderId
+              // Sync Sidebar with server data
+              await get().fetchCollectionContents(collectionId)
 
-                // Update global state
-                const updatedRequests = [...state.requests, newReq]
-
-                // Update collection mapping
-                const colReqs = state.requestsByCollection[colId] || []
-                const updatedByCol = {
-                  ...state.requestsByCollection,
-                  [colId]: [...colReqs, newReq]
-                }
-
-                // Update folder mapping
-                const updatedByFolder = { ...state.requestsByFolder }
-                if (fId) {
-                  const fReqs = state.requestsByFolder[fId] || []
-                  updatedByFolder[fId] = [...fReqs, newReq]
-                }
-
-                return {
-                  requests: updatedRequests,
-                  requestsByCollection: updatedByCol,
-                  requestsByFolder: updatedByFolder
-                }
-              })
-
-              // If we are saving from a draft, we might want to close the draft and open the new request,
-              // but the function doesn't know about draftId yet. We'll handle it in the component.
               const currentTabs = get().tabs
               const draftTab = currentTabs.find(t => typeof t.requestId === 'string' && t.requestId.startsWith('draft-'))
+              
               if (draftTab && get().activeTabId === draftTab.requestId) {
-                // Replace the draft tab with the newly saved request
+                // Replace draft logic
                 const newTabs = currentTabs.map(t => {
                   if (t.requestId === draftTab.requestId) {
                     return {
                       ...t,
-                      requestId: newReq.id,
-                      name: newReq.name,
+                      requestId: normalizedReq.id,
+                      name: normalizedReq.name,
+                      method: normalizedReq.method,
+                      workingRequest: {
+                        method: normalizedReq.method,
+                        url: normalizedReq.url,
+                        headers: normalizedReq.headers || {},
+                        body: normalizedReq.body as any,
+                        body_type: normalizedReq.body_type,
+                        auth_config: (normalizedReq.auth_config as AuthConfig) || { type: 'No Auth' },
+                        pre_request_script: normalizedReq.pre_request_script || '',
+                        post_request_script: normalizedReq.post_request_script || ''
+                      },
                       isDirty: false
                     }
                   }
                   return t
                 })
-                set({ tabs: newTabs, activeTabId: newReq.id })
+                set({ tabs: newTabs, activeTabId: normalizedReq.id })
               } else {
-                get().openRequestInTab(newReq)
+                // ADD NEW TAB DIRECTLY
+                const newTab: RequestTab = {
+                  requestId: normalizedReq.id,
+                  name: normalizedReq.name,
+                  method: normalizedReq.method,
+                  workingRequest: {
+                    method: normalizedReq.method,
+                    url: normalizedReq.url,
+                    headers: normalizedReq.headers || {},
+                    body: normalizedReq.body as any,
+                    body_type: normalizedReq.body_type,
+                    auth_config: (normalizedReq.auth_config as AuthConfig) || { type: 'No Auth' },
+                    pre_request_script: normalizedReq.pre_request_script || '',
+                    post_request_script: normalizedReq.post_request_script || ''
+                  },
+                  lastResponse: null,
+                  isSending: false,
+                  isDirty: false,
+                  testResults: []
+                }
+                set({ 
+                  tabs: [...currentTabs, newTab], 
+                  activeTabId: normalizedReq.id 
+                })
               }
 
               toast.success(`Request "${name}" created successfully`)
+              return newReq
             }
+            return null
           } catch (err: unknown) {
             const msg = err && typeof err === 'object' && 'response' in err
               ? (err as any).response?.data?.error
@@ -909,6 +926,7 @@ export const useDataStore = create<DataState>()(
                 ? err.message
                 : 'Unknown network error'
             toast.error(`Failed to create request: ${msg}`)
+            return null
           }
         },
 
@@ -1324,7 +1342,13 @@ export const useDataStore = create<DataState>()(
             substitutedHeaders[key] = resolved
           })
 
-          const substitutedBody = replaceVariables(workingRequest.body, vars)
+          const substitutedBody = Array.isArray(workingRequest.body)
+            ? workingRequest.body.map((item) => ({
+                ...item,
+                key: replaceVariables(item.key, vars),
+                value: replaceVariables(String(item.value), vars)
+              }))
+            : replaceVariables(workingRequest.body, vars)
 
           // Inject Auth into URL if type is API Key and addTo is query
           if (
@@ -1767,7 +1791,13 @@ export const useDataStore = create<DataState>()(
             const finalHeaders = injectAuth(workingRequest.headers, workingRequest.auth_config, vars)
             const substitutedHeaders: Record<string, string> = {}
             Object.entries(finalHeaders).forEach(([k, v]) => { substitutedHeaders[k] = replaceVariables(v, vars) })
-            const substitutedBody = replaceVariables(workingRequest.body, vars)
+            const substitutedBody = Array.isArray(workingRequest.body)
+            ? workingRequest.body.map((item) => ({
+                ...item,
+                key: replaceVariables(item.key, vars),
+                value: replaceVariables(String(item.value), vars)
+              }))
+            : replaceVariables(workingRequest.body, vars)
 
             try {
               const start = Date.now()
@@ -1858,6 +1888,7 @@ export const useDataStore = create<DataState>()(
         partialize: (state) => ({
           activeTeamId: state.activeTeamId,
           activeTabId: state.activeTabId,
+          tabs: state.tabs,
           activeEnvironmentId: state.activeEnvironmentId,
           expandedItems: state.expandedItems
         })

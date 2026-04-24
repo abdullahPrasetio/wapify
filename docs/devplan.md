@@ -134,6 +134,13 @@
 **Target:** Wapify terasa lebih powerful dan nyaman dari Postman.
 **Estimasi:** 2-3 minggu
 
+### Fitur Ditunda (Coming Soon)
+Beberapa fitur yang direncanakan di Fase 6 telah disesuaikan prioritasnya dan untuk sementara dialihkan ke modal **"Coming Soon"** di UI guna menjaga stabilitas MVP:
+- **Documentation (Main Tab):** Generator dokumentasi otomatis sedang dalam perbaikan engine.
+- **Cookies Management:** Fitur manajemen cookie (interceptor & manual set) masih dalam tahap desain keamanan.
+- **Send Options Dropdown:** Dropdown pada tombol Send (Send & Download, dll) akan diaktifkan di update mendatang.
+- **Request Sharing:** Fitur kolaborasi berbagi request via link.
+
 ### Urutan Pengerjaan
 
 ```
@@ -182,52 +189,23 @@
 ---
 
 ### 6.4 — Import dari cURL
-**Estimasi:** 2-3 hari
-**Scope:** Frontend only. Library: `curlconverter` (npm).
+**Status:** ✅ Selesai
 
-- [ ] Tombol "Import cURL" di toolbar request builder
-- [ ] Modal: textarea paste cURL + tombol "Convert & Preview"
-- [ ] **Deteksi otomatis:** paste teks diawali `curl ` di field URL → dialog konfirmasi
-- [ ] Preview hasil konversi: Method, URL, Headers, Body type + content
-- [ ] Tombol "Apply" — isi request builder dengan hasil konversi
-- [ ] Support flag cURL:
-  - `-X` / `--request` — HTTP method
-  - `-H` / `--header` — header
-  - `-d` / `--data` / `--data-raw` / `--data-urlencode` — body
-  - `-u` / `--user` — basic auth
-  - `-b` / `--cookie` — cookie (jadi header `Cookie:`)
-  - `--form` / `-F` — form-data
-  - `-k` / `--insecure` — tampilkan warning SSL disabled
-- [ ] cURL tidak valid → pesan error yang deskriptif
+- [x] Tombol "Import cURL" di toolbar request builder
+- [x] Modal: textarea paste cURL + tombol "Import Request"
+- [x] **Deteksi otomatis:** paste teks diawali `curl ` di field URL → dialog konfirmasi
+- [x] Support flag cURL: method, url, header, data (body)
+- [x] Integrasi library `curlconverter`
 
 ---
 
 ### 6.5 — Export Request ke Code Snippet
-**Estimasi:** 3-4 hari
-**Scope:** Frontend only. Generator di Renderer process.
+**Status:** ✅ Selesai
 
-- [ ] Tombol `</>` di sebelah kanan tombol Send
-- [ ] Dropdown pilih target:
-  ```
-  ── Command Line ──     ── Mobile ──
-  cURL                   Swift (URLSession)
-  ── JavaScript ──       Kotlin (OkHttp)
-  Fetch API              Dart / Flutter
-  Axios                  ── Java ──
-  ── Go ──               OkHttp
-  net/http               ── PHP ──
-  ── Python ──           cURL
-  requests
-  ```
-- [ ] Modal hasil: Monaco Editor read-only + tombol Copy + Close
-- [ ] Resolve environment variable aktif sebelum generate
-  - Ada nilai → substitusi aktual
-  - Tidak ada nilai → biarkan `{{variable_name}}`
-- [ ] Support semua body type di tiap generator
-- [ ] Arsitektur fungsi pure — mudah tambah bahasa baru:
-  ```typescript
-  generateSnippet(request: RequestConfig, lang: Language, env: Environment): string
-  ```
+- [x] Tombol `</>` di sebelah kanan tombol Send
+- [x] Mendukung cURL, JavaScript (Fetch/Axios), Go, dan Python
+- [x] Modal hasil: Monaco Editor read-only + tombol Copy + Close
+- [x] Support semua body type (raw, form-data, urlencoded)
 
 ---
 

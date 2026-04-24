@@ -37,6 +37,9 @@ const api = {
   },
   getAppVersion: (): Promise<string> => {
     return ipcRenderer.invoke('wapify:get-version')
+  },
+  parseCurl: (curlCommand: string): Promise<any> => {
+    return ipcRenderer.invoke('wapify:parse-curl', curlCommand)
   }
 }
 

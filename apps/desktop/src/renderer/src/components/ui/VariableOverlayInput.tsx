@@ -3,8 +3,9 @@ import { Check } from 'lucide-react'
 import { useDataStore } from '../../store/useDataStore'
 import { toast } from 'sonner'
 
-interface VariableOverlayInputProps extends React.InputHTMLAttributes<HTMLInputElement> {
+interface VariableOverlayInputProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
   onUpdateValue?: (value: string) => void
+  multiline?: boolean
 }
 
 export const VariableOverlayInput: React.FC<VariableOverlayInputProps> = ({
@@ -12,12 +13,15 @@ export const VariableOverlayInput: React.FC<VariableOverlayInputProps> = ({
   onChange,
   className,
   onUpdateValue,
+  multiline = true,
   ...props
 }) => {
   const [isOpen, setIsOpen] = useState(false)
+  const [isFocused, setIsFocused] = useState(false)
   const [activeVar, setActiveVar] = useState<string | null>(null)
   const [newValue, setNewValue] = useState('')
   const containerRef = useRef<HTMLDivElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   
   const { environments, activeEnvironmentId, updateEnvironment } = useDataStore()
@@ -25,6 +29,18 @@ export const VariableOverlayInput: React.FC<VariableOverlayInputProps> = ({
   const envVars = activeEnv?.variables ?? {}
 
   const text = String(value || '')
+
+  // Auto-adjust height for textarea when focused
+  useEffect(() => {
+    if (multiline && textareaRef.current) {
+      if (isFocused) {
+        textareaRef.current.style.height = 'auto'
+        textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`
+      } else {
+        textareaRef.current.style.height = '40px' // Default single line height
+      }
+    }
+  }, [value, multiline, isFocused])
 
   // Close popup on click outside
   useEffect(() => {
@@ -41,7 +57,6 @@ export const VariableOverlayInput: React.FC<VariableOverlayInputProps> = ({
     e.preventDefault()
     e.stopPropagation()
     setActiveVar(varName)
-    // Pre-fill with existing value if it exists
     const existingValue = envVars[varName] || envVars[varName.toLowerCase()] || ''
     setNewValue(String(existingValue))
     setIsOpen(true)
@@ -49,7 +64,6 @@ export const VariableOverlayInput: React.FC<VariableOverlayInputProps> = ({
 
   const handleSaveVar = async () => {
     if (!activeVar || !activeEnv || !newValue.trim()) return
-    
     const newVars = { ...activeEnv.variables, [activeVar]: newValue.trim() }
     await updateEnvironment(activeEnv.id, activeEnv.name, newVars)
     toast.success(`Variable "${activeVar}" set successfully`)
@@ -67,7 +81,8 @@ export const VariableOverlayInput: React.FC<VariableOverlayInputProps> = ({
 
     while ((match = regex.exec(text)) !== null) {
       // Normal text before variable
-      res.push(<span key={`t-${idx}`}>{text.substring(lastIdx, match.index)}</span>)
+      const plainText = text.substring(lastIdx, match.index)
+      res.push(<span key={`t-${idx}`}>{plainText}</span>)
       
       const varName = match[1].trim()
       const isSet = envVars[varName] !== undefined || envVars[varName.toLowerCase()] !== undefined
@@ -86,8 +101,9 @@ export const VariableOverlayInput: React.FC<VariableOverlayInputProps> = ({
         </span>
       )
 
-      // Variable part (Interaction - for Layer 3)
-      parts.push(<span key={`it-${idx}`}>{text.substring(lastIdx, match.index)}</span>)
+      // Variable part (Interaction - Layer 3)
+      // We must make SURE the plain text parts here are also transparent
+      parts.push(<span key={`it-${idx}`} className="text-transparent">{plainText}</span>)
       parts.push(
         <span
           key={`iv-${idx}`}
@@ -95,8 +111,7 @@ export const VariableOverlayInput: React.FC<VariableOverlayInputProps> = ({
             e.stopPropagation()
             handleVarClick(varName, e)
           }}
-          className="pointer-events-auto cursor-pointer"
-          style={{ color: 'transparent' }}
+          className="pointer-events-auto cursor-pointer text-transparent"
         >
           {`{{${varName}}}`}
         </span>
@@ -106,41 +121,78 @@ export const VariableOverlayInput: React.FC<VariableOverlayInputProps> = ({
       idx++
     }
 
-    // Normal text after last variable
-    res.push(<span key="last-t">{text.substring(lastIdx)}</span>)
-    parts.push(<span key="last-it" style={{ color: 'transparent' }}>{text.substring(lastIdx)}</span>)
+    const finalPlainText = text.substring(lastIdx)
+    res.push(<span key="last-t">{finalPlainText}</span>)
+    parts.push(<span key="last-it" className="text-transparent">{finalPlainText}</span>)
     
     return { res, parts }
   })()
 
+  const handleFocus = (e: React.FocusEvent<any>) => {
+    setIsFocused(true)
+    if (props.onFocus) props.onFocus(e)
+  }
+
+  const handleBlur = (e: React.FocusEvent<any>) => {
+    setIsFocused(false)
+    if (props.onBlur) props.onBlur(e)
+  }
+
+  // Common styles to ensure pixel-perfect alignment
+  const sharedStyles: React.CSSProperties = {
+    padding: '10px 12px',
+    lineHeight: '1.5',
+    fontSize: '0.875rem', // text-sm
+    fontFamily: 'Menlo, Monaco, Consolas, monospace', // font-mono
+    boxSizing: 'border-box',
+    border: '1px solid transparent'
+  }
+
   return (
-    <div ref={containerRef} className="relative w-full group flex items-center h-full">
-      {/* 1. Backdrop Overlay (Visible) */}
+    <div ref={containerRef} className={`relative w-full group flex ${multiline && isFocused ? 'items-start' : 'items-center'} h-full transition-all duration-200`}>
+      {/* 1. Backdrop Overlay (Visual) */}
       <div 
-        className={`absolute inset-0 px-3 py-2.5 text-sm font-mono pointer-events-none whitespace-pre overflow-hidden flex items-center ${className || ''}`}
+        className={`absolute inset-0 text-sm font-mono pointer-events-none ${multiline && isFocused ? 'whitespace-pre-wrap break-all' : 'whitespace-nowrap overflow-hidden text-ellipsis'} flex ${multiline && isFocused ? 'items-start' : 'items-center'} ${className || ''}`}
         aria-hidden="true"
-        style={{ border: '1px solid transparent' }}
+        style={sharedStyles}
       >
-        <div className="w-full text-text/90">
+        <div className={`w-full text-text/90 ${!isFocused ? 'truncate' : ''}`}>
           {renderedHighlights}
         </div>
       </div>
 
-      {/* 2. Real Input (Interaction Layer - Text is transparent) */}
-      <input
-        ref={inputRef}
-        value={value}
-        onChange={onChange}
-        className={`w-full bg-transparent border border-white/10 rounded-lg px-3 py-2.5 text-sm font-mono text-transparent caret-white focus:outline-none focus:border-primary/50 transition-colors z-10 ${className || ''}`}
-        {...props}
-      />
+      {/* 2. Real Input/Textarea (Interaction Layer) */}
+      {multiline ? (
+        <textarea
+          ref={textareaRef}
+          value={value}
+          onChange={onChange as any}
+          onFocus={handleFocus}
+          onBlur={handleBlur}
+          rows={1}
+          className={`w-full bg-transparent border border-white/10 rounded-lg text-sm font-mono text-transparent caret-white focus:outline-none focus:border-primary/50 transition-all z-10 resize-none ${isFocused ? 'whitespace-pre-wrap break-all' : 'whitespace-nowrap overflow-hidden'} ${className || ''}`}
+          style={{ ...sharedStyles, border: '1px solid #33334d' }}
+          {...props as any}
+        />
+      ) : (
+        <input
+          ref={inputRef}
+          value={value}
+          onChange={onChange as any}
+          onFocus={handleFocus}
+          onBlur={handleBlur}
+          className={`w-full bg-transparent border border-white/10 rounded-lg text-sm font-mono text-transparent caret-white focus:outline-none focus:border-primary/50 transition-colors z-10 ${className || ''}`}
+          style={{ ...sharedStyles, border: '1px solid #33334d' }}
+          {...props as any}
+        />
+      )}
 
-      {/* 3. Click Layer (Only for variables) */}
+      {/* 3. Click Layer (Interaction Layer - For variable clicks) */}
       <div 
-        className={`absolute inset-0 px-3 py-2.5 text-sm font-mono pointer-events-none whitespace-pre overflow-hidden flex items-center z-20 ${className || ''}`}
-        style={{ border: '1px solid transparent' }}
+        className={`absolute inset-0 text-sm font-mono pointer-events-none ${multiline && isFocused ? 'whitespace-pre-wrap break-all' : 'whitespace-nowrap overflow-hidden'} flex ${multiline && isFocused ? 'items-start' : 'items-center'} z-20 ${className || ''}`}
+        style={sharedStyles}
       >
-        <div className="w-full">
+        <div className={`w-full ${!isFocused ? 'truncate' : ''}`}>
           {interactionParts}
         </div>
       </div>
