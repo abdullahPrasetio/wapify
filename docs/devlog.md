@@ -56,8 +56,44 @@
 - Landing page dideploy menggunakan Docker (Nginx) agar sangat ringan saat dijalankan di CasaOS STB.
 
 ### Langkah Selanjutnya
-- Finalisasi integrasi `wapify run` untuk pipeline CI/CD (Fase 4).
-- Persiapan distribusi binary backend ke STB menggunakan Docker.
+- Implementasi cURL Import (Fase 6.4).
+- Implementasi Export Code Snippet (Fase 6.5).
+
+---
+
+## [2026-04-24] — Implementasi Body Types Lengkap & UX Headers
+**Fase:** Fase 6 — UX & Power Features
+**Dikerjakan oleh:** Gemini
+**Status:** ✅ Selesai
+
+### Yang Dikerjakan
+- **Body Types Support**: Implementasi dukungan penuh untuk berbagai tipe body: `none`, `form-data`, `x-www-form-urlencoded`, `raw` (JSON, XML, HTML, Text), dan `binary`.
+- **Smart Content-Type**: Header `Content-Type` otomatis diperbarui atau dihapus berdasarkan tipe body yang dipilih untuk memudahkan alur kerja pengguna.
+- **Bulk Edit Headers**: Fitur baru untuk mengedit header secara massal dalam format teks, mempermudah pemindahan data antar request.
+- **HTTP Executor Upgrade**: Migrasi dari `net.request` Electron ke library **Axios** di proses Main untuk penanganan multipart/form-data dan urlencoded yang lebih stabil.
+- **Optimasi UI**: 
+    - Menggunakan teknik `display: none` pada Monaco Editor agar perpindahan tab terasa instan tanpa reload.
+    - Memperbaiki bug kursor melompat pada `KeyValueEditor` menggunakan `useRef` dan pengecekan perubahan internal.
+    - Sinkronisasi status *checked/unchecked* header secara permanen ke database.
+- **Backend Infrastructure**: Penambahan kolom `body_type` pada tabel `requests` dan update API handler untuk mendukung struktur data body yang fleksibel (JSONB).
+
+### Perubahan File
+- `backend/migrations/000011_add_body_type_to_requests.up.sql` — Migrasi DB baru.
+- `backend/internal/api/request.go` — Update rute dan logic CRUD request.
+- `apps/desktop/src/main/index.ts` — Upgrade ke Axios dan penanganan body serialization.
+- `apps/desktop/src/renderer/src/store/useDataStore.ts` — Logika sinkronisasi header dan body types.
+- `apps/desktop/src/renderer/src/components/layout/MainArea.tsx` — Perombakan UI Request Builder.
+- `apps/desktop/src/renderer/src/components/ui/KeyValueEditor.tsx` — Peningkatan stabilitas input tabel.
+
+### Keputusan & Catatan
+- Memilih **Axios** di proses Main karena library bawaan Electron `net.request` memiliki keterbatasan dalam menangani boundary `multipart/form-data` secara manual.
+- Menggunakan wrapper `{"array": [...]}` untuk data body bertipe list agar tetap kompatibel dengan kolom JSONB PostgreSQL dan GORM.
+- Menghilangkan inisialisasi ulang Monaco Editor saat ganti tab untuk memberikan pengalaman "Postman-like" yang sangat responsif.
+
+### Langkah Selanjutnya
+- Implementasi cURL Import menggunakan library `curlconverter`.
+- Integrasi tombol Export Code Snippet di sebelah tombol Send.
+
 
 
 ---

@@ -10,9 +10,10 @@ type CreateRequestPayload struct {
 	Name        string          `json:"name"`
 	Description string          `json:"description"`
 	Method      string          `json:"method"`
-	URL         string          `json:"url"`
+	URL         string           `json:"url"`
 	Headers     repository.JSONB `json:"headers"`
 	Body        repository.JSONB `json:"body"`
+	BodyType    string           `json:"body_type"`
 	AuthConfig  repository.JSONB `json:"auth_config"`
 	FolderID    *uint           `json:"folder_id"`
 	OrderIndex        int              `json:"order_index"`
@@ -76,6 +77,7 @@ func CreateRequestInFolder(c *fiber.Ctx) error {
 		URL:          req.URL,
 		Headers:      req.Headers,
 		Body:         req.Body,
+		BodyType:     req.BodyType,
 		AuthConfig:   req.AuthConfig,
 		CollectionID: collection.ID,
 		FolderID:           &fid,
@@ -131,6 +133,7 @@ func CreateRequestInCollection(c *fiber.Ctx) error {
 		URL:          req.URL,
 		Headers:      req.Headers,
 		Body:         req.Body,
+		BodyType:     req.BodyType,
 		AuthConfig:   req.AuthConfig,
 		CollectionID: collection.ID,
 		FolderID:           req.FolderID,
@@ -177,34 +180,49 @@ func UpdateRequest(c *fiber.Ctx) error {
 	if !isEditorOrAbove(c, collection.TeamID) {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Forbidden", "code": "FORBIDDEN"})
 	}
-	var req CreateRequestPayload
-	if err := c.BodyParser(&req); err != nil {
+	
+	// Gunakan map generic untuk menangkap field yang dikirim secara eksplisit
+	var updateData map[string]interface{}
+	if err := c.BodyParser(&updateData); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body", "code": "BAD_REQUEST"})
 	}
-	if req.Name != "" {
-		request.Name = req.Name
+
+	// Update field satu per satu agar field kosong tetap terupdate
+	if name, ok := updateData["name"].(string); ok && name != "" {
+		request.Name = name
 	}
-	if req.Method != "" {
-		request.Method = req.Method
+	if method, ok := updateData["method"].(string); ok && method != "" {
+		request.Method = method
 	}
-	if req.URL != "" {
-		request.URL = req.URL
+	if url, ok := updateData["url"].(string); ok && url != "" {
+		request.URL = url
 	}
-	if req.Headers != nil {
-		request.Headers = req.Headers
+	
+	// Headers dan Body diperbolehkan kosong
+	if headers, ok := updateData["headers"]; ok {
+		request.Headers = repository.JSONB(headers.(map[string]interface{}))
 	}
-	if req.Body != nil {
-		request.Body = req.Body
+	if body, ok := updateData["body"]; ok {
+		if bArray, ok := body.([]interface{}); ok {
+			// Jika body berupa array (form-data/urlencoded)
+			request.Body = repository.JSONB{"array": bArray} // Bungkus agar konsisten JSONB
+		} else {
+			request.Body = repository.JSONB(body.(map[string]interface{}))
+		}
 	}
-	if req.AuthConfig != nil {
-		request.AuthConfig = req.AuthConfig
+	if bodyType, ok := updateData["body_type"].(string); ok {
+		request.BodyType = bodyType
 	}
-	if req.PreRequestScript != "" {
-		request.PreRequestScript = req.PreRequestScript
+	if authConfig, ok := updateData["auth_config"]; ok {
+		request.AuthConfig = repository.JSONB(authConfig.(map[string]interface{}))
 	}
-	if req.PostRequestScript != "" {
-		request.PostRequestScript = req.PostRequestScript
+	if pre, ok := updateData["pre_request_script"].(string); ok {
+		request.PreRequestScript = pre
 	}
+	if post, ok := updateData["post_request_script"].(string); ok {
+		request.PostRequestScript = post
+	}
+
 	if err := repository.DB.Save(&request).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to update request", "code": "INTERNAL_SERVER_ERROR"})
 	}
@@ -263,6 +281,7 @@ func DuplicateRequest(c *fiber.Ctx) error {
 		URL:               original.URL,
 		Headers:           original.Headers,
 		Body:              original.Body,
+		BodyType:          original.BodyType,
 		AuthConfig:        original.AuthConfig,
 		CollectionID:      original.CollectionID,
 		FolderID:          original.FolderID,

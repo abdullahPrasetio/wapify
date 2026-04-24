@@ -17,35 +17,41 @@ import moment from 'moment'
 import _ from 'lodash'
 
 /**
- * Ensures a request object has a string body for the Monaco Editor.
+ * Ensures a request object has the correct data structure for UI.
  */
 const normalizeRequest = (req: ApiRequest): ApiRequest => {
   if (!req) return req
 
+  const bodyType = req.body_type || 'raw-json'
   let body = req.body
-  if (typeof body === 'object' && body !== null) {
-    // If it's a Postman-style raw body object
-    if ('raw' in body && typeof body.raw === 'string') {
-      body = body.raw
-    } else {
-      try {
-        body = JSON.stringify(body, null, 2)
-      } catch {
-        body = ''
+
+  if (bodyType.startsWith('raw-')) {
+    if (typeof body === 'object' && body !== null) {
+      if ('raw' in body && typeof body.raw === 'string') {
+        body = body.raw
+      } else {
+        try {
+          body = JSON.stringify(body, null, 2)
+        } catch {
+          body = ''
+        }
       }
     }
-  }
-
-  // Handle case where body is null/undefined or stringified "{}"
-  if (!body || body === '{}') {
-    body = ''
+  } else if (bodyType === 'form-data' || bodyType === 'x-www-form-urlencoded') {
+    // Handle wrapped array from backend: { "array": [...] }
+    if (typeof body === 'object' && body !== null && 'array' in body && Array.isArray((body as any).array)) {
+      body = (body as any).array
+    } else if (!Array.isArray(body)) {
+      body = []
+    }
   }
 
   return {
     ...req,
     body,
+    body_type: bodyType,
     headers: req.headers || {},
-    auth_config: req.auth_config || { type: 'No Auth' },
+    auth_config: (req.auth_config as AuthConfig) || { type: 'No Auth' },
     pre_request_script: req.pre_request_script || '',
     post_request_script: req.post_request_script || ''
   }
@@ -76,7 +82,8 @@ export interface WorkingRequest {
   method: string
   url: string
   headers: Record<string, string>
-  body: string
+  body: string | any[] // Bisa string untuk raw, atau array untuk form-data/urlencoded
+  body_type: string
   auth_config: AuthConfig
   pre_request_script: string
   post_request_script: string
@@ -546,12 +553,12 @@ export const useDataStore = create<DataState>()(
               method: normalizedRequest.method,
               url: normalizedRequest.url,
               headers: normalizedRequest.headers || {},
-              body: normalizedRequest.body as string,
+              body: normalizedRequest.body as any,
+              body_type: normalizedRequest.body_type,
               auth_config: (normalizedRequest.auth_config as AuthConfig) || { type: 'No Auth' },
               pre_request_script: normalizedRequest.pre_request_script || '',
               post_request_script: normalizedRequest.post_request_script || ''
-            },
-            lastResponse: null,
+            },            lastResponse: null,
             isSending: false,
             isDirty: false,
             testResults: []
@@ -574,12 +581,12 @@ export const useDataStore = create<DataState>()(
               method: initialData.method || 'GET',
               url: initialData.url || '',
               headers: (initialData.headers as Record<string, string>) || {},
-              body: (typeof initialData.body === 'string' ? initialData.body : JSON.stringify(initialData.body, null, 2)) || '',
+              body: (initialData.body as any) || '',
+              body_type: initialData.body_type || 'raw-json',
               auth_config: (initialData.auth_config as AuthConfig) || { type: 'No Auth' },
               pre_request_script: initialData.pre_request_script || '',
               post_request_script: initialData.post_request_script || ''
-            },
-            lastResponse: null,
+            },            lastResponse: null,
             isSending: false,
             isDirty: true,
             testResults: []
@@ -653,9 +660,40 @@ export const useDataStore = create<DataState>()(
 
           const newTabs = tabs.map((tab) => {
             if (tab.requestId === activeTabId) {
+              // Jika ada update headers, GUNAKAN seluruhnya (jangan di-merge)
+              // agar header yang dihapus oleh user benar-benar hilang dari state.
+              let newHeaders = update.headers ? { ...update.headers } : { ...tab.workingRequest.headers }
+              const newBodyType = update.body_type || tab.workingRequest.body_type
+
+              // Auto-update Content-Type if body_type changed
+              if (update.body_type && update.body_type !== tab.workingRequest.body_type) {
+                const contentTypeMap: Record<string, string | null> = {
+                  'raw-json': 'application/json',
+                  'raw-xml': 'application/xml',
+                  'raw-html': 'text/html',
+                  'raw-text': 'text/plain',
+                  'x-www-form-urlencoded': 'application/x-www-form-urlencoded',
+                  'form-data': null, // Browser/Executor will set boundary
+                  none: null,
+                  binary: 'application/octet-stream'
+                }
+
+                const newCT = contentTypeMap[update.body_type]
+                if (newCT) {
+                  newHeaders['Content-Type'] = newCT
+                } else {
+                  delete newHeaders['Content-Type']
+                }
+              }
+
               return {
                 ...tab,
-                workingRequest: { ...tab.workingRequest, ...update },
+                workingRequest: { 
+                  ...tab.workingRequest, 
+                  ...update,
+                  headers: newHeaders,
+                  body_type: newBodyType 
+                },
                 isDirty: true
               }
             }
@@ -669,7 +707,6 @@ export const useDataStore = create<DataState>()(
             wsClient.send({ type: 'LOCK_REQUEST', request_id: activeTabId })
           }
         },
-
         saveActiveRequest: async () => {
           const { activeTabId, tabs } = get()
           const activeTab = tabs.find((t) => t.requestId === activeTabId)
@@ -799,15 +836,15 @@ export const useDataStore = create<DataState>()(
               description: data?.description || '',
               method: data?.method || 'GET',
               url: data?.url || 'https://api.example.com',
-              headers: data?.headers || {},
+              headers: data?.headers || { 'Content-Type': 'application/json' },
               body: data?.body || {},
+              body_type: data?.body_type || 'raw-json',
               auth_config: data?.auth_config || { type: 'No Auth' },
               folder_id: folderId,
               order_index: data?.order_index || 0,
               pre_request_script: data?.pre_request_script || '',
               post_request_script: data?.post_request_script || ''
             }
-
             const response = await apiClient.post(url, payload)
 
             if (response.status === 201) {

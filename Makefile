@@ -45,3 +45,6 @@ run-client:
 		-e DB_NAME=wapify \
 		-e LICENSE_KEY=$(LICENSE_KEY) \
 		abdullahprasetio/wapify-backend-client:$(TAG)
+
+dev-backend:
+	cd $(BACKEND_DIR) && go run cmd/server/main.go

@@ -1,7 +1,7 @@
 # Wapify — Development Plan
 
-**Terakhir Diperbarui:** 21 April 2026
-**Status Saat Ini:** ✅ Fase 1, 2, & 3 Selesai — Siap Fase 4 (Testing & CI/CD)
+**Terakhir Diperbarui:** 24 April 2026
+**Status Saat Ini:** ✅ Fase 0-5 Selesai (Fase 4 CLI pending) → 🟡 Fase 6 In Progress
 
 ---
 
@@ -13,181 +13,62 @@
 | 1 | MVP Internal | Tim Waluyo bisa pakai minggu ini | ✅ Selesai |
 | 2 | Kolaborasi Real-time | Field locking, presence, versioning | ✅ Selesai |
 | 3 | Dokumentasi & Mock Server | Generate docs, mock API | ✅ Selesai |
-| 4 | Testing & CI/CD | Collection runner, CLI | ⬜ Belum Mulai |
+| 4 | Testing & CI/CD | Collection runner, CLI | ✅ Selesai (CLI pending) |
 | 5 | On-Premise & License | Jual ke client luar | ✅ Selesai |
-| 6 | SaaS (Opsional) | Cloud hosted di wapify.io | ⬜ Belum Mulai |
+| 6 | UX & Power Features | Workspace, body types, export, drag-drop, mock dynamic | 🔄 Dalam Proses |
+| 7 | Kolaborasi Lanjutan | Notifikasi, shared env, diff visual | ⬜ Belum Mulai |
+| 8 | SaaS (Opsional) | Cloud hosted di wapify.io | ⬜ Belum Mulai |
 
 ---
 
 ## Fase 0 — Setup & Fondasi
-**Target:** Repo siap, bisa run lokal, CI terkonfigurasi.
-**Estimasi:** 1 hari
+**Status:** ✅ Selesai
 
-### Checklist
 - [x] Init repo: `apps/desktop`, `backend`, `docs`, `.agents`
 - [x] Go module backend: `go mod init`
 - [x] React + Electron boilerplate di `apps/desktop`
 - [x] Docker Compose: PostgreSQL lokal untuk development
-- [x] golang-migrate: migration pertama (schema USER, TEAM, TEAM_MEMBER, COLLECTION, FOLDER, REQUEST, ENVIRONMENT)
+- [x] golang-migrate: migration pertama (schema awal)
 - [x] golangci-lint config
 - [x] ESLint + Prettier config
-- [ ] GitHub Actions: lint + test on PR (Fase 4)
+- [ ] GitHub Actions: lint + test on PR ← pending Fase 4
 - [x] README: cara run lokal
-
-### Struktur Folder
-```
-wapify/
-├── apps/
-│   └── desktop/              # Electron + React
-│       ├── src/
-│       │   ├── main/         # Electron Main Process
-│       │   └── renderer/     # React UI
-│       ├── electron-builder.yml
-│       └── package.json
-├── backend/                  # Go + Fiber
-│   ├── cmd/
-│   │   ├── server/main.go    # Backend server
-│   │   └── admin/main.go     # Admin CLI (buat user, dll)
-│   ├── internal/
-│   │   ├── api/              # HTTP handlers
-│   │   ├── service/          # Business logic
-│   │   ├── repository/       # DB queries (GORM)
-│   │   ├── middleware/        # Auth, super admin, role check
-│   │   └── email/            # Resend integration
-│   ├── migrations/           # SQL migration files
-│   └── go.mod
-├── docs/
-│   ├── prd.md
-│   ├── devplan.md
-│   └── devlog.md
-└── .agents/
-    ├── rules/project-context.md
-    └── workflows/
-```
 
 ---
 
-## Fase 1 — MVP Internal ⭐ PRIORITAS UTAMA
-**Target:** Tim Waluyo (15+ orang) bisa pakai Wapify sebagai pengganti Postman minggu ini.
-**Estimasi:** 4-5 hari
+## Fase 1 — MVP Internal
+**Status:** ✅ Selesai
 
-### Backend (Go + Fiber)
-
-**Auth & User**
-- [x] `POST /api/v1/auth/login` — login dengan email + password, return JWT + refresh token
-- [x] `POST /api/v1/auth/refresh` — refresh JWT
-- [x] `POST /api/v1/auth/logout` — revoke refresh token
-- [x] Admin CLI: `wapify-admin create-user --email --name --password --super`
-- [x] Admin CLI: `wapify-admin list-users`
-- [ ] Admin CLI: `wapify-admin reset-password --email --password`
-- [x] Middleware: verifikasi JWT di semua endpoint yang perlu auth
-- [x] Middleware: super admin bypass (jika `is_super_admin=true`, skip role check)
-- [x] Middleware: role check per endpoint (Owner/Admin/Editor/Viewer)
-
-**Team Management**
-- [x] `POST /api/v1/teams` — buat tim baru
-- [x] `GET /api/v1/teams` — list tim (super admin: semua, user biasa: tim sendiri)
-- [x] `GET /api/v1/teams/:id` — detail tim
-- [x] `PUT /api/v1/teams/:id` — edit nama/deskripsi tim
-- [x] `DELETE /api/v1/teams/:id` — hapus tim (Owner/Super Admin)
-- [x] `POST /api/v1/teams/:id/members` — tambah member ke tim (Admin+)
-- [x] `PUT /api/v1/teams/:id/members/:userId` — ubah role member
-- [x] `DELETE /api/v1/teams/:id/members/:userId` — hapus member dari tim
-- [x] Email: kirim kredensial ke member baru via Resend (dimatikan sementara, kode sudah ada)
-
-**Collection & Request**
-- [x] `GET/POST /api/v1/teams/:id/collections` — list + buat koleksi
-- [x] `GET/PUT/DELETE /api/v1/collections/:id` — detail, edit, hapus koleksi
-- [x] `POST /api/v1/teams/:id/import` — import dari Postman JSON v2.1
-- [x] `GET/POST /api/v1/collections/:id/folders` — list + buat folder
-- [x] `PUT/DELETE /api/v1/folders/:id` — edit, hapus folder
-- [x] `GET/POST /api/v1/folders/:id/requests` — list + buat request dalam folder
-- [x] `GET/POST /api/v1/collections/:id/requests` — list + buat request di root koleksi
-- [x] `GET/PUT/DELETE /api/v1/requests/:id` — detail, edit, hapus request
-
-**Environment**
-- [x] `GET/POST /api/v1/teams/:id/environments` — list + buat environment
-- [x] `GET/PUT/DELETE /api/v1/environments/:id` — detail, edit, hapus
-- [x] Interpolasi `{{variable}}` di URL, headers, body (Case-Insensitive)
+### Backend
+- [x] Auth: login, refresh, logout, JWT + Refresh Token
+- [x] Admin CLI: create-user, list-users
+- [ ] Admin CLI: reset-password ← belum dikerjakan
+- [x] Middleware: JWT verify, super admin bypass, role check
+- [x] Team CRUD + member management (POST/GET/PUT/DELETE)
+- [x] Collection, Folder, Request CRUD
+- [x] Import Postman v2.1 JSON
+- [x] Environment CRUD + interpolasi `{{variable}}` (Case-Insensitive)
 - [x] Scripting Engine: Pre-request & Post-request (Wapify SDK v1.0)
-- [x] Persistence: Simpan variabel hasil `setEnv` ke database permanen
-- [x] Variable UI: Ghost Input engine dengan click-to-set di seluruh area (URL, Body, Header, Docs)
+- [x] Variable persistence: simpan hasil `setEnv` ke DB permanen
+- [x] Ghost Input engine: click-to-set di URL, Body, Header, Docs
+- [x] Request History CRUD
+- [x] Admin API (Super Admin): user & team management
 
-**Admin API (Super Admin)**
-- [x] `GET /api/v1/admin/users` — list semua user
-- [x] `POST /api/v1/admin/users` — buat user baru (dengan assign tim & role opsional)
-- [x] `DELETE /api/v1/admin/users/:id` — hapus user
-- [x] `GET /api/v1/admin/teams` — list semua tim
-- [x] `POST /api/v1/admin/teams/:id/members` — admin tambah member ke tim
-- [x] `DELETE /api/v1/admin/teams/:id/members/:userId` — admin hapus member dari tim
-
-**Request History**
-- [x] `GET /api/v1/history?team_id=X` — list history eksekusi request per tim
-- [x] `POST /api/v1/history` — simpan history eksekusi
-- [x] `DELETE /api/v1/history/:id` — hapus satu history
-- [x] `DELETE /api/v1/history?team_id=X` — clear semua history tim
-
-### Frontend (Electron + React)
-
-**Auth**
-- [x] Login screen (email + password)
-- [x] JWT disimpan di memory + refresh token di OS keychain via keytar
-- [x] Auth Rehydration: Auto-login saat refresh/restart via refresh token
-- [x] Auto-refresh JWT sebelum expired
-- [x] Logout
-
-**Layout Utama**
-- [x] Sidebar kiri: daftar tim + koleksi + folder + request (tree view)
-- [x] Header: nama user, tim aktif, environment selector dropdown
-- [x] Navbar: URL Bar dengan environment selector terintegrasi
-- [x] Main area: request builder dengan persistent state
-
-**Sidebar**
-- [x] List tim yang diikuti user
-- [x] Expand tim → list koleksi
-- [x] Expand koleksi → list folder + request (Recursive Support)
-- [x] Klik request → buka di main area
-- [x] Tombol buat koleksi baru, folder baru, request baru
-- [x] Import Postman (drag & drop atau file picker)
-- [x] Persistence: Folder/Collection tetap terbuka setelah refresh
-
-**Request Builder**
-- [x] Method selector & URL input
+### Frontend
+- [x] Login screen + Auth rehydration (auto-login via refresh token)
+- [x] Sidebar tree: tim → koleksi → folder → request (recursive, persistent state)
+- [x] Request Builder: method, URL, Params, Headers, Body, Auth, Scripts
 - [x] Premium Variable Hover UI (Glassmorphism)
-- [x] Tab: Params, Headers, Body, Auth, Scripts
-- [x] Auth config: None, Basic Auth, Bearer Token, API Key
-- [x] Tombol Send & Keyboard shortcut (Cmd+Enter)
-- [x] Scripts: Monaco Editor untuk Pre-request & Tests
+- [x] Response Viewer: status, timing, payload size, body, headers
+- [x] Admin Panel: user & team CRUD
+- [x] Electron Main Process: IPC HTTP Executor bebas CORS
 
-**Response Viewer**
-- [x] Status code, timing, payload size
-- [x] Tab: Body (JSON pretty-print), Headers
-- [x] Copy response button
-
-**Admin Panel (khusus Super Admin)**
-- [x] User Management CRUD
-- [x] Team Management CRUD
-- [x] Member Assignment UI
-
-**Electron Main Process**
-- [x] IPC handler: HTTP Executor (Bebas CORS)
-- [x] Support semua method HTTP, custom headers, body
-- [x] Timing & Payload size calculation
-
-### Build & Distribusi
-- [ ] Build Go backend: `GOARCH=arm64 GOOS=linux` untuk STB Android
-- [x] Setup Cloudflare Tunnel ke STB
-- [ ] Build Electron: `.dmg` (macOS) + `.exe` (Windows)
-- [ ] Share installer ke tim via link download
-- [x] Buat akun untuk semua anggota tim via admin CLI
-
-**Milestone ✅:** 15+ anggota tim berhasil login, lihat koleksi, kirim request ke API manapun tanpa CORS error. Waluyo bisa kelola tim dan member dari super admin panel.
+**Milestone ✅:** 15+ anggota tim berhasil login, kirim request bebas CORS, Waluyo kelola tim dari admin panel.
 
 ---
 
 ## Fase 2 — Kolaborasi Real-time
-**Target:** Tim bisa bekerja di koleksi yang sama tanpa conflict.
-**Estimasi:** 2-3 minggu
+**Status:** ✅ Selesai
 
 - [x] WebSocket server (gofiber/contrib/websocket)
 - [x] Presence indicator (siapa yang buka request yang sama)
@@ -198,49 +79,47 @@ wapify/
 - [x] Komentar pada request
 - [x] Activity log per koleksi/tim
 
-**Milestone ✅:** 2 member buka request yang sama, tidak conflict, perubahan langsung terlihat.
+**Milestone ✅:** Tim bisa kerja di request yang sama tanpa conflict.
 
 ---
 
 ## Fase 3 — Dokumentasi & Mock Server
-**Target:** Generate docs API dan mock server dari koleksi.
-**Estimasi:** 2 minggu
+**Status:** ✅ Selesai
 
-- [x] Generate dokumentasi (HTML + Markdown) dari koleksi
-- [x] UI: documentation viewer + export (Markdown & OpenAPI 3.0)
-- [x] Mock server engine dengan conditional response (delay, path wildcard, per-collection)
-- [x] UI: mock server management (CRUD endpoints, quick-mock, toggle aktif)
+- [x] Generate dokumentasi HTML + Markdown + OpenAPI 3.0
+- [x] Documentation viewer + export
+- [x] Mock server engine: conditional response, delay, path wildcard, per-collection
+- [x] Mock server UI: CRUD endpoints, quick-mock, toggle aktif
 
 **Milestone ✅:** User bisa export dokumentasi dan aktifkan mock server.
 
 ---
 
 ## Fase 4 — Automated Testing & CI/CD
-**Target:** Test script + Collection Runner + CLI.
-**Estimasi:** 2 minggu
+**Status:** ✅ Hampir Selesai — CLI masih pending
 
 - [x] Test runner JavaScript via Renderer-side execution (sandbox)
 - [x] Collection Runner (jalankan seluruh koleksi)
-- [ ] CLI: `wapify run --collection --env --reporter json|junit`
 - [x] UI: test script editor + laporan hasil
+- [ ] CLI: `wapify run --collection --env --reporter json|junit` ← **TODO**
+- [ ] GitHub Actions: lint + test on PR ← **TODO**
 
-**Milestone ✅:** `wapify run` bisa dipakai di pipeline CI/CD.
+> CLI bisa dikerjakan paralel saat Fase 6 berlangsung.
 
 ---
 
 ## Fase 5 — On-Premise & License
-**Target:** Wapify bisa dijual ke client luar dengan model on-premise license.
-**Status:** ✅ Selesai (Offline-First MVP)
+**Status:** ✅ Selesai
 
-- [x] License CLI (Go): Alat generate keypair & client license (Offline-First)
-- [x] Ed25519 keypair: Logika signing dan generation (MVP)
-- [x] Middleware: Validasi offline di backend utama dengan Grace Period 24 jam
-- [x] UI: Layar kunci (License Required) dan Toast Warning di frontend
-- [x] Branding: Ikon baru "API Pulse" yang modern
-- [x] Makefile: Otomasi build backend client dan packaging desktop
-- [x] Landing Page: wapify.io (Beta Registration via Gmail)
-- [x] Docker Ready: Dockerfile untuk deployment landing page di STB
-- [x] Dynamic Server Config: Point app to any backend without rebuild
+- [x] License CLI (Go): generate keypair & client license (Offline-First)
+- [x] Ed25519: signing dan generation (MVP)
+- [x] Middleware: validasi offline + Grace Period 24 jam
+- [x] UI: layar kunci (License Required) + toast warning
+- [x] Branding: ikon baru "API Pulse"
+- [x] Makefile: otomasi build + packaging
+- [x] Landing page wapify.io (Beta Registration via Gmail)
+- [x] Dockerfile untuk landing page di STB
+- [x] Dynamic Server Config: point app ke backend manapun tanpa rebuild
 - [x] Build multi-platform: `linux/amd64`, `linux/arm64`, `windows/amd64`, `darwin/arm64`
 
 **Pricing:**
@@ -248,18 +127,218 @@ wapify/
 - Business (unlimited seat): Rp 2jt/bln atau Rp 20jt/thn
 - Enterprise: Custom
 
-**Milestone ✅:** Client pertama berhasil install on-premise dan bayar license.
+---
+
+## Fase 6 — UX & Power Features
+**Status:** 🟡 In Progress
+**Target:** Wapify terasa lebih powerful dan nyaman dari Postman.
+**Estimasi:** 2-3 minggu
+
+### Urutan Pengerjaan
+
+```
+1. Rename Workspace         (0.5 hari)  → paling cepat, warmup
+2. Default Header JSON      (0.5 hari)  → cepat, tidak ada dependency
+3. Body Types               (3-4 hari)  → fondasi untuk cURL import
+4. cURL Import              (2-3 hari)  → bergantung pada Body Types
+5. Export Code Snippet      (3-4 hari)  → independen, bisa paralel dengan 4
+6. Drag-and-Drop            (3-4 hari)  → independen UI
+7. Mock Dynamic Response    (4-5 hari)  → paling kompleks, dikerjakan terakhir
+```
 
 ---
 
-## Fase 6 — SaaS (Opsional)
-**Target:** Wapify tersedia sebagai cloud SaaS.
+### 6.1 — Rename "Tim" → "Workspace" 
+**Estimasi:** 0.5 hari
+**Scope:** Frontend only — tidak ada perubahan backend atau DB.
+
+- [x] Ganti semua label "Tim" / "Team" → "Workspace" di seluruh UI
+- [x] Update: "Buat Tim" → "Buat Workspace", "Anggota Tim" → "Member"
+- [x] Update tooltip, placeholder, empty state, error message
+- [x] String "team" boleh ada di kode internal, tidak boleh tampil ke user
+
+---
+
+### 6.2 — Default Header `Content-Type: application/json`
+**Status:** ✅ Selesai
+
+- [x] Saat buat request baru → otomatis tambah header `Content-Type: application/json`
+- [x] Header tampil di tab Headers, bisa dihapus/diubah user
+- [x] Bisa edit bulk header seperti postman
+- [x] Auto-update Content-Type saat body type berubah
+
+---
+
+### 6.3 — Body Types Lengkap
+**Status:** ✅ Selesai
+
+- [x] Migration: tambah kolom `body_type VARCHAR(30)` ke tabel REQUEST
+- [x] Struktur `body` untuk form-data & urlencoded: array `[{ key, value, enabled, type }]`
+- [x] Update `PUT /api/v1/requests/:id` terima dan simpan `body_type`
+- [x] Update IPC handler Electron Main Process — serialisasi body sesuai `body_type` (Axios)
+- [x] UI: Dropdown selector body type dan editor tabel/Monaco sesuai pilihan
+- [x] Optimasi Monaco: Gunakan `display: none` agar tidak reload saat ganti tab
+
+---
+
+### 6.4 — Import dari cURL
+**Estimasi:** 2-3 hari
+**Scope:** Frontend only. Library: `curlconverter` (npm).
+
+- [ ] Tombol "Import cURL" di toolbar request builder
+- [ ] Modal: textarea paste cURL + tombol "Convert & Preview"
+- [ ] **Deteksi otomatis:** paste teks diawali `curl ` di field URL → dialog konfirmasi
+- [ ] Preview hasil konversi: Method, URL, Headers, Body type + content
+- [ ] Tombol "Apply" — isi request builder dengan hasil konversi
+- [ ] Support flag cURL:
+  - `-X` / `--request` — HTTP method
+  - `-H` / `--header` — header
+  - `-d` / `--data` / `--data-raw` / `--data-urlencode` — body
+  - `-u` / `--user` — basic auth
+  - `-b` / `--cookie` — cookie (jadi header `Cookie:`)
+  - `--form` / `-F` — form-data
+  - `-k` / `--insecure` — tampilkan warning SSL disabled
+- [ ] cURL tidak valid → pesan error yang deskriptif
+
+---
+
+### 6.5 — Export Request ke Code Snippet
+**Estimasi:** 3-4 hari
+**Scope:** Frontend only. Generator di Renderer process.
+
+- [ ] Tombol `</>` di sebelah kanan tombol Send
+- [ ] Dropdown pilih target:
+  ```
+  ── Command Line ──     ── Mobile ──
+  cURL                   Swift (URLSession)
+  ── JavaScript ──       Kotlin (OkHttp)
+  Fetch API              Dart / Flutter
+  Axios                  ── Java ──
+  ── Go ──               OkHttp
+  net/http               ── PHP ──
+  ── Python ──           cURL
+  requests
+  ```
+- [ ] Modal hasil: Monaco Editor read-only + tombol Copy + Close
+- [ ] Resolve environment variable aktif sebelum generate
+  - Ada nilai → substitusi aktual
+  - Tidak ada nilai → biarkan `{{variable_name}}`
+- [ ] Support semua body type di tiap generator
+- [ ] Arsitektur fungsi pure — mudah tambah bahasa baru:
+  ```typescript
+  generateSnippet(request: RequestConfig, lang: Language, env: Environment): string
+  ```
+
+---
+
+### 6.6 — Drag-and-Drop Request & Folder
+**Estimasi:** 3-4 hari
+**Scope:** Frontend (UI) + Backend (endpoint move + fractional order).
+**Library:** `@dnd-kit/core` + `@dnd-kit/sortable`
+
+**Backend:**
+- [ ] `PATCH /api/v1/requests/:id/move` — pindah request, update collection/folder + order
+  ```json
+  { "collection_id": 1, "folder_id": null, "order_index": 2.5 }
+  ```
+- [ ] `PATCH /api/v1/folders/:id/move` — pindah folder ke posisi/parent baru
+- [ ] Gunakan **fractional indexing** untuk `order_index` (float) — hindari re-numbering
+- [ ] Role check: hanya Editor ke atas yang bisa move
+
+**Frontend:**
+- [ ] Sidebar tree pakai `@dnd-kit/sortable`
+- [ ] Visual saat drag: item semi-transparan + shadow, garis biru = posisi insert, folder highlight saat hover
+- [ ] Auto-expand folder saat di-hover 0.5 detik saat drag
+- [ ] Drop rules:
+  - Request → antara request lain / masuk folder / pindah ke koleksi lain (dalam workspace yang sama)
+  - Folder → posisi lain / jadi sub-folder (tidak bisa drop ke diri sendiri / child-nya)
+- [ ] Undo drop: `Cmd+Z` / `Ctrl+Z`
+- [ ] Optimistic update: UI langsung berubah, rollback jika backend error
+- [ ] Update order ke backend setelah drop selesai (bukan saat drag berlangsung)
+
+---
+
+### 6.7 — Mock Server Dynamic Response
+**Estimasi:** 4-5 hari
+**Scope:** Frontend (UI) + Backend (engine upgrade + schema baru).
+
+**Backend — Migration:**
+- [ ] Buat tabel `MOCK_SCENARIO`:
+  ```sql
+  CREATE TABLE mock_scenario (
+    id               SERIAL PRIMARY KEY,
+    mock_endpoint_id INT REFERENCES mock_endpoint(id) ON DELETE CASCADE,
+    name             VARCHAR(100),
+    status_code      INT DEFAULT 200,
+    response_headers JSON,
+    response_body    TEXT,
+    conditions       JSON,
+    order_index      FLOAT,
+    created_at       TIMESTAMP DEFAULT NOW()
+  );
+  ```
+- [ ] Tambah kolom `active_scenario_id INT` ke tabel `MOCK_ENDPOINT`
+
+**Backend — Endpoint Baru:**
+- [ ] `GET/POST /api/v1/mock-endpoints/:id/scenarios`
+- [ ] `PUT/DELETE /api/v1/mock-scenarios/:id`
+- [ ] `PATCH /api/v1/mock-endpoints/:id/active-scenario` — manual switch
+
+**Backend — Mock Engine Upgrade:**
+- [ ] Condition evaluator (evaluasi dari atas ke bawah, pakai scenario pertama yang match):
+  - Source: `query`, `body` (dot notation), `header`, `path`
+  - Operator: `eq`, `neq`, `contains`, `not_contains`, `exists`, `not_exists`
+  - Contoh:
+    ```json
+    [
+      { "source": "query", "key": "status", "operator": "eq", "value": "active" },
+      { "source": "body", "key": "user.role", "operator": "eq", "value": "admin" }
+    ]
+    ```
+- [ ] Fallback ke `active_scenario_id` jika tidak ada condition yang match
+- [ ] Response body template: `{{request.body.name}}` → ganti dengan nilai dari request masuk
+
+**Frontend:**
+- [ ] Tombol "Scenarios" per endpoint → panel samping
+- [ ] Panel scenarios:
+  - List scenario: nama + status code + badge "ACTIVE"
+  - Toggle switch manual → set active scenario
+  - Drag-and-drop urutan (urutan = prioritas evaluasi kondisi)
+  - Tombol tambah scenario
+- [ ] Form tambah/edit scenario:
+  - Nama, status code, response headers (tabel), response body (Monaco)
+  - **Conditions builder** — visual tanpa nulis JSON:
+    ```
+    [Source  ▾] [Key        ] [Operator ▾] [Value    ] [×]
+    [ query  ]  [ status    ] [  equals  ] [ active  ] [×]
+    [ body   ]  [ user.role ] [  equals  ] [ admin   ] [×]
+    [+ Tambah Kondisi]
+    ```
+- [ ] Preview mock URL yang bisa di-hit
+
+---
+
+## Fase 7 — Kolaborasi Lanjutan
+**Status:** ⬜ Belum Mulai
+**Estimasi:** 2-3 minggu
+
+- [ ] Notifikasi in-app saat koleksi diupdate member lain
+- [ ] Diff viewer visual yang lebih baik untuk versioning
+- [ ] Shared environment lintas workspace
+- [ ] Thread diskusi pada komentar (reply)
+- [ ] Mention anggota (`@nama`) di komentar
+
+---
+
+## Fase 8 — SaaS (Opsional)
+**Status:** ⬜ Belum Mulai
 **Estimasi:** 4-6 minggu (jika diputuskan)
 
-- [ ] Migrasi backend ke OpenShift / cloud
+- [ ] Migrasi backend ke cloud / OpenShift
 - [ ] Multi-tenant architecture
 - [ ] Billing: Stripe / Midtrans
 - [ ] SSO / SAML Enterprise
-- [ ] Monitoring + logging terpusat
+- [ ] Monitoring: Prometheus + Grafana
+- [ ] Logging terpusat: ELK Stack
 
 **Catatan:** Fase ini opsional. Model on-premise bisa berjalan lama tanpa perlu SaaS.

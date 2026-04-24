@@ -89,6 +89,7 @@ export interface ApiRequest {
   url: string
   headers: Record<string, string>
   body: unknown
+  body_type: string
   auth_config: Record<string, unknown>
   collection_id: number
   folder_id: number | null

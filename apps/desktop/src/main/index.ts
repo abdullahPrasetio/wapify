@@ -1,15 +1,17 @@
-import { app, shell, BrowserWindow, ipcMain, net } from 'electron'
+import { app, shell, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { autoUpdater } from 'electron-updater'
 import log from 'electron-log'
 import icon from '../../resources/icon.png?asset'
+import keytar from 'keytar'
+import axios from 'axios'
+import FormData from 'form-data'
 
 // Konfigurasi logger
 autoUpdater.logger = log
 log.transports.file.level = 'info'
 log.info('App starting...')
-import keytar from 'keytar'
 
 const KEYTAR_SERVICE = 'io.wapify.desktop'
 const KEYTAR_ACCOUNT = 'refresh_token'
@@ -32,7 +34,8 @@ interface IpcRequestConfig {
   method: string
   url: string
   headers?: Record<string, string>
-  body?: string
+  body?: any
+  body_type?: string
 }
 
 interface IpcResponse {
@@ -44,59 +47,73 @@ interface IpcResponse {
 
 ipcMain.handle('wapify:request', async (_event, config: IpcRequestConfig): Promise<IpcResponse> => {
   const startTime = Date.now()
-  return new Promise((resolve, reject) => {
-    const request = net.request({
-      method: config.method,
-      url: config.url
-    })
+  try {
+    let requestData: any = config.body
+    const finalHeaders: Record<string, string> = { ...(config.headers || {}) }
 
-    // Set headers
-    if (config.headers) {
-      for (const [key, value] of Object.entries(config.headers)) {
-        request.setHeader(key, value)
-      }
-    }
-
-    // Content-Type default untuk body
-    if (config.body && !config.headers?.['Content-Type']) {
-      request.setHeader('Content-Type', 'application/json')
-    }
-
-    request.on('response', (response) => {
-      const chunks: Buffer[] = []
-      response.on('data', (chunk) => chunks.push(Buffer.from(chunk)))
-      response.on('end', () => {
-        const timing = Date.now() - startTime
-        const raw = Buffer.concat(chunks).toString('utf-8')
-        let data: unknown
-        try {
-          data = JSON.parse(raw)
-        } catch {
-          data = raw
+    // Serialize body based on body_type
+    if (config.body_type === 'form-data' && Array.isArray(config.body)) {
+      const form = new FormData()
+      config.body.forEach((item: any) => {
+        if (item.enabled && item.key) {
+          form.append(item.key, item.value || '')
         }
-
-        const headers: Record<string, string[]> = {}
-        for (const [key, value] of Object.entries(response.headers)) {
-          headers[key] = Array.isArray(value) ? value : [value as string]
-        }
-
-        resolve({ status: response.statusCode, headers, data, timing })
       })
-      response.on('error', reject)
+      requestData = form
+      // Merge form-data headers (boundary)
+      Object.assign(finalHeaders, form.getHeaders())
+    } else if (config.body_type === 'x-www-form-urlencoded' && Array.isArray(config.body)) {
+      const params = new URLSearchParams()
+      config.body.forEach((item: any) => {
+        if (item.enabled && item.key) {
+          params.append(item.key, item.value || '')
+        }
+      })
+      requestData = params.toString()
+    } else if (config.body_type?.startsWith('raw-')) {
+       // Just use string data directly
+    }
+
+    const response = await axios({
+      method: config.method as any,
+      url: config.url,
+      data: requestData,
+      headers: finalHeaders,
+      timeout: 30000,
+      validateStatus: () => true // Don't throw on 4xx/500
     })
 
-    request.on('error', reject)
+    const timing = Date.now() - startTime
+    
+    // Normalize headers to Record<string, string[]>
+    const normalizedHeaders: Record<string, string[]> = {}
+    Object.entries(response.headers).forEach(([key, value]) => {
+      normalizedHeaders[key.toLowerCase()] = Array.isArray(value) ? value : [String(value)]
+    })
 
-    if (config.body) {
-      request.write(config.body)
+    return {
+      status: response.status,
+      headers: normalizedHeaders,
+      data: response.data,
+      timing
     }
-    request.end()
-  })
+  } catch (error: any) {
+    const timing = Date.now() - startTime
+    return {
+      status: error.response?.status || 0,
+      headers: {},
+      data: { 
+        error: error.message,
+        details: error.response?.data 
+      },
+      timing
+    }
+  }
 })
+
 // ──────────────────────────────────────────────────────────────────────────────
 
 function createWindow(): void {
-  // Create the browser window.
   const mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
@@ -121,8 +138,6 @@ function createWindow(): void {
     return { action: 'deny' }
   })
 
-  // HMR for renderer base on electron-vite cli.
-  // Load the remote URL for development or the local html file for production.
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
   } else {
@@ -130,40 +145,25 @@ function createWindow(): void {
   }
 }
 
-// This method will be called when Electron has finished
-// initialization and is ready to create browser windows.
-// Some APIs can only be used after this event occurs.
 app.whenReady().then(() => {
-  // Set app user model id for windows
   electronApp.setAppUserModelId('io.wapify.desktop')
 
-  // Default open or close DevTools by F12 in development
-  // and ignore CommandOrControl + R in production.
-  // see https://github.com/alex8088/electron-toolkit/tree/master/packages/utils
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
   })
 
   createWindow()
-
-  // Cek update otomatis secara diam-diam (electron-log akan mencatat detailnya di background)
   autoUpdater.checkForUpdatesAndNotify()
 
-  // Handler for getting app version
   ipcMain.handle('wapify:get-version', () => {
     return app.getVersion()
   })
 
   app.on('activate', function () {
-    // On macOS it's common to re-create a window in the app when the
-    // dock icon is clicked and there are no other windows open.
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
 })
 
-// Quit when all windows are closed, except on macOS. There, it's common
-// for applications and their menu bar to stay active until the user quits
-// explicitly with Cmd + Q.
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit()

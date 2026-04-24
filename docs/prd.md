@@ -1,7 +1,7 @@
 # Wapify — Product Requirements Document (PRD)
 
-**Versi:** 1.4  
-**Status:** Draft  
+**Versi:** 1.5  
+**Status:** Active Development  
 **Terakhir Diperbarui:** April 2026  
 **Author:** Waluyo Ade Prasetio
 
@@ -13,8 +13,7 @@
 
 Dibangun sebagai **Electron desktop app** (macOS + Windows), bebas CORS karena request dikirim dari Electron Main Process. Backend **Go single binary** berjalan di STB Android Waluyo (via Cloudflare), dan kelak bisa diinstall **on-premise di server client** tanpa perubahan kode.
 
-**Tahap saat ini:** Internal tim Waluyo — tidak ada license server dulu.  
-**Tahap berikutnya:** Jual ke client luar dengan model on-premise license (license server ditambahkan nanti, tidak mengubah kode existing).
+**Status saat ini:** Fase 1-5 selesai. Fase 6 (UX & Power Features) sedang direncanakan.
 
 ---
 
@@ -27,11 +26,10 @@ Dibangun sebagai **Electron desktop app** (macOS + Windows), bebas CORS karena r
 | **Tagline** | *"API Testing, Built for Teams"* |
 | **Domain** | wapify.io / wapify.dev |
 | **Backend URL (internal)** | api.wapify.io (via Cloudflare Tunnel → STB Android) |
-| **Logo** | Wordmark dengan huruf **W** sebagai ikon utama |
 
 ---
 
-# Infrastruktur Saat Ini
+# Infrastruktur
 
 ```
 Tim (mana saja, internet)
@@ -50,195 +48,196 @@ Tim (mana saja, internet)
 └───────────────────┘
 ```
 
-**Keuntungan Cloudflare:**
-- HTTPS gratis tanpa urus SSL certificate
-- IP rumah Waluyo tidak terekspos ke internet
-- Bisa diakses tim dari mana saja selama ada internet
-
 ---
 
 # Model Akses & Tim
 
 ## Super Admin (Waluyo)
+- `is_super_admin = true` — akses semua tim tanpa perlu diundang
+- Buat tim, assign member, suspend/hapus akun, reset password
+- Tidak ada self-register — semua akun dibuat Waluyo
 
-Waluyo memiliki akses `is_super_admin = true` di database:
-- Bisa lihat dan masuk ke **semua tim** tanpa perlu diundang
-- Bisa buat tim baru
-- Bisa suspend / hapus akun anggota manapun
-- Bisa reset password anggota
-- Tidak ada fitur self-register — **semua akun dibuat oleh Waluyo**
-
-## Struktur Tim
+## Workspace & Tim
 
 ```
 Waluyo (Super Admin)
-├── Tim A — Backend Team
-│   ├── Budi (Editor)
-│   ├── Siti (Viewer)
+├── Workspace: "Backend Team"
+│   ├── Member: Budi (Editor), Siti (Viewer)
 │   └── Koleksi: "Payment API", "User API"
-│
-├── Tim B — Mobile Team
-│   ├── Andi (Editor)
-│   ├── Rina (Admin)
+├── Workspace: "Mobile Team"
+│   ├── Member: Andi (Editor), Rina (Admin)
 │   └── Koleksi: "Mobile API", "Push Notif"
-│
-└── Tim C — QA Team
-    ├── Dodi (Viewer)
+└── Workspace: "QA Team"
+    ├── Member: Dodi (Viewer)
     └── Koleksi: "Regression Suite"
 ```
 
-- Koleksi Tim A **tidak terlihat** oleh Tim B kecuali dibagikan eksplisit
-- Setiap tim bisa punya environment variables sendiri
+**Catatan:** Istilah "Tim" diubah menjadi **"Workspace"** mulai Fase 6 agar konsisten dengan terminologi industri (Postman, Insomnia). Data model di backend tetap sama (`TEAM` table), hanya label UI yang berubah.
 
-## Role Per Tim
+## Role Per Workspace
 
 | Role | Hak Akses |
 |---|---|
-| **Owner** | Semua + delete tim + manage member |
+| **Owner** | Semua + delete workspace + manage member |
 | **Admin** | Invite/remove member, manage collections & environments |
-| **Editor** | Buat, edit, delete request & collection |
+| **Editor** | Buat, edit, delete request & collection, drag-and-drop request |
 | **Viewer** | Lihat dan kirim request, tidak bisa edit |
 
 ---
 
-# Roadmap Besar
+# Roadmap
 
 ```
-Sekarang (Fase 1-2)     →   3-6 bulan (Fase 3-4)    →   6-12 bulan (Fase 5+)
-────────────────────        ──────────────────────        ──────────────────────
-Internal tim Waluyo         Tambah fitur lanjutan         Jual ke client luar
-STB Android +               kolaborasi real-time,         On-premise license
-Cloudflare                  versioning, mock server,      (license server
-                            CI/CD integration             ditambahkan)
-
-Satu codebase yang sama sepanjang waktu ✅
-Go binary = tinggal install di server client manapun
+✅ Fase 0-5 Selesai     →   Fase 6 (Sekarang)      →   Fase 7+
+──────────────────          ──────────────────          ──────────────
+Setup, MVP, Kolaborasi      UX & Power Features         On-Premise License,
+Docs, Testing,              Workspace, Body types,      SaaS (opsional)
+On-Premise License          Export code, cURL import,
+                            Drag-drop, Mock dynamic
 ```
 
 ---
 
-# Fitur — MVP Internal (Prioritas Minggu Ini)
+# Fitur Lengkap
 
-## Yang Harus Ada
+## ✅ Sudah Ada (Fase 1-5)
 
-### Auth & User Management
-- Login dengan email + password (JWT + Refresh Token)
-- **Tidak ada self-register** — akun dibuat Waluyo via admin CLI atau panel
-- Super admin: Waluyo bisa akses semua tim
-- Reset password oleh Waluyo untuk anggota
-
-### Manajemen Tim
-- Waluyo buat tim baru
-- Waluyo assign anggota ke tim dengan role tertentu
-- Waluyo bisa ubah role atau hapus anggota dari tim
-- Notifikasi email undangan ke anggota (via Resend)
-
-### Koleksi & Request
-- CRUD Collection dengan folder hierarki
-- CRUD Request: method, URL, headers, body (JSON/Form/Raw), params
-- Import koleksi Postman v2.1 JSON
-- Environment variables per tim dengan interpolasi `{{variable_name}}`
-- **Scripting Engine (Wapify SDK)**: Dukungan Pre-request dan Post-request (Tests) script menggunakan JavaScript.
-  - Global object: `wap` (alias `pm` untuk kompatibilitas).
-  - Library terintegrasi: `moment` dan `lodash`.
-  - Akses environment: `wap.setEnv()`, `wap.getEnv()`.
-- Koleksi ter-share otomatis ke semua anggota tim sesuai role
-
-### Kirim Request (Bebas CORS)
-- Request dikirim via Electron Main Process → tidak kena CORS
-- Response viewer: status code, body (JSON pretty-print), headers, waktu
-- Authentication: Basic Auth, Bearer Token, API Key
-
-### Auth Request
-- Basic Auth, Bearer Token, API Key
-- Simpan credential di OS keychain (keytar)
-
-## Yang Ditunda (Fase Berikutnya)
-
+- Auth & User Management (JWT, no self-register, super admin)
+- Workspace/Team management dengan role
+- CRUD Collection, Folder, Request
+- Import Postman v2.1 JSON
+- Environment variables dengan interpolasi `{{variable}}`
+- Pre-request & Post-request script (JavaScript, Wapify SDK dengan alias `wap`/`pm`)
+- Kirim request via Electron Main Process (bebas CORS)
+- Response viewer (status, body pretty-print, headers, timing)
+- Auth: Basic Auth, Bearer Token, API Key
 - Real-time collaboration & field-level locking
 - Versioning & rollback
-- Mock server
-- Automated testing & CI/CD
-- OAuth 2.0
-- API documentation generator
-- License server (untuk penjualan on-premise)
+- Mock server (basic)
+- Collection Runner & CLI (`wapify run`)
+- On-premise license (Ed25519)
 
----
+## 🚧 Fase 6 — UX & Power Features (Sekarang)
 
-# User Flow — MVP
+### 1. Workspace (Rename dari "Tim")
+Perubahan terminologi UI dari "Tim" menjadi "Workspace" agar familiar bagi pengguna Postman. Backend tidak berubah.
 
-1. **Waluyo buat akun** untuk anggota tim via admin panel / CLI
-2. **Anggota terima email** berisi kredensial login (via Resend)
-3. **Anggota download** installer Wapify (.dmg / .exe) dari link yang dibagikan
-4. **Anggota login** dengan kredensial yang diterima
-5. **Anggota lihat tim mereka** dan koleksi yang tersedia
-6. **Anggota import koleksi Postman** atau buat request baru
-7. **Anggota kirim request** — bebas CORS, response langsung tampil
-8. **Waluyo pantau** dari super admin view: siapa di tim mana, koleksi apa
+### 2. Default Header `Content-Type: application/json`
+Setiap request baru otomatis memiliki header `Content-Type: application/json` sebagai default. User bisa hapus atau ganti jika diperlukan.
 
----
+### 3. Body Types Lengkap
+Request body mendukung pilihan tipe berikut (dropdown selector):
 
-# Arsitektur
+| Tipe | Keterangan |
+|---|---|
+| **none** | Tidak ada body |
+| **form-data** | `multipart/form-data` — key-value pairs, support file upload |
+| **x-www-form-urlencoded** | Form URL encoded — key-value pairs, no file |
+| **raw (JSON)** | Body JSON dengan Monaco Editor + syntax highlighting |
+| **raw (Text)** | Plain text |
+| **raw (XML)** | XML dengan syntax highlighting |
+| **raw (HTML)** | HTML dengan syntax highlighting |
+| **binary** | Upload file langsung sebagai body |
 
-## Sistem Saat Ini
+**Prioritas implementasi:** `none` → `form-data` → `x-www-form-urlencoded` → `raw (JSON)` (sudah ada) → sisanya menyusul.
 
+Header `Content-Type` otomatis berubah sesuai pilihan tipe body:
+- `form-data` → `multipart/form-data`
+- `x-www-form-urlencoded` → `application/x-www-form-urlencoded`
+- `raw (JSON)` → `application/json`
+- `raw (XML)` → `application/xml`
+
+### 4. Export Request ke Code Snippet
+
+Dari setiap request, user bisa generate code snippet siap pakai dalam berbagai bahasa/tool:
+
+| Target | Detail |
+|---|---|
+| **cURL** | Command line curl lengkap dengan headers & body |
+| **JavaScript (Fetch)** | Native fetch API |
+| **JavaScript (Axios)** | axios request |
+| **Go** | `net/http` standard library |
+| **Python (requests)** | `requests` library |
+| **PHP (cURL)** | PHP curl_exec |
+| **Java (OkHttp)** | OkHttp client |
+| **Kotlin** | OkHttp atau Ktor |
+| **Swift** | URLSession |
+| **Dart** | `http` package (Flutter) |
+
+UI: tombol `</>` di sebelah tombol Send → dropdown pilih bahasa → tampil modal dengan code snippet + tombol copy.
+
+Variabel environment yang aktif di-resolve dulu sebelum di-generate (misal `{{base_url}}` diganti nilainya).
+
+### 5. Import dari cURL
+
+User bisa paste cURL command ke Wapify dan otomatis dikonversi menjadi request:
+
+```bash
+# Input (paste ke Wapify):
+curl -X POST https://api.example.com/users \
+  -H "Authorization: Bearer token123" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Budi", "email": "budi@example.com"}'
+
+# Output (otomatis terisi):
+# Method: POST
+# URL: https://api.example.com/users
+# Headers: Authorization: Bearer token123, Content-Type: application/json
+# Body (JSON): {"name": "Budi", "email": "budi@example.com"}
 ```
-┌──────────────────────────────────────────┐
-│  Electron Desktop App (macOS / Windows)  │
-│                                          │
-│  ┌─────────────────────────────────────┐ │
-│  │  React UI (Renderer Process)        │ │
-│  └──────────────┬──────────────────────┘ │
-│                 │ IPC                    │
-│  ┌──────────────▼──────────────────────┐ │
-│  │  Electron Main Process              │ │
-│  │  - HTTP Executor (bebas CORS)       │ │──► Target API (API manapun)
-│  │  - keytar (OS keychain)             │ │
-│  └──────────────┬──────────────────────┘ │
-│                 │ HTTPS                  │
-└─────────────────┼────────────────────────┘
-                  │
-         ┌────────▼────────┐
-         │   Cloudflare    │
-         │  api.wapify.io  │
-         └────────┬────────┘
-                  │ Tunnel
-         ┌────────▼────────┐
-         │  STB Android    │
-         │  Go + Fiber     │
-         │  PostgreSQL     │
-         └─────────────────┘
-```
 
-## Arsitektur On-Premise (Secure & Offline-First)
+UI: tombol "Import cURL" di toolbar atau deteksi otomatis saat user paste teks yang dimulai dengan `curl ` di field URL.
 
-```
-Client Tim Luar                          Server Client (On-Premise)
-┌─────────────────┐                      ┌──────────────────────────┐
-│  Electron App   │─── HTTPS ───────────►│  Go Binary (Locked)      │
-└─────────────────┘                      │  - Embedded Public Key   │
-                                         │  - Offline Validation    │
-                                         └──────────────────────────┘
-```
+Parser harus support flag cURL umum: `-X`, `-H`, `-d`, `--data`, `--data-raw`, `-u` (basic auth), `--header`, `-b` (cookie).
 
-**Mekanisme Lisensi:**
-- **Offline Validation:** Verifikasi integritas lisensi menggunakan algoritma Ed25519 secara lokal tanpa memerlukan koneksi internet ke server pusat.
-- **Grace Period:** Memberikan masa tenggang 24 jam setelah lisensi expired sebelum aplikasi terkunci sepenuhnya.
-- **Binary Locking:** Public Key ditanamkan saat proses kompilasi menggunakan `-ldflags`.
+### 6. Drag-and-Drop Request & Folder
 
+User bisa memindahkan request dan folder hanya dengan drag-and-drop di sidebar:
 
-```mermaid
-graph LR
-    A[Electron App] -->|IPC| B[Main Process];
-    B -->|HTTP/HTTPS| C[Target API];
-    A -->|HTTPS| D[Cloudflare];
-    D -->|Tunnel| E[Go Backend STB];
-    E --> F[(PostgreSQL)];
-```
+**Yang bisa di-drag:**
+- Request → ke folder lain dalam koleksi yang sama
+- Request → ke root koleksi (keluar dari folder)
+- Request → ke koleksi lain dalam workspace yang sama
+- Folder → ke posisi berbeda dalam koleksi yang sama
+- Folder → menjadi sub-folder dari folder lain
+
+**Behaviour:**
+- Visual indicator saat drag: garis biru menunjukkan posisi drop target
+- Urutan (`order_index`) di-update ke backend setelah drop
+- Undo dengan `Cmd+Z` / `Ctrl+Z` jika salah drop
+- Role check: hanya Editor ke atas yang bisa drag-and-drop
+
+### 7. Mock Server — Dynamic Response
+
+Upgrade mock server dari static response menjadi mendukung **conditional / dynamic response** berdasarkan konten request yang masuk.
+
+**Kondisi yang bisa dikonfigurasi:**
+
+| Kondisi | Contoh |
+|---|---|
+| Query parameter | `?status=active` → response A, `?status=inactive` → response B |
+| Request body field | `body.role == "admin"` → response A, selainnya → response B |
+| Request header | `X-Version: v2` → response baru, default → response lama |
+| Path parameter | `/users/123` → user data, `/users/999` → 404 |
+| HTTP method | `GET` → list, `POST` → created |
+
+**Switch Response (Manual):**
+User bisa toggle secara manual response mana yang aktif dari UI — berguna untuk simulasi skenario sukses/gagal/loading tanpa harus ubah config.
+
+**Response Scenarios per Endpoint:**
+Setiap endpoint mock bisa punya beberapa "scenario" bernama:
+- `200 Success`
+- `400 Validation Error`
+- `401 Unauthorized`
+- `500 Server Error`
+
+User bisa aktifkan scenario yang mau disimulasikan kapan saja.
 
 ---
 
 # Database Schema
+
+## Existing (Fase 1-5)
 
 ```mermaid
 erDiagram
@@ -289,6 +288,7 @@ erDiagram
         string url
         json headers
         json body
+        string body_type
         json auth_config
         text pre_request_script
         text post_request_script
@@ -306,21 +306,59 @@ erDiagram
         int team_id FK
         timestamp created_at
     }
-
-    USER ||--o{ TEAM_MEMBER : ""
-    USER ||--o{ TEAM : "created_by"
-    TEAM ||--o{ TEAM_MEMBER : ""
-    TEAM ||--o{ COLLECTION : ""
-    TEAM ||--o{ ENVIRONMENT : ""
-    COLLECTION ||--o{ FOLDER : ""
-    COLLECTION ||--o{ REQUEST : ""
-    FOLDER ||--o{ REQUEST : ""
 ```
 
-**Catatan penting:**
-- `USER.is_super_admin` — jika `true`, bisa akses semua tim tanpa jadi TEAM_MEMBER
-- Tidak ada tabel registrasi/invite token — akun dibuat langsung oleh Waluyo
-- Tabel untuk fitur lanjutan (FIELD_LOCK, COLLECTION_VERSION, COMMENT, MOCK_SERVER) ditambahkan di fase berikutnya via migration
+**Perubahan schema di Fase 6:**
+- `REQUEST.body_type` — tambah kolom baru: `none` | `form-data` | `x-www-form-urlencoded` | `raw-json` | `raw-text` | `raw-xml` | `raw-html` | `binary`
+- `REQUEST.body` — sekarang bisa berisi array of `{ key, value, enabled }` untuk form-data dan urlencoded
+
+## Tambahan Fase 6 — Mock Server Dynamic
+
+```mermaid
+erDiagram
+    MOCK_SERVER {
+        int id PK
+        string name
+        int collection_id FK
+        string base_url
+        boolean is_active
+        timestamp created_at
+    }
+    MOCK_ENDPOINT {
+        int id PK
+        int mock_server_id FK
+        string method
+        string path
+        int active_scenario_id FK
+        timestamp created_at
+    }
+    MOCK_SCENARIO {
+        int id PK
+        int mock_endpoint_id FK
+        string name
+        int status_code
+        json response_headers
+        text response_body
+        json conditions
+        int order_index
+        timestamp created_at
+    }
+
+    MOCK_SERVER ||--o{ MOCK_ENDPOINT : ""
+    MOCK_ENDPOINT ||--o{ MOCK_SCENARIO : ""
+```
+
+**Penjelasan:**
+- `MOCK_ENDPOINT` — satu endpoint mock (misal: `POST /users`)
+- `MOCK_SCENARIO` — satu kemungkinan response (misal: "200 Success", "400 Error")
+- `MOCK_ENDPOINT.active_scenario_id` — scenario mana yang aktif saat ini (bisa di-switch manual)
+- `MOCK_SCENARIO.conditions` — array kondisi JSON untuk dynamic matching:
+  ```json
+  [
+    { "source": "query", "key": "status", "operator": "eq", "value": "active" },
+    { "source": "body", "key": "role", "operator": "eq", "value": "admin" }
+  ]
+  ```
 
 ---
 
@@ -332,7 +370,10 @@ erDiagram
 |---|---|
 | Framework | **Electron** |
 | UI | **React + Zustand + Radix UI + Tailwind CSS** |
-| Code Editor | **Monaco Editor** (untuk request body & scripts) |
+| Code Editor | **Monaco Editor** (request body & scripts) |
+| Drag and Drop | **@dnd-kit/core + @dnd-kit/sortable** |
+| cURL Parser | **curlconverter** (npm) |
+| Code Generator | Custom per bahasa (template-based) |
 | Scripting Libraries | **Moment.js, Lodash** |
 | HTTP Executor | **Electron Main Process** (bebas CORS) |
 | Credential Storage | **keytar** (OS keychain) |
@@ -351,30 +392,21 @@ erDiagram
 | Migrations | **golang-migrate** |
 | Logging | **zerolog** |
 | Email | **Resend** (resend-go SDK) |
-| Compile target saat ini | `GOARCH=arm64 GOOS=linux` (STB Android) |
-| Compile target on-premise | `linux/amd64`, `linux/arm64`, `windows/amd64`, `darwin/arm64` |
-
-## Infrastruktur
-
-| Komponen | Detail |
-|---|---|
-| Hosting backend | STB Android di rumah Waluyo |
-| Akses publik | Cloudflare Tunnel → `api.wapify.io` |
-| HTTPS | Otomatis via Cloudflare |
-| Database | PostgreSQL di STB Android |
 
 ---
 
 # Technical Constraints & Guidelines
 
 - **CORS:** Request ke target API wajib dari Electron Main Process, bukan Renderer.
-- **No Self-Register:** Endpoint register tidak ada di API publik. Akun dibuat via admin CLI command: `wapify-admin create-user --email --name --team --role`
-- **Super Admin:** Field `is_super_admin` di tabel USER. Jika `true`, middleware skip pengecekan TEAM_MEMBER dan izinkan akses ke semua resource.
-- **Cloudflare:** Backend hanya terima koneksi dari Cloudflare (bind ke `localhost`, tidak expose port langsung ke internet).
-- **Email:** Semua via Resend. `RESEND_API_KEY` di environment variable, tidak di kode.
-- **Migrations:** Wajib via golang-migrate. Tidak perubahan schema manual.
-- **API Prefix:** Semua endpoint `/api/v1/`.
+- **No Self-Register:** Akun dibuat via `wapify-admin create-user`.
+- **Super Admin:** `is_super_admin = true` bypass semua role check.
+- **body_type Migration:** Migration tambah kolom `body_type` ke tabel REQUEST dengan default `raw-json` agar tidak breaking existing data.
+- **cURL Import:** Parser harus toleran terhadap variasi format cURL (multiline dengan `\`, single line, dengan/tanpa quotes).
+- **Code Snippet:** Environment variable di-resolve menggunakan active environment sebelum generate snippet. Jika variable tidak ada nilainya, tampilkan placeholder `{{variable_name}}`.
+- **Drag-and-Drop:** `order_index` di-update via PATCH endpoint setelah drop selesai. Gunakan fractional indexing untuk menghindari re-numbering seluruh list.
+- **Mock Condition Matching:** Evaluasi kondisi dari atas ke bawah, scenario pertama yang match digunakan. Jika tidak ada yang match, gunakan `active_scenario_id`.
+- **Cloudflare:** Backend hanya bind `localhost`.
+- **Migrations:** Wajib golang-migrate, tidak boleh manual.
+- **API Prefix:** `/api/v1/`.
 - **Error Format:** `{ "error": "string", "code": "string", "details": {} }`.
-- **Logging:** zerolog, structured. Jangan log password, token, atau credential.
-- **On-Premise Ready:** Binary Go harus bisa dikompilasi untuk berbagai platform tanpa perubahan kode. Konfigurasi via environment variable (`.env`), bukan hardcode.
-- **Future License:** Saat nanti ditambahkan license server, cukup tambahkan middleware validasi license di startup backend. Tidak perlu ubah business logic yang sudah ada.
+- **On-Premise Ready:** Semua config via `.env`.

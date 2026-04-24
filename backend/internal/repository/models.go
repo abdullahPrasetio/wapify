@@ -83,10 +83,11 @@ type Request struct {
 	Name         string    `gorm:"not null" json:"name"`
 	Description  string    `json:"description"`
 	Method       string    `gorm:"not null" json:"method"`
-	URL          string    `gorm:"not null" json:"url"`
-	Headers      JSONB     `gorm:"type:jsonb;default:'{}';column:headers" json:"headers"`
-	Body         JSONB     `gorm:"type:jsonb;default:'{}';column:body" json:"body"`
-	AuthConfig   JSONB     `gorm:"type:jsonb;default:'{}';column:auth_config" json:"auth_config"`
+	URL                string           `gorm:"not null" json:"url"`
+	Headers            JSONB            `gorm:"type:jsonb;default:'{}';column:headers" json:"headers"`
+	Body               JSONB            `gorm:"type:jsonb;default:'{}';column:body" json:"body"`
+	BodyType           string           `gorm:"column:body_type;default:raw-json" json:"body_type"`
+	AuthConfig         JSONB            `gorm:"type:jsonb;default:'{}';column:auth_config" json:"auth_config"`
 	CollectionID uint      `gorm:"not null;column:collection_id" json:"collection_id"`
 	FolderID     *uint     `gorm:"column:folder_id" json:"folder_id"`
 	CreatedByID  *uint     `gorm:"column:created_by" json:"created_by"`

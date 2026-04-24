@@ -1,18 +1,19 @@
 import { useAppStore } from '../../store/useAppStore'
-import { useDataStore, AuthConfig } from '../../store/useDataStore'
+import { useDataStore, AuthConfig, WorkingRequest } from '../../store/useDataStore'
 import { useAuthStore } from '../../store/useAuthStore'
 import { KeyValueEditor } from '../ui/KeyValueEditor'
 import { VariableOverlayInput } from '../ui/VariableOverlayInput'
 import { SetVarModal } from '../modals/SetVarModal'
-import { Shield, Eye, EyeOff, X, RefreshCw, Send, Save, Lock, Users } from 'lucide-react'
+import { Shield, Eye, EyeOff, X, RefreshCw, Send, Save, Lock, Users, ChevronDown, FileCode2, Terminal as TerminalIcon, Braces, Code, FileText, Globe, Box } from 'lucide-react'
 import { ResponseArea } from './ResponseArea'
 import { HistoryDetailView } from './HistoryDetailView'
 import { CollaborationPanel } from './CollaborationPanel'
 import { SaveRequestLocationModal } from '../modals/SaveRequestLocationModal'
 import Editor, { loader } from '@monaco-editor/react'
 import * as monaco from 'monaco-editor'
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { toast } from 'sonner'
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 
 // Configure Monaco to use the bundled version (OFFLINE)
 loader.config({ monaco })
@@ -40,7 +41,7 @@ const createVarHoverProvider = (_language?: string) => ({
           contents: [
             { value: `**Variable:** \`{{${varName}}}\`` },
             { value: isSet ? `**Value:** \`${value}\`` : '*Variable not set in active environment*' },
-            { value: isSet ? '*Click to change value (Coming soon)*' : '*Click to set value*' }
+            { value: isSet ? '*Click to change value*' : '*Click to set value*' }
           ]
         }
       }
@@ -51,6 +52,8 @@ const createVarHoverProvider = (_language?: string) => ({
 
 monaco.languages.registerHoverProvider('json', createVarHoverProvider('json'))
 monaco.languages.registerHoverProvider('javascript', createVarHoverProvider('javascript'))
+monaco.languages.registerHoverProvider('xml', createVarHoverProvider('xml'))
+monaco.languages.registerHoverProvider('html', createVarHoverProvider('html'))
 
 
 const REQUEST_TABS = ['Params', 'Auth', 'Headers', 'Body', 'Pre-request', 'Tests'] as const
@@ -102,28 +105,16 @@ const RequestForm = ({ method, url, isLocked, onUpdate }: RequestFormProps): Rea
 
 interface EditorAreaProps {
   activeTab: string
-  workingRequest: {
-    headers: Record<string, string>
-    body: string
-    auth_config: AuthConfig
-    pre_request_script?: string
-    post_request_script?: string
-  }
-  onUpdate: (
-    update: Partial<{
-      headers: Record<string, string>
-      body: string
-      auth_config: AuthConfig
-      pre_request_script: string
-      post_request_script: string
-    }>
-  ) => void
+  requestId: string | number
+  workingRequest: WorkingRequest
+  onUpdate: (update: Partial<WorkingRequest>) => void
   onSetVar: (key: string) => void
   isLocked?: boolean
 }
 
 const EditorArea = ({
   activeTab,
+  requestId,
   workingRequest,
   isLocked,
   onUpdate,
@@ -131,118 +122,231 @@ const EditorArea = ({
 }: EditorAreaProps): React.JSX.Element => {
 
   const [showPassword, setShowPassword] = useState(false)
-  const [localBody, setLocalBody] = useState(workingRequest.body)
-  const timerRef = useRef<NodeJS.Timeout | null>(null)
+  const [isHeaderBulk, setIsHeaderBulk] = useState(false)
+  const [headerBulkLocal, setHeaderBulkLocal] = useState('')
   
   const auth = workingRequest.auth_config || { type: 'No Auth' }
   const handleAuthChange = (update: Partial<AuthConfig>): void => {
     onUpdate({ auth_config: { ...auth, ...update } as AuthConfig })
   }
 
-  const handleBodyChange = (value: string | undefined): void => {
-    const newVal = value || ''
-    setLocalBody(newVal)
-    if (timerRef.current) clearTimeout(timerRef.current)
-    timerRef.current = setTimeout(() => {
-      onUpdate({ body: newVal })
-    }, 300)
-  }
+  // --- Header Bulk Logic ---
+  const headerBulkValue = useMemo(() => {
+    return Object.entries(workingRequest.headers || {})
+      .map(([k, v]) => `${k}: ${v}`)
+      .join('\n')
+  }, [workingRequest.headers])
 
-  const handleEditorMount = (editor: monaco.editor.IStandaloneCodeEditor, monacoInstance: any): void => {
-    editor.onDidChangeModelContent(() => {
-      handleBodyChange(editor.getValue())
-    })
+  // Inisialisasi local state saat masuk mode bulk
+  useEffect(() => {
+    if (isHeaderBulk) {
+       setHeaderBulkLocal(headerBulkValue)
+    }
+  }, [isHeaderBulk])
 
-    editor.onMouseDown((e) => {
-      if (e.target.type !== monacoInstance.editor.MouseTargetType.CONTENT_TEXT) return
-      const position = e.target.position
-      if (!position) return
-      const model = editor.getModel()
-      if (!model) return
-      const lineContent = model.getLineContent(position.lineNumber)
-      const regex = /\{\{([^}]+)\}\}/g
-      let match
-      while ((match = regex.exec(lineContent)) !== null) {
-        const start = match.index + 1
-        const end = start + match[0].length
-        if (position.column >= start && position.column <= end) {
-          onSetVar(match[1].trim())
-          break
-        }
+  const applyHeaderBulk = (): void => {
+    const lines = headerBulkLocal.split('\n')
+    const newHeaders: Record<string, string> = {}
+    lines.forEach(line => {
+      const parts = line.split(':')
+      if (parts.length >= 2) {
+        const key = parts[0].trim()
+        const value = parts.slice(1).join(':').trim()
+        if (key) newHeaders[key] = value
       }
     })
+    onUpdate({ headers: newHeaders })
+    setIsHeaderBulk(false)
   }
 
-  useEffect(() => {
-    setLocalBody(workingRequest.body || '')
-  }, [workingRequest.body])
+  const handleBodyTypeChange = (type: string): void => {
+    onUpdate({ body_type: type })
+  }
+
+  const getMonacoLang = (type: string) => {
+    if (type === 'raw-json') return 'json'
+    if (type === 'raw-xml') return 'xml'
+    if (type === 'raw-html') return 'html'
+    return 'text'
+  }
 
   return (
-    <div className="h-full w-full overflow-hidden">
-      {activeTab === 'Body' && (
-        <div className="h-full w-full py-2 bg-surface/20">
-          <Editor
-            height="100%"
-            defaultLanguage="json"
-            theme="vs-dark"
-            value={localBody || ''}
-            onChange={handleBodyChange}
-            onMount={handleEditorMount}
-            loading={
-              <div className="flex flex-col items-center justify-center h-full text-muted gap-2">
-                <RefreshCw size={24} className="animate-spin" />
-                <span className="text-xs font-medium uppercase tracking-widest">
-                  Initializing Editor...
-                </span>
-              </div>
-            }
-            options={{
-              minimap: { enabled: false },
-              fontSize: 13,
-              lineNumbers: 'on',
-              scrollBeyondLastLine: false,
-              automaticLayout: true,
-              padding: { top: 10, bottom: 10 },
-              formatOnPaste: true,
-              formatOnType: true,
-              wordWrap: 'on',
-              readOnly: isLocked
-            }}
-          />
-        </div>
-      )}
+    <div className="h-full w-full overflow-hidden flex flex-col">
+      {/* 
+        OPTIMASI MONACO: Gunakan display: none agar editor tidak unmount 
+        saat ganti tab. Ini mencegah re-initialization yang lambat.
+      */}
+      
+      {/* --- BODY TAB --- */}
+      <div className={`flex-1 flex flex-col ${activeTab === 'Body' ? 'block' : 'hidden'}`}>
+        <div className="px-4 py-2 border-b border-border bg-background/50 flex items-center gap-4">
+           <div className="flex items-center gap-1">
+              {[
+                { id: 'none', label: 'none' },
+                { id: 'form-data', label: 'form-data' },
+                { id: 'x-www-form-urlencoded', label: 'urlencoded' },
+                { id: 'raw-json', label: 'raw' },
+                { id: 'binary', label: 'binary' }
+              ].map(t => (
+                <button
+                  key={t.id}
+                  onClick={() => handleBodyTypeChange(t.id === 'raw-json' ? 'raw-json' : t.id)}
+                  className={`px-2 py-1 text-[10px] font-bold uppercase rounded transition-colors ${
+                    (workingRequest.body_type === t.id || (t.id === 'raw-json' && workingRequest.body_type?.startsWith('raw-')))
+                    ? 'bg-primary/20 text-primary' 
+                    : 'text-muted hover:text-text'
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
+           </div>
 
-      {activeTab === 'Headers' && (
-        <div className="p-4 h-full overflow-auto">
+           {workingRequest.body_type?.startsWith('raw-') && (
+              <div className="h-4 w-px bg-border mx-1" />
+           )}
+
+           {workingRequest.body_type?.startsWith('raw-') && (
+              <DropdownMenu.Root>
+                <DropdownMenu.Trigger asChild>
+                  <button className="flex items-center gap-1 text-[10px] font-bold text-primary uppercase">
+                    {workingRequest.body_type.split('-')[1]} <ChevronDown size={10} />
+                  </button>
+                </DropdownMenu.Trigger>
+                <DropdownMenu.Portal>
+                  <DropdownMenu.Content className="bg-surface border border-border rounded shadow-xl p-1 z-[110] min-w-[80px]">
+                    {['json', 'xml', 'html', 'text'].map(lang => (
+                      <DropdownMenu.Item
+                        key={lang}
+                        onClick={() => handleBodyTypeChange(`raw-${lang}`)}
+                        className="px-2 py-1.5 text-[10px] font-bold uppercase text-muted hover:text-white hover:bg-primary/20 rounded cursor-pointer outline-none"
+                      >
+                        {lang}
+                      </DropdownMenu.Item>
+                    ))}
+                  </DropdownMenu.Content>
+                </DropdownMenu.Portal>
+              </DropdownMenu.Root>
+           )}
+        </div>
+
+        <div className="flex-1 relative">
+           {workingRequest.body_type === 'none' && (
+             <div className="h-full flex flex-col items-center justify-center opacity-30">
+                <Box size={48} className="mb-4" />
+                <span className="text-xs font-bold uppercase tracking-widest">This request has no body</span>
+             </div>
+           )}
+
+           {workingRequest.body_type?.startsWith('raw-') && (
+             <Editor
+                height="100%"
+                language={getMonacoLang(workingRequest.body_type)}
+                theme="vs-dark"
+                value={typeof workingRequest.body === 'string' ? workingRequest.body : JSON.stringify(workingRequest.body, null, 2)}
+                onChange={(val) => onUpdate({ body: val || '' })}
+                options={{
+                  minimap: { enabled: false },
+                  fontSize: 13,
+                  automaticLayout: true,
+                  padding: { top: 10 },
+                  readOnly: isLocked
+                }}
+             />
+           )}
+
+           {(workingRequest.body_type === 'form-data' || workingRequest.body_type === 'x-www-form-urlencoded') && (
+             <div className="p-4 h-full overflow-auto">
+                <KeyValueEditor
+                  key={`body-${requestId}-${workingRequest.body_type}`}
+                  initialData={Array.isArray(workingRequest.body) ? 
+                    workingRequest.body.reduce((acc, curr) => ({ ...acc, [curr.key]: curr.value }), {}) : 
+                    {}
+                  }
+                  disabled={isLocked}
+                  onChange={(data) => {
+                    const bodyArray = Object.entries(data).map(([key, value]) => ({ key, value, enabled: true, type: 'text' }))
+                    onUpdate({ body: bodyArray })
+                  }}
+                />
+             </div>
+           )}
+
+           {workingRequest.body_type === 'binary' && (
+             <div className="h-full flex flex-col items-center justify-center gap-4">
+                <div className="w-16 h-16 rounded-2xl bg-surface border border-border flex items-center justify-center text-muted">
+                   <FileCode2 size={32} />
+                </div>
+                <button className="px-4 py-2 bg-surface border border-border rounded-lg text-xs font-bold hover:border-primary transition-colors">
+                  Select File
+                </button>
+                <span className="text-[10px] text-muted uppercase tracking-widest">Feature coming soon</span>
+             </div>
+           )}
+        </div>
+      </div>
+
+      {/* --- HEADERS TAB --- */}
+      <div className={`flex-1 flex flex-col p-4 overflow-auto ${activeTab === 'Headers' ? 'block' : 'hidden'}`}>
           <div className="mb-4 flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-text">Request Headers</h3>
-            <span className="text-xs text-muted">Manage key-value pairs for headers</span>
+            <div className="flex flex-col">
+              <h3 className="text-sm font-semibold text-text uppercase tracking-tight">Request Headers</h3>
+              <span className="text-[10px] text-muted font-bold uppercase tracking-widest">Metadata for your request</span>
+            </div>
+            <button 
+              onClick={() => isHeaderBulk ? applyHeaderBulk() : setIsHeaderBulk(true)}
+              className={`px-3 py-1.5 rounded text-[10px] font-black uppercase tracking-widest transition-all ${
+                isHeaderBulk ? 'bg-success text-white shadow-lg shadow-success/20' : 'bg-surface text-muted hover:text-text border border-border'
+              }`}
+            >
+              {isHeaderBulk ? 'Apply Changes' : 'Bulk Edit'}
+            </button>
           </div>
-          <KeyValueEditor
-            initialData={workingRequest.headers || {}}
-            disabled={isLocked}
-            onChange={(data): void => onUpdate({ headers: data as Record<string, string> })}
-          />
-        </div>
-      )}
+          
+          {isHeaderBulk ? (
+            <div className="flex-1 border border-border rounded-md overflow-hidden min-h-[200px]">
+              <Editor
+                height="100%"
+                defaultLanguage="text"
+                theme="vs-dark"
+                value={headerBulkLocal}
+                onChange={(val) => setHeaderBulkLocal(val || '')}
+                options={{
+                  minimap: { enabled: false },
+                  fontSize: 12,
+                  lineNumbers: 'off',
+                  scrollBeyondLastLine: false,
+                  padding: { top: 10, left: 10 },
+                  readOnly: isLocked
+                }}
+              />
+            </div>
+          ) : (
+            <KeyValueEditor
+              key={`headers-${requestId}`}
+              initialData={workingRequest.headers || {}}
+              disabled={isLocked}
+              onChange={(data): void => onUpdate({ headers: data as Record<string, string> })}
+            />
+          )}
+      </div>
 
-      {activeTab === 'Params' && (
-        <div className="p-4 h-full overflow-auto">
+      {/* --- PARAMS TAB --- */}
+      <div className={`p-4 h-full overflow-auto ${activeTab === 'Params' ? 'block' : 'hidden'}`}>
           <div className="mb-4 flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-text">Query Parameters</h3>
-            <span className="text-xs text-muted">Automatically appended to the URL</span>
+            <h3 className="text-sm font-semibold text-text uppercase tracking-tight">Query Parameters</h3>
+            <span className="text-[10px] text-muted font-bold uppercase tracking-widest">Appended to the URL</span>
           </div>
           <p className="text-xs text-muted italic mb-4">
             Query parameters integration coming soon. For now, add them directly to the URL bar.
           </p>
-        </div>
-      )}
+      </div>
 
-      {activeTab === 'Pre-request' && (
-        <div className="h-full flex flex-col">
-          <div className="p-2 bg-background/50 border-b border-border">
-            <span className="text-[10px] text-muted font-mono uppercase tracking-wider">
-              Execution: Before request is sent
+      {/* --- PRE-REQUEST TAB --- */}
+      <div className={`h-full flex flex-col ${activeTab === 'Pre-request' ? 'block' : 'hidden'}`}>
+          <div className="p-2 bg-background/50 border-b border-border flex items-center justify-between">
+            <span className="text-[9px] text-muted font-black uppercase tracking-[0.2em] flex items-center gap-2">
+              <TerminalIcon size={12} className="text-primary"/> Script: Before execution
             </span>
           </div>
           <div className="flex-1 overflow-hidden">
@@ -261,14 +365,13 @@ const EditorArea = ({
               }}
             />
           </div>
-        </div>
-      )}
+      </div>
 
-      {activeTab === 'Tests' && (
-        <div className="h-full flex flex-col">
-          <div className="p-2 bg-background/50 border-b border-border">
-            <span className="text-[10px] text-muted font-mono uppercase tracking-wider">
-              Execution: After response is received
+      {/* --- TESTS TAB --- */}
+      <div className={`h-full flex flex-col ${activeTab === 'Tests' ? 'block' : 'hidden'}`}>
+          <div className="p-2 bg-background/50 border-b border-border flex items-center justify-between">
+            <span className="text-[9px] text-muted font-black uppercase tracking-[0.2em] flex items-center gap-2">
+              <RefreshCw size={12} className="text-primary"/> Script: After response
             </span>
           </div>
           <div className="flex-1 overflow-hidden">
@@ -287,11 +390,10 @@ const EditorArea = ({
               }}
             />
           </div>
-        </div>
-      )}
+      </div>
 
-      {activeTab === 'Auth' && (
-        <div className="p-6 h-full overflow-auto">
+      {/* --- AUTH TAB --- */}
+      <div className={`p-6 h-full overflow-auto ${activeTab === 'Auth' ? 'block' : 'hidden'}`}>
           <div className="flex gap-6 h-full">
             <div className="w-48 shrink-0 flex flex-col gap-1 border-r border-border pr-4">
               <label className="text-[10px] font-bold text-muted uppercase tracking-widest mb-2 px-2">
@@ -341,10 +443,6 @@ const EditorArea = ({
                       </button>
                     </div>
                   </div>
-                  <p className="text-[10px] text-muted italic">
-                    The token will be sent in the <code>Authorization</code> header as{' '}
-                    <code>Bearer {'<token>'}</code>.
-                  </p>
                 </div>
               )}
 
@@ -386,10 +484,6 @@ const EditorArea = ({
                       </div>
                     </div>
                   </div>
-                  <p className="text-[10px] text-muted italic">
-                    Credentials will be base64 encoded and sent in the <code>Authorization</code>{' '}
-                    header.
-                  </p>
                 </div>
               )}
 
@@ -437,8 +531,7 @@ const EditorArea = ({
               )}
             </div>
           </div>
-        </div>
-      )}
+      </div>
     </div>
   )
 }
@@ -551,7 +644,7 @@ export const MainArea = (): React.JSX.Element => {
 
   if (!activeTabRequest) {
     return (
-      <div className="flex-1 bg-background flex flex-col overflow-hidden">
+      <div className="flex-1 bg-background flex flex-col overflow-hidden text-slate-900 dark:text-slate-100">
         <RequestTabs />
         <div className="flex-1 flex flex-col items-center justify-center text-muted">
           <div className="w-20 h-20 rounded-full bg-surface flex items-center justify-center mb-6 border border-border shadow-inner">
@@ -628,20 +721,20 @@ export const MainArea = (): React.JSX.Element => {
 
                 <button
                   onClick={() => {
-                     if (typeof activeTabRequest.requestId === 'string' && activeTabRequest.requestId.startsWith('draft-')) {
+                     if (typeof activeTabRequest.requestId === 'string' && (activeTabRequest.requestId.startsWith('draft-') || activeTabRequest.requestId.startsWith('example-'))) {
                         setIsSaveModalOpen(true)
                      } else {
                         saveActiveRequest()
                      }
                   }}
                   className={`px-4 py-2 rounded text-sm font-bold transition-all border ${
-                    activeTabRequest.isDirty || (typeof activeTabRequest.requestId === 'string' && activeTabRequest.requestId.startsWith('draft-'))
+                    activeTabRequest.isDirty || (typeof activeTabRequest.requestId === 'string' && (activeTabRequest.requestId.startsWith('draft-') || activeTabRequest.requestId.startsWith('example-')))
                       ? 'bg-success/10 border-success/30 text-success hover:bg-success/20'
                       : 'bg-surface border-border text-muted hover:text-text'
                   }`}
                   title="Save Request (Cmd+S)"
                 >
-                  {(activeTabRequest.isDirty || (typeof activeTabRequest.requestId === 'string' && activeTabRequest.requestId.startsWith('draft-'))) && (
+                  {(activeTabRequest.isDirty || (typeof activeTabRequest.requestId === 'string' && (activeTabRequest.requestId.startsWith('draft-') || activeTabRequest.requestId.startsWith('example-')))) && (
                     <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-primary animate-pulse" />
                   )}
                   <Save size={14} className="inline mr-2" />
@@ -689,7 +782,7 @@ export const MainArea = (): React.JSX.Element => {
                     ))}
                   </div>
                   {currentPresence.length > 0 && (
-                    <span className="text-muted font-medium ml-1">
+                    <span className="text-muted font-medium ml-1 font-sans">
                       {currentPresence.length} {currentPresence.length === 1 ? 'person' : 'people'} viewing
                     </span>
                   )}
@@ -720,7 +813,7 @@ export const MainArea = (): React.JSX.Element => {
               <div
                 key={tab}
                 onClick={(): void => setActiveTab(tab)}
-                className={`px-4 py-2.5 text-sm font-medium cursor-pointer border-b-2 transition-colors flex items-center gap-1.5 ${
+                className={`px-4 py-2.5 text-xs font-black uppercase tracking-widest cursor-pointer border-b-2 transition-colors flex items-center gap-1.5 ${
                   activeTab === tab
                     ? 'border-primary text-primary'
                     : 'border-transparent text-muted hover:text-text'
@@ -728,9 +821,7 @@ export const MainArea = (): React.JSX.Element => {
               >
                 {tab}
                 {((tab === 'Body' &&
-                  workingRequest.body &&
-                  workingRequest.body !== '{}' &&
-                  workingRequest.body !== '') ||
+                  workingRequest.body_type !== 'none') ||
                   (tab === 'Pre-request' && workingRequest.pre_request_script) ||
                   (tab === 'Tests' && workingRequest.post_request_script) ||
                   (tab === 'Headers' && Object.keys(workingRequest.headers || {}).length > 0) ||
@@ -783,13 +874,8 @@ export const MainArea = (): React.JSX.Element => {
             method: activeTabRequest.workingRequest.method as any,
             url: activeTabRequest.workingRequest.url,
             headers: activeTabRequest.workingRequest.headers,
-            body: (() => {
-              try {
-                return activeTabRequest.workingRequest.body ? JSON.parse(activeTabRequest.workingRequest.body) : {}
-              } catch {
-                return { raw: activeTabRequest.workingRequest.body }
-              }
-            })(),
+            body: activeTabRequest.workingRequest.body,
+            body_type: activeTabRequest.workingRequest.body_type,
             auth_config: activeTabRequest.workingRequest.auth_config,
             pre_request_script: activeTabRequest.workingRequest.pre_request_script,
             post_request_script: activeTabRequest.workingRequest.post_request_script
