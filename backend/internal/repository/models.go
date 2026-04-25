@@ -72,7 +72,7 @@ type Folder struct {
 	Name           string `gorm:"not null" json:"name"`
 	CollectionID   uint   `gorm:"not null;column:collection_id" json:"collection_id"`
 	ParentFolderID *uint  `gorm:"column:parent_folder_id" json:"parent_folder_id"`
-	OrderIndex     int    `gorm:"default:0;column:order_index" json:"order_index"`
+	OrderIndex     float64 `gorm:"default:0;column:order_index" json:"order_index"`
 
 	Collection   *Collection `gorm:"foreignKey:CollectionID" json:"-"`
 	ParentFolder *Folder     `gorm:"foreignKey:ParentFolderID" json:"-"`
@@ -91,7 +91,7 @@ type Request struct {
 	CollectionID uint      `gorm:"not null;column:collection_id" json:"collection_id"`
 	FolderID     *uint     `gorm:"column:folder_id" json:"folder_id"`
 	CreatedByID  *uint     `gorm:"column:created_by" json:"created_by"`
-	OrderIndex         int       `gorm:"default:0;column:order_index" json:"order_index"`
+	OrderIndex         float64   `gorm:"default:0;column:order_index" json:"order_index"`
 	PreRequestScript   string    `gorm:"type:text;column:pre_request_script" json:"pre_request_script"`
 	PostRequestScript  string    `gorm:"type:text;column:post_request_script" json:"post_request_script"`
 	CreatedAt          time.Time `json:"created_at"`

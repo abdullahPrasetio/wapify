@@ -163,6 +163,14 @@ export const apiClient = {
       headers
     }),
 
+  patch: <T>(path: string, body: unknown, headers?: Record<string, string>) =>
+    ipcRequest<T>({
+      method: 'PATCH',
+      url: `${getBaseUrl()}${path}`,
+      body: JSON.stringify(body),
+      headers
+    }),
+
   delete: <T>(path: string, headers?: Record<string, string>) =>
     ipcRequest<T>({ method: 'DELETE', url: `${getBaseUrl()}${path}`, headers }),
 

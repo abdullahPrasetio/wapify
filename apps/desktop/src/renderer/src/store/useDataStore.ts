@@ -249,6 +249,8 @@ interface DataState {
   deleteFolder: (id: number) => Promise<void>
   deleteRequest: (id: number) => Promise<void>
   duplicateRequest: (id: number) => Promise<void>
+  moveRequest: (id: number, collectionId: number, folderId: number | null, orderIndex: number) => Promise<void>
+  moveFolder: (id: number, collectionId: number, parentFolderId: number | null, orderIndex: number) => Promise<void>
   exportCollection: (id: number) => Promise<void>
   clearLogs: () => void
 
@@ -498,9 +500,12 @@ export const useDataStore = create<DataState>()(
               apiClient.get<ApiRequest[]>(`/api/v1/collections/${collectionId}/requests`)
             ])
 
-            const folders = foldersRes.status === 200 ? (foldersRes.data as Folder[]) : []
-            const allRequestsRaw =
-              requestsRes.status === 200 ? (requestsRes.data as ApiRequest[]) : []
+            const folders = foldersRes.status === 200 
+              ? (foldersRes.data as Folder[]).sort((a, b) => (a.order_index - b.order_index) || (a.id - b.id)) 
+              : []
+            const allRequestsRaw = requestsRes.status === 200 
+              ? (requestsRes.data as ApiRequest[]).sort((a, b) => (a.order_index - b.order_index) || (a.id - b.id)) 
+              : []
             const allRequests = allRequestsRaw.map(normalizeRequest)
 
             // Group requests by folder
@@ -587,7 +592,7 @@ export const useDataStore = create<DataState>()(
               auth_config: (initialData.auth_config as AuthConfig) || { type: 'No Auth' },
               pre_request_script: initialData.pre_request_script || '',
               post_request_script: initialData.post_request_script || ''
-            },            lastResponse: null,
+            }, lastResponse: null,
             isSending: false,
             isDirty: true,
             testResults: []
@@ -690,11 +695,11 @@ export const useDataStore = create<DataState>()(
 
               return {
                 ...tab,
-                workingRequest: { 
-                  ...tab.workingRequest, 
+                workingRequest: {
+                  ...tab.workingRequest,
                   ...update,
                   headers: newHeaders,
-                  body_type: newBodyType 
+                  body_type: newBodyType
                 },
                 isDirty: true
               }
@@ -847,7 +852,7 @@ export const useDataStore = create<DataState>()(
               body_type: data?.body_type || 'raw-json',
               auth_config: data?.auth_config || { type: 'No Auth' },
               folder_id: folderId,
-              order_index: data?.order_index || 0,
+              order_index: data?.order_index || Date.now(),
               pre_request_script: data?.pre_request_script || '',
               post_request_script: data?.post_request_script || ''
             }
@@ -862,7 +867,7 @@ export const useDataStore = create<DataState>()(
 
               const currentTabs = get().tabs
               const draftTab = currentTabs.find(t => typeof t.requestId === 'string' && t.requestId.startsWith('draft-'))
-              
+
               if (draftTab && get().activeTabId === draftTab.requestId) {
                 // Replace draft logic
                 const newTabs = currentTabs.map(t => {
@@ -909,9 +914,9 @@ export const useDataStore = create<DataState>()(
                   isDirty: false,
                   testResults: []
                 }
-                set({ 
-                  tabs: [...currentTabs, newTab], 
-                  activeTabId: normalizedReq.id 
+                set({
+                  tabs: [...currentTabs, newTab],
+                  activeTabId: normalizedReq.id
                 })
               }
 
@@ -934,7 +939,8 @@ export const useDataStore = create<DataState>()(
           try {
             const response = await apiClient.post(`/api/v1/collections/${collectionId}/folders`, {
               name,
-              parent_folder_id: parentFolderId
+              parent_folder_id: parentFolderId,
+              order_index: Date.now()
             })
 
             if (response.status === 201) {
@@ -1163,6 +1169,60 @@ export const useDataStore = create<DataState>()(
           }
         },
 
+        moveRequest: async (id: number, collectionId: number, folderId: number | null, orderIndex: number) => {
+          const originalRequests = [...get().requests]
+          const req = get().requests.find(r => r.id === id)
+          const oldCollectionId = req?.collection_id
+
+          // Optimistic Update
+          set((state) => ({
+            requests: state.requests.map((r) =>
+              r.id === id ? { ...r, collection_id: collectionId, folder_id: folderId, order_index: orderIndex } : r
+            )
+          }))
+
+          try {
+            await apiClient.patch(`/api/v1/requests/${id}/move`, {
+              collection_id: collectionId,
+              folder_id: folderId,
+              order_index: orderIndex
+            })
+
+            // Refresh target and source if different
+            await get().fetchCollectionContents(collectionId)
+            if (oldCollectionId && oldCollectionId !== collectionId) {
+              await get().fetchCollectionContents(oldCollectionId)
+            }
+          } catch (err) {
+            console.error(err)
+            set({ requests: originalRequests })
+            toast.error('Failed to move request')
+          }
+        },
+
+        moveFolder: async (id: number, collectionId: number, parentFolderId: number | null, orderIndex: number) => {
+          const originalFolders = { ...get().foldersByCollection }
+          const allFolders = Object.values(originalFolders).flat()
+          const folder = allFolders.find(f => f.id === id)
+          const oldCollectionId = folder?.collection_id
+
+          try {
+            await apiClient.patch(`/api/v1/folders/${id}/move`, {
+              collection_id: collectionId,
+              parent_folder_id: parentFolderId,
+              order_index: orderIndex
+            })
+
+            await get().fetchCollectionContents(collectionId)
+            if (oldCollectionId && oldCollectionId !== collectionId) {
+              await get().fetchCollectionContents(oldCollectionId)
+            }
+          } catch (err) {
+            set({ foldersByCollection: originalFolders })
+            toast.error('Failed to move folder')
+          }
+        },
+
         exportCollection: async (id: number) => {
           try {
             const res = await apiClient.get<ApiRequest[]>(`/api/v1/collections/${id}/requests`)
@@ -1344,10 +1404,10 @@ export const useDataStore = create<DataState>()(
 
           const substitutedBody = Array.isArray(workingRequest.body)
             ? workingRequest.body.map((item) => ({
-                ...item,
-                key: replaceVariables(item.key, vars),
-                value: replaceVariables(String(item.value), vars)
-              }))
+              ...item,
+              key: replaceVariables(item.key, vars),
+              value: replaceVariables(String(item.value), vars)
+            }))
             : replaceVariables(workingRequest.body, vars)
 
           // Inject Auth into URL if type is API Key and addTo is query
@@ -1792,12 +1852,12 @@ export const useDataStore = create<DataState>()(
             const substitutedHeaders: Record<string, string> = {}
             Object.entries(finalHeaders).forEach(([k, v]) => { substitutedHeaders[k] = replaceVariables(v, vars) })
             const substitutedBody = Array.isArray(workingRequest.body)
-            ? workingRequest.body.map((item) => ({
+              ? workingRequest.body.map((item) => ({
                 ...item,
                 key: replaceVariables(item.key, vars),
                 value: replaceVariables(String(item.value), vars)
               }))
-            : replaceVariables(workingRequest.body, vars)
+              : replaceVariables(workingRequest.body, vars)
 
             try {
               const start = Date.now()

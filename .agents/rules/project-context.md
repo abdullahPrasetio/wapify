@@ -89,6 +89,13 @@ Semua URL, credential, port via `.env`.
 - UI: Radix UI + Tailwind
 - IPC: semua komunikasi Renderer → Main via IPC
 
+**Git & Commit:**
+- Gunakan **Conventional Commits** (prefix `feat:`, `fix:`, `docs:`, `refactor:`, `chore:`)
+- Pesan commit WAJIB dalam **Bahasa Inggris**
+- Jelaskan **"Kenapa"** dan **"Bagaimana"** secara singkat jika perubahannya kompleks
+- WAJIB jalankan `git status` dan pastikan file sudah ter-stage sebelum commit
+- Update `docs/devlog.md` dan `docs/devplan.md` SEBELUM melakukan commit final sebuah fitur
+
 **Testing:**
 - Go: unit test ≥ 70% coverage (service layer), integration test semua endpoint
 - Frontend: Vitest

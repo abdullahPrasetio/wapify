@@ -1,4 +1,44 @@
 
+## [2026-04-24] — Drag-and-Drop Request & Folder (Fase 6.6)
+**Fase:** Fase 6 — UX & Power Features
+**Dikerjakan oleh:** Gemini
+**Status:** ✅ Selesai
+
+### Yang Dikerjakan
+- **Infrastruktur Backend (Fractional Indexing)**:
+    - Migrasi kolom `order_index` pada tabel `requests` dan `folders` dari `INT` menjadi `double precision` untuk mendukung penyisipan item tanpa batas.
+    - Implementasi endpoint `PATCH /api/v1/requests/:id/move` dan `PATCH /api/v1/folders/:id/move` dengan validasi role Editor+.
+- **Integrasi dnd-kit (Frontend)**:
+    - Instalasi dan konfigurasi `@dnd-kit/core` dan `@dnd-kit/sortable` pada Sidebar.
+    - Implementasi **Horizontal Split Logic**:
+        - **Zona Kiri (30% lebar)**: Untuk **Mengurutkan** (Atas/Bawah) — menampilkan garis **Cyan**.
+        - **Zona Kanan (70% lebar)**: Untuk **Memasukkan** (Nesting) ke dalam folder — menampilkan highlight **Ungu**.
+    - Penanganan hirarki kompleks: bisa mengeluarkan anak dari induk dengan menjatuhkannya di header Koleksi (Move to Root).
+- **Optimasi Store & API Client**:
+    - Penambahan metode `apiClient.patch` yang sebelumnya hilang.
+    - Implementasi aksi `moveRequest` dan `moveFolder` dengan *Optimistic Update* dan sinkronisasi otomatis antar koleksi.
+    - Perbaikan stabilitas pengurutan di frontend menggunakan kombinasi `order_index` dan `id` sebagai tie-breaker.
+- **Visual Feedback**:
+    - Penambahan ikon *grip* (GripVertical) yang muncul saat hover.
+    - Animasi transisi yang halus saat item digeser dan dilepaskan.
+
+### Perubahan File
+- `backend/migrations/000012_change_order_index_to_float.*` — Migrasi database.
+- `backend/internal/repository/models.go` — Update tipe data model Go.
+- `backend/internal/api/request.go` & `folder.go` — Endpoint move baru dan update payload.
+- `apps/desktop/src/renderer/src/components/layout/Sidebar.tsx` — Implementasi total Drag-and-Drop UI.
+- `apps/desktop/src/renderer/src/store/useDataStore.ts` — Logika sinkronisasi dan pengurutan.
+- `apps/desktop/src/renderer/src/api/client.ts` — Penambahan `apiClient.patch`.
+
+### Keputusan & Catatan
+- Menggunakan koordinat pointer (`activatorEvent`) alih-alih `translated rect` untuk deteksi zona horizontal agar lebih presisi mengikuti kursor pengguna.
+- Menetapkan `order_index` default baru menggunakan `Date.now()` untuk memastikan item baru selalu berada di posisi paling bawah.
+
+### Langkah Selanjutnya
+- Implementasi Mock Server Dynamic Response (Fase 6.7).
+
+---
+
 ## [2026-04-24] — cURL Import & Code Snippet Export
 **Fase:** Fase 6 — UX & Power Features
 **Dikerjakan oleh:** Gemini

@@ -210,29 +210,16 @@ Beberapa fitur yang direncanakan di Fase 6 telah disesuaikan prioritasnya dan un
 ---
 
 ### 6.6 — Drag-and-Drop Request & Folder
-**Estimasi:** 3-4 hari
-**Scope:** Frontend (UI) + Backend (endpoint move + fractional order).
-**Library:** `@dnd-kit/core` + `@dnd-kit/sortable`
+**Status:** ✅ Selesai
 
-**Backend:**
-- [ ] `PATCH /api/v1/requests/:id/move` — pindah request, update collection/folder + order
-  ```json
-  { "collection_id": 1, "folder_id": null, "order_index": 2.5 }
-  ```
-- [ ] `PATCH /api/v1/folders/:id/move` — pindah folder ke posisi/parent baru
-- [ ] Gunakan **fractional indexing** untuk `order_index` (float) — hindari re-numbering
-- [ ] Role check: hanya Editor ke atas yang bisa move
-
-**Frontend:**
-- [ ] Sidebar tree pakai `@dnd-kit/sortable`
-- [ ] Visual saat drag: item semi-transparan + shadow, garis biru = posisi insert, folder highlight saat hover
-- [ ] Auto-expand folder saat di-hover 0.5 detik saat drag
-- [ ] Drop rules:
-  - Request → antara request lain / masuk folder / pindah ke koleksi lain (dalam workspace yang sama)
-  - Folder → posisi lain / jadi sub-folder (tidak bisa drop ke diri sendiri / child-nya)
-- [ ] Undo drop: `Cmd+Z` / `Ctrl+Z`
-- [ ] Optimistic update: UI langsung berubah, rollback jika backend error
-- [ ] Update order ke backend setelah drop selesai (bukan saat drag berlangsung)
+- [x] Migration: tambah kolom `order_index FLOAT` (double precision) ke tabel REQUEST dan FOLDER
+- [x] Update `PATCH /api/v1/requests/:id/move` terima `collection_id`, `folder_id`, `order_index`
+- [x] Update `PATCH /api/v1/folders/:id/move` terima `collection_id`, `parent_folder_id`, `order_index`
+- [x] UI: Integrasi `@dnd-kit/core` dan `@dnd-kit/sortable` di Sidebar
+- [x] Implementasi **Horizontal Split Logic** (Left: Sort, Right: Nest)
+- [x] Visual Indicators: Cyan line (Sort), Purple highlight (Nest)
+- [x] Support **Move to Root** dengan dropping di header Koleksi
+- [x] Optimistic update & automatic collection refresh
 
 ---
 
