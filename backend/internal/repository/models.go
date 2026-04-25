@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-// JSONB is a helper type for PostgreSQL JSONB columns
+// JSONB is a helper type for PostgreSQL JSONB columns (Objects)
 type JSONB map[string]interface{}
 
 func (j JSONB) Value() (driver.Value, error) {
@@ -15,6 +15,29 @@ func (j JSONB) Value() (driver.Value, error) {
 }
 
 func (j *JSONB) Scan(value interface{}) error {
+	if value == nil {
+		*j = make(JSONB)
+		return nil
+	}
+	b, ok := value.([]byte)
+	if !ok {
+		return errors.New("type assertion to []byte failed")
+	}
+	return json.Unmarshal(b, j)
+}
+
+// JSONBArray is a helper type for PostgreSQL JSONB columns (Arrays)
+type JSONBArray []interface{}
+
+func (j JSONBArray) Value() (driver.Value, error) {
+	return json.Marshal(j)
+}
+
+func (j *JSONBArray) Scan(value interface{}) error {
+	if value == nil {
+		*j = make(JSONBArray, 0)
+		return nil
+	}
 	b, ok := value.([]byte)
 	if !ok {
 		return errors.New("type assertion to []byte failed")
@@ -195,20 +218,38 @@ type ActivityLog struct {
 }
 
 type MockEndpoint struct {
-	ID              uint      `gorm:"primaryKey" json:"id"`
-	CollectionID    uint      `gorm:"not null;column:collection_id" json:"collection_id"`
-	RequestID       *uint     `gorm:"column:request_id" json:"request_id"`
-	Method          string    `gorm:"not null" json:"method"`
-	Path            string    `gorm:"not null" json:"path"`
-	StatusCode      int       `gorm:"not null;default:200" json:"status_code"`
-	ResponseHeaders JSONB     `gorm:"type:jsonb;default:'{}'" json:"response_headers"`
-	ResponseBody    string    `gorm:"type:text;default:''" json:"response_body"`
-	DelayMs         int       `gorm:"default:0;column:delay_ms" json:"delay_ms"`
-	IsActive        bool      `gorm:"default:false;column:is_active" json:"is_active"`
-	CreatedAt       time.Time `json:"created_at"`
-	UpdatedAt       time.Time `json:"updated_at"`
+	ID               uint      `gorm:"primaryKey" json:"id"`
+	CollectionID     uint      `gorm:"not null;column:collection_id" json:"collection_id"`
+	RequestID        *uint     `gorm:"column:request_id" json:"request_id"`
+	Method           string    `gorm:"not null" json:"method"`
+	Path             string    `gorm:"not null" json:"path"`
+	StatusCode       int       `gorm:"not null;default:200" json:"status_code"`
+	ResponseHeaders  JSONB     `gorm:"type:jsonb;default:'{}'" json:"response_headers"`
+	ResponseBody     string    `gorm:"type:text;default:''" json:"response_body"`
+	DelayMs          int       `gorm:"default:0;column:delay_ms" json:"delay_ms"`
+	IsActive         bool      `gorm:"default:false;column:is_active" json:"is_active"`
+	EvaluationMode   string    `gorm:"not null;default:auto;column:evaluation_mode" json:"evaluation_mode"`
+	ActiveScenarioID *uint     `gorm:"column:active_scenario_id" json:"active_scenario_id"`
+	CreatedAt        time.Time `json:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at"`
 
-	Collection *Collection `gorm:"foreignKey:CollectionID" json:"-"`
-	Request    *Request    `gorm:"foreignKey:RequestID" json:"-"`
+	Collection     *Collection    `gorm:"foreignKey:CollectionID" json:"-"`
+	Request        *Request       `gorm:"foreignKey:RequestID" json:"-"`
+	Scenarios      []MockScenario `gorm:"foreignKey:MockEndpointID" json:"scenarios,omitempty"`
+	ActiveScenario *MockScenario  `gorm:"foreignKey:ActiveScenarioID" json:"active_scenario,omitempty"`
+}
+
+type MockScenario struct {
+	ID              uint           `gorm:"primaryKey" json:"id"`
+	MockEndpointID  uint           `gorm:"not null;column:mock_endpoint_id" json:"mock_endpoint_id"`
+	Name            string         `gorm:"not null" json:"name"`
+	StatusCode      int            `gorm:"not null;default:200" json:"status_code"`
+	ResponseHeaders JSONB          `gorm:"type:jsonb;default:'{}'" json:"response_headers"`
+	ResponseBody    string         `gorm:"type:text;default:''" json:"response_body"`
+	Conditions      JSONBArray     `gorm:"type:jsonb;default:'[]'" json:"conditions"`
+	IsDefault       bool           `gorm:"default:false;column:is_default" json:"is_default"`
+	OrderIndex      float64        `gorm:"not null;default:0;column:order_index" json:"order_index"`
+	CreatedAt       time.Time      `json:"created_at"`
+	UpdatedAt       time.Time      `json:"updated_at"`
 }
 

@@ -1,7 +1,7 @@
 # Wapify — Development Plan
 
 **Terakhir Diperbarui:** 24 April 2026
-**Status Saat Ini:** ✅ Fase 0-5 Selesai (Fase 4 CLI pending) → 🟡 Fase 6 In Progress
+**Status Saat Ini:** ✅ Fase 0-6 Selesai → 🟡 Fase 7 In Progress
 
 ---
 
@@ -15,8 +15,8 @@
 | 3 | Dokumentasi & Mock Server | Generate docs, mock API | ✅ Selesai |
 | 4 | Testing & CI/CD | Collection runner, CLI | ✅ Selesai (CLI pending) |
 | 5 | On-Premise & License | Jual ke client luar | ✅ Selesai |
-| 6 | UX & Power Features | Workspace, body types, export, drag-drop, mock dynamic | 🔄 Dalam Proses |
-| 7 | Kolaborasi Lanjutan | Notifikasi, shared env, diff visual | ⬜ Belum Mulai |
+| 6 | UX & Power Features | Workspace, body types, export, drag-drop, mock dynamic | ✅ Selesai |
+| 7 | Kolaborasi Lanjutan | Notifikasi, shared env, diff visual | 🟡 Dalam Proses |
 | 8 | SaaS (Opsional) | Cloud hosted di wapify.io | ⬜ Belum Mulai |
 
 ---
@@ -224,67 +224,21 @@ Beberapa fitur yang direncanakan di Fase 6 telah disesuaikan prioritasnya dan un
 ---
 
 ### 6.7 — Mock Server Dynamic Response
-**Estimasi:** 4-5 hari
-**Scope:** Frontend (UI) + Backend (engine upgrade + schema baru).
+**Status:** ✅ Selesai
 
-**Backend — Migration:**
-- [ ] Buat tabel `MOCK_SCENARIO`:
-  ```sql
-  CREATE TABLE mock_scenario (
-    id               SERIAL PRIMARY KEY,
-    mock_endpoint_id INT REFERENCES mock_endpoint(id) ON DELETE CASCADE,
-    name             VARCHAR(100),
-    status_code      INT DEFAULT 200,
-    response_headers JSON,
-    response_body    TEXT,
-    conditions       JSON,
-    order_index      FLOAT,
-    created_at       TIMESTAMP DEFAULT NOW()
-  );
-  ```
-- [ ] Tambah kolom `active_scenario_id INT` ke tabel `MOCK_ENDPOINT`
-
-**Backend — Endpoint Baru:**
-- [ ] `GET/POST /api/v1/mock-endpoints/:id/scenarios`
-- [ ] `PUT/DELETE /api/v1/mock-scenarios/:id`
-- [ ] `PATCH /api/v1/mock-endpoints/:id/active-scenario` — manual switch
-
-**Backend — Mock Engine Upgrade:**
-- [ ] Condition evaluator (evaluasi dari atas ke bawah, pakai scenario pertama yang match):
-  - Source: `query`, `body` (dot notation), `header`, `path`
-  - Operator: `eq`, `neq`, `contains`, `not_contains`, `exists`, `not_exists`
-  - Contoh:
-    ```json
-    [
-      { "source": "query", "key": "status", "operator": "eq", "value": "active" },
-      { "source": "body", "key": "user.role", "operator": "eq", "value": "admin" }
-    ]
-    ```
-- [ ] Fallback ke `active_scenario_id` jika tidak ada condition yang match
-- [ ] Response body template: `{{request.body.name}}` → ganti dengan nilai dari request masuk
-
-**Frontend:**
-- [ ] Tombol "Scenarios" per endpoint → panel samping
-- [ ] Panel scenarios:
-  - List scenario: nama + status code + badge "ACTIVE"
-  - Toggle switch manual → set active scenario
-  - Drag-and-drop urutan (urutan = prioritas evaluasi kondisi)
-  - Tombol tambah scenario
-- [ ] Form tambah/edit scenario:
-  - Nama, status code, response headers (tabel), response body (Monaco)
-  - **Conditions builder** — visual tanpa nulis JSON:
-    ```
-    [Source  ▾] [Key        ] [Operator ▾] [Value    ] [×]
-    [ query  ]  [ status    ] [  equals  ] [ active  ] [×]
-    [ body   ]  [ user.role ] [  equals  ] [ admin   ] [×]
-    [+ Tambah Kondisi]
-    ```
-- [ ] Preview mock URL yang bisa di-hit
+- [x] Migration: tambah tabel `mock_scenario` dan kolom `evaluation_mode`
+- [x] Backend: Implementasi Condition Evaluator (Query, Body, Header, Path)
+- [x] Backend: Implementasi Response Body Template `{{request.body.name}}`
+- [x] UI: Scenarios Panel terintegrasi di Mock Server
+- [x] UI: Visual Condition Builder (tanpa nulis JSON)
+- [x] UI: Drag-and-Drop prioritas evaluasi skenario
+- [x] Feature: Manual/Forced mode support
+- [x] Feature: Copy as cURL command per endpoint
 
 ---
 
 ## Fase 7 — Kolaborasi Lanjutan
-**Status:** ⬜ Belum Mulai
+**Status:** 🟡 Dalam Proses
 **Estimasi:** 2-3 minggu
 
 - [ ] Notifikasi in-app saat koleksi diupdate member lain

@@ -11,12 +11,15 @@ import {
   Clock,
   Code,
   ChevronDown,
-  Zap
+  Zap,
+  LayoutGrid,
+  Play
 } from 'lucide-react'
 import { apiClient } from '../../api/client'
 import type { MockEndpoint, ApiRequest } from '../../types'
 import { MethodBadge } from '../ui/MethodBadge'
 import { toast } from 'sonner'
+import { ScenariosPanel } from './ScenariosPanel'
 
 const HTTP_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS']
 
@@ -38,6 +41,7 @@ export const MockServerPanel: React.FC<MockServerPanelProps> = ({
   const [creating, setCreating] = useState(false)
   const [editingId, setEditingId] = useState<number | null>(null)
   const [copiedId, setCopiedId] = useState<number | null>(null)
+  const [managingScenariosEndpoint, setManagingScenariosEndpoint] = useState<MockEndpoint | null>(null)
 
   const mockBaseUrl = `http://localhost:8000/mock/${collectionId}`
 
@@ -72,6 +76,7 @@ export const MockServerPanel: React.FC<MockServerPanelProps> = ({
 
   const handleToggle = async (ep: MockEndpoint) => {
     try {
+      const newActiveStatus = !ep.is_active
       const res = await apiClient.put<MockEndpoint>(
         `/api/v1/collections/${collectionId}/mock/endpoints/${ep.id}`,
         {
@@ -81,11 +86,11 @@ export const MockServerPanel: React.FC<MockServerPanelProps> = ({
           response_headers: ep.response_headers,
           response_body: ep.response_body,
           delay_ms: ep.delay_ms,
-          is_active: !ep.is_active
+          is_active: newActiveStatus
         }
       )
       setEndpoints((prev) => prev.map((e) => (e.id === ep.id ? (res.data as MockEndpoint) : e)))
-      toast.success(ep.is_active ? 'Mock endpoint disabled' : 'Mock endpoint enabled')
+      toast.success(newActiveStatus ? 'Mock endpoint enabled' : 'Mock endpoint disabled')
     } catch {
       toast.error('Failed to toggle')
     }
@@ -111,7 +116,32 @@ export const MockServerPanel: React.FC<MockServerPanelProps> = ({
     setTimeout(() => setCopiedId(null), 2000)
   }
 
+  const copyAsCurl = async (ep: MockEndpoint) => {
+    const url = `${mockBaseUrl}${ep.path}`
+    const curl = `curl -X ${ep.method} "${url}" \\
+     -H "Content-Type: application/json"`
+    await navigator.clipboard.writeText(curl)
+    toast.success('cURL command copied to clipboard')
+  }
+
   const activeCount = endpoints.filter((e) => e.is_active).length
+
+  if (managingScenariosEndpoint) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+        <div className="bg-surface border border-white/10 rounded-xl shadow-2xl w-[95vw] max-w-6xl h-[90vh] flex flex-col overflow-hidden">
+          <ScenariosPanel 
+            endpoint={managingScenariosEndpoint} 
+            onBack={() => setManagingScenariosEndpoint(null)}
+            onUpdateEndpoint={(updated) => {
+              setEndpoints(prev => prev.map(e => e.id === updated.id ? updated : e))
+              setManagingScenariosEndpoint(updated)
+            }}
+          />
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
@@ -232,6 +262,8 @@ export const MockServerPanel: React.FC<MockServerPanelProps> = ({
                         onDelete={() => handleDelete(ep.id)}
                         onToggle={() => handleToggle(ep)}
                         onCopy={() => copyMockUrl(ep)}
+                        onCopyAsCurl={() => copyAsCurl(ep)}
+                        onManageScenarios={() => setManagingScenariosEndpoint(ep)}
                       />
                     )
                   )
@@ -255,7 +287,9 @@ const MockEndpointCard: React.FC<{
   onDelete: () => void
   onToggle: () => void
   onCopy: () => void
-}> = ({ endpoint, mockBaseUrl, copiedId, onEdit, onDelete, onToggle, onCopy }) => {
+  onCopyAsCurl: () => void
+  onManageScenarios: () => void
+}> = ({ endpoint, mockBaseUrl, copiedId, onEdit, onDelete, onToggle, onCopy, onCopyAsCurl, onManageScenarios }) => {
   const [expanded, setExpanded] = useState(false)
 
   return (
@@ -286,6 +320,11 @@ const MockEndpointCard: React.FC<{
             {endpoint.status_code}
           </span>
 
+          {/* Evaluation Mode badge */}
+          <span className={`text-[9px] px-1.5 py-0.5 rounded-full border font-bold uppercase tracking-tighter ${endpoint.evaluation_mode === 'auto' ? 'border-violet-500/30 text-violet-400 bg-violet-500/5' : 'border-amber-500/30 text-amber-400 bg-amber-500/5'}`}>
+            {endpoint.evaluation_mode}
+          </span>
+
           {/* Delay badge */}
           {endpoint.delay_ms > 0 && (
             <span className="flex items-center gap-0.5 text-[10px] text-muted">
@@ -305,6 +344,16 @@ const MockEndpointCard: React.FC<{
             ) : (
               <Copy size={12} />
             )}
+          </button>
+
+          {/* Copy as cURL */}
+          <button
+            onClick={onCopyAsCurl}
+            className="p-1 rounded text-muted hover:text-foreground transition-colors flex items-center gap-1 border border-white/5 px-1.5"
+            title="Copy as cURL command"
+          >
+            <Code size={12} className="text-violet-400" />
+            <span className="text-[9px] font-bold uppercase">cURL</span>
           </button>
 
           {/* Expand body */}
@@ -335,6 +384,15 @@ const MockEndpointCard: React.FC<{
             className="p-1 rounded text-muted hover:text-foreground transition-colors text-[10px] font-medium border border-white/10 px-2"
           >
             Edit
+          </button>
+
+          {/* Scenarios */}
+          <button
+            onClick={onManageScenarios}
+            className="flex items-center gap-1 p-1 rounded bg-violet-500/10 text-violet-400 hover:bg-violet-500/20 transition-colors text-[10px] font-bold border border-violet-500/20 px-2"
+          >
+            <LayoutGrid size={11} />
+            Scenarios
           </button>
 
           {/* Delete */}

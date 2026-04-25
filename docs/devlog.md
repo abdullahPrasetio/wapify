@@ -1,82 +1,37 @@
+# Wapify — Development Log
 
-## [2026-04-24] — Drag-and-Drop Request & Folder (Fase 6.6)
-**Fase:** Fase 6 — UX & Power Features
+## [2026-04-21] — Inisialisasi License Management (Fase 5 MVP)
+**Fase:** Fase 5 — On-Premise & License
 **Dikerjakan oleh:** Gemini
 **Status:** ✅ Selesai
 
 ### Yang Dikerjakan
-- **Infrastruktur Backend (Fractional Indexing)**:
-    - Migrasi kolom `order_index` pada tabel `requests` dan `folders` dari `INT` menjadi `double precision` untuk mendukung penyisipan item tanpa batas.
-    - Implementasi endpoint `PATCH /api/v1/requests/:id/move` dan `PATCH /api/v1/folders/:id/move` dengan validasi role Editor+.
-- **Integrasi dnd-kit (Frontend)**:
-    - Instalasi dan konfigurasi `@dnd-kit/core` dan `@dnd-kit/sortable` pada Sidebar.
-    - Implementasi **Horizontal Split Logic**:
-        - **Zona Kiri (30% lebar)**: Untuk **Mengurutkan** (Atas/Bawah) — menampilkan garis **Cyan**.
-        - **Zona Kanan (70% lebar)**: Untuk **Memasukkan** (Nesting) ke dalam folder — menampilkan highlight **Ungu**.
-    - Penanganan hirarki kompleks: bisa mengeluarkan anak dari induk dengan menjatuhkannya di header Koleksi (Move to Root).
-- **Optimasi Store & API Client**:
-    - Penambahan metode `apiClient.patch` yang sebelumnya hilang.
-    - Implementasi aksi `moveRequest` dan `moveFolder` dengan *Optimistic Update* dan sinkronisasi otomatis antar koleksi.
-    - Perbaikan stabilitas pengurutan di frontend menggunakan kombinasi `order_index` dan `id` sebagai tie-breaker.
-- **Visual Feedback**:
-    - Penambahan ikon *grip* (GripVertical) yang muncul saat hover.
-    - Animasi transisi yang halus saat item digeser dan dilepaskan.
+- **Database Schema**: Membuat migrasi `000009_create_licenses_table` untuk menyimpan data lisensi klien.
+- **Backend (Cryptography)**: Implementasi penandatanganan lisensi menggunakan algoritma **Ed25519** (Standard industri, sangat aman dan sulit dipalsukan).
+- **Backend API**: Membuat endpoint admin untuk `List`, `Create`, dan `Revoke` lisensi khusus Super Admin.
+- **Frontend Admin UI**: Membuat halaman **License Management** di Admin Panel dengan fitur tabel interaktif, status badge (Active/Revoked), dan Copy-to-Clipboard untuk license key.
+- **Tooling**: Membuat script `keygen` (`backend/cmd/keygen/main.go`) agar Waluyo bisa men-generate pasangan kunci Ed25519 untuk dipasang di `.env`.
+- **Docker Simulation**: Menyiapkan `docker-compose.yml` dan Dockerfile khusus (`Dockerfile.central` & `Dockerfile.client`) untuk mensimulasikan lingkungan 2 server (Central vs Client) di mesin lokal.
+- **Fixes**: Memperbaiki error `undefined: GetLicenses` pada `backend/internal/api/license.go`.
 
 ### Perubahan File
-- `backend/migrations/000012_change_order_index_to_float.*` — Migrasi database.
-- `backend/internal/repository/models.go` — Update tipe data model Go.
-- `backend/internal/api/request.go` & `folder.go` — Endpoint move baru dan update payload.
-- `apps/desktop/src/renderer/src/components/layout/Sidebar.tsx` — Implementasi total Drag-and-Drop UI.
-- `apps/desktop/src/renderer/src/store/useDataStore.ts` — Logika sinkronisasi dan pengurutan.
-- `apps/desktop/src/renderer/src/api/client.ts` — Penambahan `apiClient.patch`.
+- `backend/migrations/000009_create_licenses_table.*` — Skema DB baru.
+- `backend/internal/repository/models.go` — Penambahan model `License`.
+- `backend/internal/api/license.go` — Logika signing, API endpoints lisensi, dan fungsi verifikasi untuk klien.
+- `apps/desktop/src/renderer/src/components/admin/LicenseManagement.tsx` — UI baru manajemen lisensi.
+- `apps/desktop/src/renderer/src/components/layout/Sidebar.tsx` & `AppLayout.tsx` — Integrasi navigasi menu Admin baru.
+- `docker-compose.yml` — Update untuk mendukung multi-instance backend.
+- `backend/Dockerfile.*` — Dockerfile untuk peran Central dan Client.
+- `docs/licensing.md` — Dokumentasi lengkap arsitektur dan panduan Docker.
 
 ### Keputusan & Catatan
-- Menggunakan koordinat pointer (`activatorEvent`) alih-alih `translated rect` untuk deteksi zona horizontal agar lebih presisi mengikuti kursor pengguna.
-- Menetapkan `order_index` default baru menggunakan `Date.now()` untuk memastikan item baru selalu berada di posisi paling bawah.
+- Menggunakan **Ed25519** alih-alih RSA karena ukuran key yang jauh lebih kecil dan performa verifikasi yang sangat cepat, ideal untuk binary on-premise yang ringan.
+- Lisensi di-generate dalam format `Base64(Payload).Base64(Signature)` untuk memudahkan pengiriman via chat/email.
+- Strategi **One Codebase, Two Roles** diimplementasikan menggunakan `-ldflags` saat build untuk menanamkan Public Key ke dalam binary klien secara aman.
 
 ### Langkah Selanjutnya
-- Implementasi Mock Server Dynamic Response (Fase 6.7).
-
----
-
-## [2026-04-24] — cURL Import & Code Snippet Export
-**Fase:** Fase 6 — UX & Power Features
-**Dikerjakan oleh:** Gemini
-**Status:** ✅ Selesai
-
-### Yang Dikerjakan
-- **Import dari cURL (Fase 6.4)**:
-    - Integrasi library `curlconverter` untuk memproses perintah cURL menjadi request Wapify.
-    - Implementasi `ImportCurlModal` untuk mengimpor perintah cURL secara manual.
-    - **Smart Auto-Detection**: Menambahkan logika deteksi otomatis saat pengguna mem-paste perintah yang diawali `curl ` ke dalam URL bar, memicu dialog konfirmasi import otomatis.
-- **Export Code Snippet (Fase 6.5)**:
-    - Implementasi `ExportCodeModal` dengan dukungan banyak bahasa pemrograman:
-        - cURL
-        - JavaScript (Fetch & Axios)
-        - Go Native (`net/http`)
-        - Python (`requests`)
-    - Integrasi Monaco Editor (read-only) dengan syntax highlighting untuk setiap bahasa target.
-    - Penambahan fitur "Copy to Clipboard" yang cepat.
-- **Pembersihan Tipe Data (Fixes)**:
-    - Sinkronisasi tipe data `any` untuk body request agar mendukung baik format string (raw) maupun array (form-data/urlencoded).
-    - Memperbaiki berbagai error TypeScript terkait definisi `window.api` dan penggunaan variabel yang hilang di komponen React.
-    - Memperbaiki bug pada `MainArea` dimana `activeTabRequest` digunakan di scope yang salah.
-
-### Perubahan File
-- `apps/desktop/src/renderer/src/utils/curlParser.ts` — Utilitas konversi cURL.
-- `apps/desktop/src/renderer/src/components/modals/ImportCurlModal.tsx` — UI untuk import.
-- `apps/desktop/src/renderer/src/components/modals/ExportCodeModal.tsx` — UI untuk export snippet.
-- `apps/desktop/src/renderer/src/components/layout/MainArea.tsx` — Integrasi tombol dan logika deteksi cURL.
-- `apps/desktop/src/renderer/src/api/client.ts` & `env.d.ts` — Update tipe data untuk mendukung body fleksibel.
-- `apps/desktop/src/renderer/src/store/useDataStore.ts` — Update penanganan body dan script untuk test runner.
-
-### Keputusan & Catatan
-- Memilih `curlconverter` karena library ini sangat handal dan mendukung hampir semua flag cURL standar industri.
-- Menggunakan `JSON.stringify` otomatis saat mengekspor ke JavaScript/Python untuk memastikan snippet valid dan siap pakai.
-
-### Langkah Selanjutnya
-- Implementasi Drag-and-Drop Request & Folder (Fase 6.6).
-- Implementasi Mock Server Dynamic Response (Fase 6.7).
+- Membangun layar "Input License" pada aplikasi untuk klien on-premise.
+- Implementasi middleware verifikasi lisensi di startup backend klien.
 
 ---
 
@@ -104,48 +59,6 @@
 ### Langkah Selanjutnya
 - Implementasi runner untuk folder individual.
 - Integrasi runner dengan CLI (`wapify run`).
-
----
-
-## [2026-04-24] — UI Redesign, Resizable Layout & Smart Inputs
-**Fase:** Fase 6 — UX & Power Features
-**Dikerjakan oleh:** Gemini
-**Status:** ✅ Selesai
-
-### Yang Dikerjakan
-- **UI Redesign (Professional Look)**: 
-    - Merombak total `MainArea.tsx` untuk menyertakan **Request Header** yang menampilkan jalur koleksi, nama permintaan, serta tombol *Save* dan *Share* yang lebih modern.
-    - Desain ulang bar URL dengan pemilih metode yang memiliki ikon dropdown dan tombol *Send* yang terpisah (split button).
-    - Memperbaiki tata letak agar lebih bersih dengan memindahkan tombol *Import cURL*, *Export*, dan *Collab* ke baris tindakan cepat di bawah URL bar.
-- **Resizable Layout**:
-    - Menambahkan *Resizer Bar* di antara area Request Builder dan Response Area yang memungkinkan pengguna menggeser tinggi area secara dinamis (hingga 95% tinggi layar), mirip dengan fungsionalitas Postman.
-- **Smart Multiline Inputs**:
-    - Mengoverhaul `VariableOverlayInput` agar mendukung teks multi-baris (*auto-expanding*) saat fokus (mengetik) dan kembali menjadi satu baris (*single-line truncate*) saat kehilangan fokus (*blur*) untuk menjaga kerapihan UI.
-    - Mengubah kolom *Description* pada `KeyValueEditor` menjadi `textarea` yang juga mendukung *auto-expand*.
-- **Persistence Fix**:
-    - Memperbaiki bug di mana tab yang terbuka hilang saat aplikasi di-refresh dengan menambahkan array `tabs` ke dalam konfigurasi `persist` di `useDataStore.ts`.
-- **Coming Soon System**:
-    - Implementasi `ComingSoonModal` untuk fitur yang sedang dalam pengembangan: *Documentation*, *Cookies Management*, dan *Request Sharing*.
-- **Visual & UX Fixes**:
-    - Memperbaiki bug "ghosting" pada variabel di URL bar dengan menyelaraskan lapisan visual dan interaksi secara presisi hingga ke level piksel.
-    - Menghapus komponen `Header` global yang redundan untuk memberikan lebih banyak ruang bagi area kerja utama.
-
-### Perubahan File
-- `apps/desktop/src/renderer/src/components/layout/MainArea.tsx` — Perombakan total tata letak dan logika resize.
-- `apps/desktop/src/renderer/src/components/layout/AppLayout.tsx` — Penghapusan Header redundan.
-- `apps/desktop/src/renderer/src/components/ui/VariableOverlayInput.tsx` — Implementasi smart multiline & fix ghosting.
-- `apps/desktop/src/renderer/src/components/ui/KeyValueEditor.tsx` — Perubahan kolom Description ke textarea.
-- `apps/desktop/src/renderer/src/components/modals/ComingSoonModal.tsx` — Komponen modal baru.
-- `apps/desktop/src/renderer/src/store/useDataStore.ts` — Penambahan persistence untuk tab.
-- `apps/desktop/src/renderer/src/store/useAppStore.ts` — Update tipe tab.
-
-### Keputusan & Catatan
-- Memutuskan untuk menggunakan `absolute inset-0` dengan `overflow-auto` pada kontainer editor body/headers untuk memastikan scrolling bekerja sempurna di dalam area yang bisa di-resize.
-- Menggunakan `localStorage` untuk menyimpan tab agar sesi kerja pengguna tetap utuh meskipun terjadi refresh atau crash kecil pada aplikasi.
-
-### Langkah Selanjutnya
-- Implementasi Drag-and-Drop Request & Folder (Fase 6.6).
-- Implementasi Mock Server Dynamic Response (Fase 6.7).
 
 ---
 
@@ -217,39 +130,150 @@
 - Implementasi cURL Import menggunakan library `curlconverter`.
 - Integrasi tombol Export Code Snippet di sebelah tombol Send.
 
-
-
 ---
 
-## [2026-04-21] — Inisialisasi License Management (Fase 5 MVP)
-**Fase:** Fase 5 — On-Premise & License
+## [2026-04-24] — UI Redesign, Resizable Layout & Smart Inputs
+**Fase:** Fase 6 — UX & Power Features
 **Dikerjakan oleh:** Gemini
 **Status:** ✅ Selesai
 
 ### Yang Dikerjakan
-- **Database Schema**: Membuat migrasi `000009_create_licenses_table` untuk menyimpan data lisensi klien.
-- **Backend (Cryptography)**: Implementasi penandatanganan lisensi menggunakan algoritma **Ed25519** (Standard industri, sangat aman dan sulit dipalsukan).
-- **Backend API**: Membuat endpoint admin untuk `List`, `Create`, dan `Revoke` lisensi khusus Super Admin.
-- **Frontend Admin UI**: Membuat halaman **License Management** di Admin Panel dengan fitur tabel interaktif, status badge (Active/Revoked), dan Copy-to-Clipboard untuk license key.
-- **Tooling**: Membuat script `keygen` (`backend/cmd/keygen/main.go`) agar Waluyo bisa men-generate pasangan kunci Ed25519 untuk dipasang di `.env`.
-- **Docker Simulation**: Menyiapkan `docker-compose.yml` dan Dockerfile khusus (`Dockerfile.central` & `Dockerfile.client`) untuk mensimulasikan lingkungan 2 server (Central vs Client) di mesin lokal.
-- **Fixes**: Memperbaiki error `undefined: GetLicenses` pada `backend/internal/api/license.go`.
+- **UI Redesign (Professional Look)**: 
+    - Merombak total `MainArea.tsx` untuk menyertakan **Request Header** yang menampilkan jalur koleksi, nama permintaan, serta tombol *Save* dan *Share* yang lebih modern.
+    - Desain ulang bar URL dengan pemilih metode yang memiliki ikon dropdown dan tombol *Send* yang terpisah (split button).
+    - Memperbaiki tata letak agar lebih bersih dengan memindahkan tombol *Import cURL*, *Export*, dan *Collab* ke baris tindakan cepat di bawah URL bar.
+- **Resizable Layout**:
+    - Menambahkan *Resizer Bar* di antara area Request Builder dan Response Area yang memungkinkan pengguna menggeser tinggi area secara dinamis (hingga 95% tinggi layar), mirip dengan fungsionalitas Postman.
+- **Smart Multiline Inputs**:
+    - Mengoverhaul `VariableOverlayInput` agar mendukung teks multi-baris (*auto-expanding*) saat fokus (mengetik) dan kembali menjadi satu baris (*single-line truncate*) saat kehilangan fokus (*blur*) untuk menjaga kerapihan UI.
+    - Mengubah kolom *Description* pada `KeyValueEditor` menjadi `textarea` yang juga mendukung *auto-expand*.
+- **Persistence Fix**:
+    - Memperbaiki bug di mana tab yang terbuka hilang saat aplikasi di-refresh dengan menambahkan array `tabs` ke dalam konfigurasi `persist` di `useDataStore.ts`.
+- **Coming Soon System**:
+    - Implementasi `ComingSoonModal` untuk fitur yang sedang dalam pengembangan: *Documentation*, *Cookies Management*, dan *Request Sharing*.
+- **Visual & UX Fixes**:
+    - Memperbaiki bug "ghosting" pada variabel di URL bar dengan menyelaraskan lapisan visual dan interaksi secara presisi hingga ke level piksel.
+    - Menghapus komponen `Header` global yang redundan untuk memberikan lebih banyak ruang bagi area kerja utama.
 
 ### Perubahan File
-- `backend/migrations/000009_create_licenses_table.*` — Skema DB baru.
-- `backend/internal/repository/models.go` — Penambahan model `License`.
-- `backend/internal/api/license.go` — Logika signing, API endpoints lisensi, dan fungsi verifikasi untuk klien.
-- `apps/desktop/src/renderer/src/components/admin/LicenseManagement.tsx` — UI baru manajemen lisensi.
-- `apps/desktop/src/renderer/src/components/layout/Sidebar.tsx` & `AppLayout.tsx` — Integrasi navigasi menu Admin baru.
-- `docker-compose.yml` — Update untuk mendukung multi-instance backend.
-- `backend/Dockerfile.*` — Dockerfile untuk peran Central dan Client.
-- `docs/licensing.md` — Dokumentasi lengkap arsitektur dan panduan Docker.
+- `apps/desktop/src/renderer/src/components/layout/MainArea.tsx` — Perombakan total tata letak dan logika resize.
+- `apps/desktop/src/renderer/src/components/layout/AppLayout.tsx` — Penghapusan Header redundan.
+- `apps/desktop/src/renderer/src/components/ui/VariableOverlayInput.tsx` — Implementasi smart multiline & fix ghosting.
+- `apps/desktop/src/renderer/src/components/ui/KeyValueEditor.tsx` — Perubahan kolom Description ke textarea.
+- `apps/desktop/src/renderer/src/components/modals/ComingSoonModal.tsx` — Komponen modal baru.
+- `apps/desktop/src/renderer/src/store/useDataStore.ts` — Penambahan persistence untuk tab.
+- `apps/desktop/src/renderer/src/store/useAppStore.ts` — Update tipe tab.
 
 ### Keputusan & Catatan
-- Menggunakan **Ed25519** alih-alih RSA karena ukuran key yang jauh lebih kecil dan performa verifikasi yang sangat cepat, ideal untuk binary on-premise yang ringan.
-- Lisensi di-generate dalam format `Base64(Payload).Base64(Signature)` untuk memudahkan pengiriman via chat/email.
-- Strategi **One Codebase, Two Roles** diimplementasikan menggunakan `-ldflags` saat build untuk menanamkan Public Key ke dalam binary klien secara aman.
+- Memutuskan untuk menggunakan `absolute inset-0` dengan `overflow-auto` pada kontainer editor body/headers untuk memastikan scrolling bekerja sempurna di dalam area yang bisa di-resize.
+- Menggunakan `localStorage` untuk menyimpan tab agar sesi kerja pengguna tetap utuh meskipun terjadi refresh atau crash kecil pada aplikasi.
 
 ### Langkah Selanjutnya
-- Membangun layar "Input License" pada aplikasi untuk klien on-premise.
-- Implementasi middleware verifikasi lisensi di startup backend klien.
+- Implementasi Drag-and-Drop Request & Folder (Fase 6.6).
+
+---
+
+## [2026-04-24] — cURL Import & Code Snippet Export
+**Fase:** Fase 6 — UX & Power Features
+**Dikerjakan oleh:** Gemini
+**Status:** ✅ Selesai
+
+### Yang Dikerjakan
+- **Import dari cURL (Fase 6.4)**:
+    - Integrasi library `curlconverter` untuk memproses perintah cURL menjadi request Wapify.
+    - Implementasi `ImportCurlModal` untuk mengimpor perintah cURL secara manual.
+    - **Smart Auto-Detection**: Menambahkan logika deteksi otomatis saat pengguna mem-paste perintah yang diawali `curl ` ke dalam URL bar, memicu dialog konfirmasi import otomatis.
+- **Export Code Snippet (Fase 6.5)**:
+    - Implementasi `ExportCodeModal` dengan dukungan banyak bahasa pemrograman:
+        - cURL
+        - JavaScript (Fetch & Axios)
+        - Go Native (`net/http`)
+        - Python (`requests`)
+    - Integrasi Monaco Editor (read-only) dengan syntax highlighting untuk setiap bahasa target.
+    - Penambahan fitur "Copy to Clipboard" yang cepat.
+
+### Perubahan File
+- `apps/desktop/src/renderer/src/utils/curlParser.ts` — Utilitas konversi cURL.
+- `apps/desktop/src/renderer/src/components/modals/ImportCurlModal.tsx` — UI untuk import.
+- `apps/desktop/src/renderer/src/components/modals/ExportCodeModal.tsx` — UI untuk export snippet.
+- `apps/desktop/src/renderer/src/components/layout/MainArea.tsx` — Integrasi tombol dan logika deteksi cURL.
+- `apps/desktop/src/renderer/src/api/client.ts` & `env.d.ts` — Update tipe data untuk mendukung body fleksibel.
+
+---
+
+## [2026-04-24] — Drag-and-Drop Request & Folder (Fase 6.6)
+**Fase:** Fase 6 — UX & Power Features
+**Dikerjakan oleh:** Gemini
+**Status:** ✅ Selesai
+
+### Yang Dikerjakan
+- **Infrastruktur Backend (Fractional Indexing)**:
+    - Migrasi kolom `order_index` pada tabel `requests` dan `folders` dari `INT` menjadi `double precision` untuk mendukung penyisipan item tanpa batas.
+    - Implementasi endpoint `PATCH /api/v1/requests/:id/move` dan `PATCH /api/v1/folders/:id/move` dengan validasi role Editor+.
+- **Integrasi dnd-kit (Frontend)**:
+    - Instalasi dan konfigurasi `@dnd-kit/core` dan `@dnd-kit/sortable` pada Sidebar.
+    - Implementasi **Horizontal Split Logic**:
+        - **Zona Kiri (30% lebar)**: Untuk **Mengurutkan** (Atas/Bawah) — menampilkan garis **Cyan**.
+        - **Zona Kanan (70% lebar)**: Untuk **Memasukkan** (Nesting) ke dalam folder — menampilkan highlight **Ungu**.
+    - Penanganan hirarki kompleks: bisa mengeluarkan anak dari induk dengan menjatuhkannya di header Koleksi (Move to Root).
+- **Optimasi Store & API Client**:
+    - Penambahan metode `apiClient.patch` yang sebelumnya hilang.
+    - Implementasi aksi `moveRequest` dan `moveFolder` dengan *Optimistic Update* dan sinkronisasi otomatis antar koleksi.
+    - Perbaikan stabilitas pengurutan di frontend menggunakan kombinasi `order_index` dan `id` sebagai tie-breaker.
+- **Visual Feedback**:
+    - Penambahan ikon *grip* (GripVertical) yang muncul saat hover.
+    - Animasi transisi yang halus saat item digeser dan dilepaskan.
+
+### Perubahan File
+- `backend/migrations/000012_change_order_index_to_float.*` — Migrasi database.
+- `backend/internal/repository/models.go` — Update tipe data model Go.
+- `backend/internal/api/request.go` & `folder.go` — Endpoint move baru dan update payload.
+- `apps/desktop/src/renderer/src/components/layout/Sidebar.tsx` — Implementasi total Drag-and-Drop UI.
+- `apps/desktop/src/renderer/src/store/useDataStore.ts` — Logika sinkronisasi dan pengurutan.
+- `apps/desktop/src/renderer/src/api/client.ts` — Penambahan `apiClient.patch`.
+
+### Keputusan & Catatan
+- Menggunakan koordinat pointer (`activatorEvent`) alih-alih `translated rect` untuk deteksi zona horizontal agar lebih presisi mengikuti kursor pengguna.
+- Menetapkan `order_index` default baru menggunakan `Date.now()` untuk memastikan item baru selalu berada di posisi paling bawah.
+
+---
+
+## [2026-04-24] — Mock Server Dynamic Response (Fase 6.7)
+**Fase:** Fase 6 — UX & Power Features
+**Dikerjakan oleh:** Gemini
+**Status:** ✅ Selesai
+
+### Yang Dikerjakan
+- **Mock Engine Dynamic (Conditional Matching)**:
+    - Implementasi evaluator kondisi canggih di backend yang mendukung pencocokan request berdasarkan `Query`, `Body` (mendukung dot-notation seperti `user.role`), `Header`, dan `Path`.
+    - Dukungan operator lengkap: `equals`, `contains`, `regex`, `exists`, dan negasinya.
+    - Sistem evaluasi sekuensial (atas ke bawah) berdasarkan `order_index`.
+- **Templating Engine**:
+    - Implementasi parser respons yang memungkinkan injeksi data request ke dalam body respons menggunakan sintaks `{{request.source.key}}`.
+- **Manajemen Skenario (Frontend)**:
+    - Pembuatan `ScenariosPanel.tsx` sebagai pusat kendali respons endpoint.
+    - **Visual Condition Builder**: UI intuitif untuk menyusun logika IF-THEN tanpa menulis JSON.
+    - **Drag-and-Drop Priority**: Memungkinkan pengguna mengatur urutan prioritas evaluasi skenario secara visual.
+- **Mode Eksekusi Ganda**:
+    - **Auto / Dynamic**: Server mencari skenario yang cocok secara otomatis.
+    - **Manual / Forced**: Memaksa server mengembalikan satu skenario spesifik (diperjelas dengan label **"FORCED"** oranye).
+- **Infrastruktur & Stabilitas**:
+    - Migrasi database tabel `mock_scenarios` dan penambahan kolom kontrol pada `mock_endpoints`.
+    - Implementasi `JSONBArray` di Go untuk penanganan array kondisi yang stabil.
+    - Penggunaan **Database Transaction** (Begin/Commit/Rollback) untuk menjamin aturan "Hanya Satu Fallback Per Endpoint".
+    - Penambahan fitur **"Copy as cURL"** pada setiap endpoint untuk memudahkan pengujian eksternal.
+
+### Perubahan File
+- `backend/migrations/000013_add_dynamic_mock_scenarios.up.sql` — Skema DB baru.
+- `backend/internal/repository/models.go` — Model data `MockScenario` dan tipe `JSONBArray`.
+- `backend/internal/api/mock_server.go` — Logika inti evaluasi kondisi dan templating.
+- `apps/desktop/src/renderer/src/components/layout/ScenariosPanel.tsx` — UI utama manajemen skenario.
+- `apps/desktop/src/renderer/src/components/layout/MockServerPanel.tsx` — Integrasi panel skenario dan tombol cURL.
+- `apps/desktop/src/renderer/src/types/index.ts` — Definisi tipe data baru.
+
+### Keputusan & Catatan
+- Memilih untuk menggunakan struktur rute bersarang (`/endpoints/:id/scenarios/:id`) untuk menghindari ambiguitas parameter ID pada framework Fiber.
+- Menggunakan `DB.Save()` dan transaksi untuk menjamin integritas data status `is_default`.
+
+### Langkah Selanjutnya
+- Fase 6 Selesai secara fungsional. Persiapan untuk Fase 7: Kolaborasi Lanjutan.

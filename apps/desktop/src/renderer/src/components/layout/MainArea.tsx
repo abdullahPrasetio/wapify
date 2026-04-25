@@ -4,7 +4,7 @@ import { useAuthStore } from '../../store/useAuthStore'
 import { KeyValueEditor } from '../ui/KeyValueEditor'
 import { VariableOverlayInput } from '../ui/VariableOverlayInput'
 import { SetVarModal } from '../modals/SetVarModal'
-import { Shield, Eye, EyeOff, X, RefreshCw, Send, Save, Lock, Users, ChevronDown, FileCode2, Terminal as TerminalIcon, Code, Box, Globe, Share2, Link as LinkIcon, BookOpen, Settings, MoreHorizontal, Check } from 'lucide-react'
+import { Shield, Eye, EyeOff, X, RefreshCw, Save, Lock, Users, ChevronDown, FileCode2, Terminal as TerminalIcon, Code, Box, Globe, Link as LinkIcon, BookOpen, Settings } from 'lucide-react'
 import { ResponseArea } from './ResponseArea'
 import { HistoryDetailView } from './HistoryDetailView'
 import { CollaborationPanel } from './CollaborationPanel'
@@ -600,8 +600,7 @@ export const MainArea = (): React.JSX.Element => {
     presenceByRequest,
     locksByRequest,
     collections,
-    requests,
-    foldersByCollection
+    requests
   } = useDataStore()
 
   const { user } = useAuthStore()
@@ -724,8 +723,11 @@ export const MainArea = (): React.JSX.Element => {
     ? requests.find((r) => r.id === activeTabRequest.requestId)
     : null
 
-  const parentCollection = activeRequestDetails
-    ? collections.find((c) => c.id === activeTabRequest.requestId.toString().startsWith('draft') ? null : activeRequestDetails.collection_id)
+  const parentCollection = activeRequestDetails && activeTabRequest.requestId
+    ? collections.find((c) => {
+        const isDraft = activeTabRequest.requestId.toString().startsWith('draft')
+        return c.id === (isDraft ? -1 : activeRequestDetails.collection_id)
+      })
     : null
 
   const collectionName = parentCollection?.name || 'My Collection'

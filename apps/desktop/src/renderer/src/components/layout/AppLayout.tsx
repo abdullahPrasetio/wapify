@@ -1,6 +1,5 @@
 import { useEffect } from 'react'
 import { Sidebar } from './Sidebar'
-import { Header } from './Header'
 import { MainArea } from './MainArea'
 import { useAppStore } from '../../store/useAppStore'
 import { useDataStore } from '../../store/useDataStore'

@@ -176,8 +176,32 @@ export interface MockEndpoint {
   response_body: string
   delay_ms: number
   is_active: boolean
+  evaluation_mode: 'auto' | 'manual'
+  active_scenario_id: number | null
   created_at: string
   updated_at: string
+  scenarios?: MockScenario[]
+}
+
+export interface MockScenario {
+  id: number
+  mock_endpoint_id: number
+  name: string
+  status_code: number
+  response_headers: Record<string, string>
+  response_body: string
+  conditions: MockCondition[]
+  is_default: boolean
+  order_index: number
+  created_at: string
+  updated_at: string
+}
+
+export interface MockCondition {
+  source: 'query' | 'body' | 'header' | 'path'
+  key: string
+  operator: 'equals' | 'not_equals' | 'contains' | 'not_contains' | 'exists' | 'not_exists' | 'regex'
+  value: any
 }
 
 export interface License {

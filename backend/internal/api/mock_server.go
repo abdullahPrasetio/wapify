@@ -1,8 +1,10 @@
 package api
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
@@ -21,6 +23,14 @@ func SetupMockServerRoutes(app *fiber.App) {
 	mock.Put("/endpoints/:endpointId", updateMockEndpoint)
 	mock.Delete("/endpoints/:endpointId", deleteMockEndpoint)
 	mock.Post("/endpoints/:endpointId/from-request/:requestId", createMockFromRequest)
+	mock.Patch("/endpoints/:endpointId/mode", updateMockMode)
+
+	// Scenario CRUD
+	mock.Get("/endpoints/:endpointId/scenarios", listMockScenarios)
+	mock.Post("/endpoints/:endpointId/scenarios", createMockScenario)
+	mock.Put("/endpoints/:endpointId/scenarios/:scenarioId", updateMockScenario)
+	mock.Delete("/endpoints/:endpointId/scenarios/:scenarioId", deleteMockScenario)
+	mock.Patch("/endpoints/:endpointId/scenarios/reorder", reorderScenarios)
 
 	// The actual mock server — public, no auth needed
 	// Matches: /mock/:collection_id/*
@@ -73,11 +83,12 @@ func listMockEndpoints(c *fiber.Ctx) error {
 
 type createMockEndpointInput struct {
 	Method          string                 `json:"method"`
-	Path            string                 `json:"path"`
+	Path             string                 `json:"path"`
 	StatusCode      int                    `json:"status_code"`
 	ResponseHeaders map[string]interface{} `json:"response_headers"`
 	ResponseBody    string                 `json:"response_body"`
 	DelayMs         int                    `json:"delay_ms"`
+	IsActive        *bool                  `json:"is_active"`
 }
 
 func createMockEndpoint(c *fiber.Ctx) error {
@@ -144,31 +155,29 @@ func updateMockEndpoint(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid body", "code": "INVALID_BODY"})
 	}
 
-	updates := map[string]interface{}{
-		"updated_at": time.Now(),
-	}
 	if input.Method != "" {
-		updates["method"] = strings.ToUpper(input.Method)
+		endpoint.Method = strings.ToUpper(input.Method)
 	}
 	if input.Path != "" {
-		updates["path"] = normalizePath(input.Path)
+		endpoint.Path = normalizePath(input.Path)
 	}
 	if input.StatusCode > 0 {
-		updates["status_code"] = input.StatusCode
+		endpoint.StatusCode = input.StatusCode
 	}
-	if input.ResponseBody != "" {
-		updates["response_body"] = input.ResponseBody
-	}
+	endpoint.ResponseBody = input.ResponseBody
 	if input.ResponseHeaders != nil {
-		updates["response_headers"] = repository.JSONB(input.ResponseHeaders)
+		endpoint.ResponseHeaders = repository.JSONB(input.ResponseHeaders)
 	}
-	updates["delay_ms"] = input.DelayMs
+	if input.IsActive != nil {
+		endpoint.IsActive = *input.IsActive
+	}
+	endpoint.DelayMs = input.DelayMs
+	endpoint.UpdatedAt = time.Now()
 
-	if err := repository.DB.Model(&endpoint).Updates(updates).Error; err != nil {
+	if err := repository.DB.Save(&endpoint).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to update", "code": "DB_ERROR"})
 	}
 
-	repository.DB.First(&endpoint, endpointID)
 	return c.JSON(endpoint)
 }
 
@@ -235,6 +244,263 @@ func createMockFromRequest(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusCreated).JSON(endpoint)
 }
 
+func updateMockMode(c *fiber.Ctx) error {
+	endpointID := c.Params("endpointId")
+	var input struct {
+		EvaluationMode   string `json:"evaluation_mode"`
+		ActiveScenarioID *uint  `json:"active_scenario_id"`
+	}
+	if err := c.BodyParser(&input); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid body", "code": "INVALID_BODY"})
+	}
+
+	var endpoint repository.MockEndpoint
+	if err := repository.DB.First(&endpoint, endpointID).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Endpoint not found", "code": "NOT_FOUND"})
+	}
+
+	if input.EvaluationMode != "" {
+		endpoint.EvaluationMode = input.EvaluationMode
+	}
+	endpoint.ActiveScenarioID = input.ActiveScenarioID
+	endpoint.UpdatedAt = time.Now()
+
+	if err := repository.DB.Save(&endpoint).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "DB error", "code": "DB_ERROR"})
+	}
+
+	return c.JSON(fiber.Map{"message": "Mode updated"})
+}
+
+// --- Scenario Handlers ---
+
+func listMockScenarios(c *fiber.Ctx) error {
+	endpointID := c.Params("endpointId")
+	var scenarios []repository.MockScenario
+	repository.DB.Where("mock_endpoint_id = ?", endpointID).Order("order_index asc, id asc").Find(&scenarios)
+	return c.JSON(scenarios)
+}
+
+type mockScenarioInput struct {
+	Name            string                 `json:"name"`
+	StatusCode      int                    `json:"status_code"`
+	ResponseHeaders map[string]interface{} `json:"response_headers"`
+	ResponseBody    string                 `json:"response_body"`
+	Conditions      []interface{}          `json:"conditions"`
+	IsDefault       bool                   `json:"is_default"`
+	OrderIndex      float64                `json:"order_index"`
+}
+
+func createMockScenario(c *fiber.Ctx) error {
+	endpointID := c.Params("endpointId")
+	var input mockScenarioInput
+	if err := c.BodyParser(&input); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid body", "code": "INVALID_BODY"})
+	}
+
+	epID := uint(parseUint(endpointID))
+	
+	scenario := repository.MockScenario{
+		MockEndpointID:  epID,
+		Name:            input.Name,
+		StatusCode:      input.StatusCode,
+		ResponseHeaders: repository.JSONB(input.ResponseHeaders),
+		ResponseBody:    input.ResponseBody,
+		Conditions:      repository.JSONBArray(input.Conditions),
+		IsDefault:       input.IsDefault,
+		OrderIndex:      input.OrderIndex,
+	}
+
+	tx := repository.DB.Begin()
+
+	if scenario.IsDefault {
+		tx.Model(&repository.MockScenario{}).
+			Where("mock_endpoint_id = ?", epID).
+			Update("is_default", false)
+	}
+
+	if err := tx.Create(&scenario).Error; err != nil {
+		tx.Rollback()
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "DB error", "code": "DB_ERROR"})
+	}
+
+	tx.Commit()
+	return c.Status(fiber.StatusCreated).JSON(scenario)
+}
+
+func updateMockScenario(c *fiber.Ctx) error {
+	scenarioID := c.Params("scenarioId")
+	if scenarioID == "" || scenarioID == "undefined" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid scenario ID", "code": "INVALID_ID"})
+	}
+	
+	var input mockScenarioInput
+	if err := c.BodyParser(&input); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid body", "code": "INVALID_BODY"})
+	}
+
+	var scenario repository.MockScenario
+	if err := repository.DB.First(&scenario, "id = ?", scenarioID).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Scenario not found"})
+	}
+
+	scenario.Name = input.Name
+	scenario.StatusCode = input.StatusCode
+	scenario.ResponseHeaders = repository.JSONB(input.ResponseHeaders)
+	scenario.ResponseBody = input.ResponseBody
+	scenario.Conditions = repository.JSONBArray(input.Conditions)
+	scenario.IsDefault = input.IsDefault
+	scenario.OrderIndex = input.OrderIndex
+	scenario.UpdatedAt = time.Now()
+
+	tx := repository.DB.Begin()
+
+	if scenario.IsDefault {
+		if err := tx.Model(&repository.MockScenario{}).
+			Where("mock_endpoint_id = ? AND id <> ?", scenario.MockEndpointID, scenario.ID).
+			Update("is_default", false).Error; err != nil {
+			tx.Rollback()
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "DB error"})
+		}
+	}
+
+	if err := tx.Save(&scenario).Error; err != nil {
+		tx.Rollback()
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "DB error", "code": "DB_ERROR"})
+	}
+
+	tx.Commit()
+	return c.JSON(scenario)
+}
+
+func deleteMockScenario(c *fiber.Ctx) error {
+	scenarioID := c.Params("scenarioId")
+	if scenarioID == "" || scenarioID == "undefined" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid scenario ID", "code": "INVALID_ID"})
+	}
+	if err := repository.DB.Delete(&repository.MockScenario{}, "id = ?", scenarioID).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "DB error", "code": "DB_ERROR"})
+	}
+	return c.SendStatus(fiber.StatusNoContent)
+}
+
+func reorderScenarios(c *fiber.Ctx) error {
+	var input struct {
+		Scenarios []struct {
+			ID         uint    `json:"id"`
+			OrderIndex float64 `json:"order_index"`
+		} `json:"scenarios"`
+	}
+	if err := c.BodyParser(&input); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid body"})
+	}
+
+	tx := repository.DB.Begin()
+	for _, s := range input.Scenarios {
+		if err := tx.Model(&repository.MockScenario{}).Where("id = ?", s.ID).Update("order_index", s.OrderIndex).Error; err != nil {
+			tx.Rollback()
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "DB error"})
+		}
+	}
+	tx.Commit()
+	return c.JSON(fiber.Map{"message": "Reordered"})
+}
+
+// ─── Mock Engine ─────────────────────────────────────────────────────────────
+
+func evaluateScenario(c *fiber.Ctx, scenario *repository.MockScenario) bool {
+	var conditions []map[string]interface{}
+	bytes, _ := json.Marshal(scenario.Conditions)
+	json.Unmarshal(bytes, &conditions)
+
+	if len(conditions) == 0 {
+		return false
+	}
+
+	for _, cond := range conditions {
+		source := getString(cond, "source")
+		key := getString(cond, "key")
+		op := getString(cond, "operator")
+		val := cond["value"]
+
+		reqVal := extractRequestValue(c, source, key)
+		if !compareValues(reqVal, op, val) {
+			return false
+		}
+	}
+
+	return true
+}
+
+func extractRequestValue(c *fiber.Ctx, source, key string) interface{} {
+	switch source {
+	case "query":
+		return c.Query(key)
+	case "header":
+		return c.Get(key)
+	case "path":
+		return c.Params(key)
+	case "body":
+		var body map[string]interface{}
+		if err := json.Unmarshal(c.Body(), &body); err == nil {
+			return getNestedMapValue(body, key)
+		}
+	}
+	return nil
+}
+
+func getNestedMapValue(m map[string]interface{}, path string) interface{} {
+	parts := strings.Split(path, ".")
+	var current interface{} = m
+	for _, part := range parts {
+		if curMap, ok := current.(map[string]interface{}); ok {
+			current = curMap[part]
+		} else {
+			return nil
+		}
+	}
+	return current
+}
+
+func compareValues(reqVal interface{}, op string, targetVal interface{}) bool {
+	sReq := fmt.Sprintf("%v", reqVal)
+	sTarget := fmt.Sprintf("%v", targetVal)
+
+	switch op {
+	case "equals":
+		return sReq == sTarget
+	case "not_equals":
+		return sReq != sTarget
+	case "contains":
+		return strings.Contains(sReq, sTarget)
+	case "not_contains":
+		return !strings.Contains(sReq, sTarget)
+	case "exists":
+		return reqVal != nil && sReq != "" && sReq != "<nil>"
+	case "not_exists":
+		return reqVal == nil || sReq == "" || sReq == "<nil>"
+	case "regex":
+		match, _ := regexp.MatchString(sTarget, sReq)
+		return match
+	}
+	return false
+}
+
+func renderMockTemplate(c *fiber.Ctx, body string) string {
+	re := regexp.MustCompile(`{{\s*request\.(query|body|header|path)\.([\w\.-]+)\s*}}`)
+	return re.ReplaceAllStringFunc(body, func(match string) string {
+		sub := re.FindStringSubmatch(match)
+		if len(sub) < 3 {
+			return match
+		}
+		val := extractRequestValue(c, sub[1], sub[2])
+		if val == nil {
+			return ""
+		}
+		return fmt.Sprintf("%v", val)
+	})
+}
+
 // ─── Mock Request Handler ─────────────────────────────────────────────────────
 
 func handleMockRequest(c *fiber.Ctx) error {
@@ -246,7 +512,7 @@ func handleMockRequest(c *fiber.Ctx) error {
 	if !strings.HasPrefix(rawPath, "/") {
 		rawPath = "/" + rawPath
 	}
-	method := c.Method()
+	method := strings.ToUpper(c.Method())
 
 	// Find matching active endpoint
 	var endpoints []repository.MockEndpoint
@@ -272,6 +538,67 @@ func handleMockRequest(c *fiber.Ctx) error {
 		})
 	}
 
+	var responseBody string
+	var statusCode int = 200
+	var responseHeaders map[string]interface{}
+	found := false
+
+	// EVALUATION LOGIC
+	if matched.EvaluationMode == "manual" && matched.ActiveScenarioID != nil {
+		var scenario repository.MockScenario
+		if err := repository.DB.First(&scenario, *matched.ActiveScenarioID).Error; err == nil {
+			responseBody = scenario.ResponseBody
+			statusCode = scenario.StatusCode
+			bytes, _ := json.Marshal(scenario.ResponseHeaders)
+			json.Unmarshal(bytes, &responseHeaders)
+			found = true
+		}
+	}
+
+	// Dynamic evaluation or fallback
+	if !found {
+		var scenarios []repository.MockScenario
+		repository.DB.Where("mock_endpoint_id = ?", matched.ID).Order("order_index asc, id asc").Find(&scenarios)
+
+		var selected *repository.MockScenario
+		// 1. Try to match conditions
+		for i := range scenarios {
+			if evaluateScenario(c, &scenarios[i]) {
+				selected = &scenarios[i]
+				break
+			}
+		}
+
+		// 2. If no match, find default scenario
+		if selected == nil {
+			for i := range scenarios {
+				if scenarios[i].IsDefault {
+					selected = &scenarios[i]
+					break
+				}
+			}
+		}
+
+		if selected != nil {
+			responseBody = selected.ResponseBody
+			statusCode = selected.StatusCode
+			bytes, _ := json.Marshal(selected.ResponseHeaders)
+			json.Unmarshal(bytes, &responseHeaders)
+			found = true
+		}
+	}
+
+	// Ultimate fallback to base endpoint fields if no scenario found/matched
+	if !found {
+		responseBody = matched.ResponseBody
+		statusCode = matched.StatusCode
+		bytes, _ := json.Marshal(matched.ResponseHeaders)
+		json.Unmarshal(bytes, &responseHeaders)
+	}
+
+	// Apply templating
+	responseBody = renderMockTemplate(c, responseBody)
+
 	// Apply delay
 	if matched.DelayMs > 0 {
 		delay := matched.DelayMs
@@ -282,14 +609,14 @@ func handleMockRequest(c *fiber.Ctx) error {
 	}
 
 	// Set response headers
-	for k, v := range matched.ResponseHeaders {
+	for k, v := range responseHeaders {
 		if sv, ok := v.(string); ok {
 			c.Set(k, sv)
 		}
 	}
 
 	// Ensure Content-Type is set
-	if matched.ResponseHeaders["Content-Type"] == nil {
+	if c.Get("Content-Type") == "" {
 		c.Set("Content-Type", "application/json")
 	}
 
@@ -297,7 +624,7 @@ func handleMockRequest(c *fiber.Ctx) error {
 	c.Set("X-Wapify-Mock", "true")
 	c.Set("X-Mock-Collection", collectionID)
 
-	return c.Status(matched.StatusCode).SendString(matched.ResponseBody)
+	return c.Status(statusCode).SendString(responseBody)
 }
 
 // ─── Path matching ────────────────────────────────────────────────────────────

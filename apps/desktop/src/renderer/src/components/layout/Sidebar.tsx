@@ -663,11 +663,7 @@ export const Sidebar = (): React.JSX.Element => {
     setActiveEnvironment,
     createCollection,
     history,
-    clearHistory,
-    moveRequest,
-    moveFolder,
-    requests,
-    foldersByCollection
+    clearHistory
   } = useDataStore()
 
   const { activeView, setActiveView } = useAppStore()
