@@ -27,28 +27,15 @@ jobs:
       - name: Install Dependencies
         run: |
           cd apps/desktop
-          # Install without running postinstall scripts first
+          # Standard install, ignoring postinstall to avoid automatic rebuild
           npm install --ignore-scripts
-        env:
-          CXXFLAGS: "-std=c++20"
-          LDFLAGS: "-std=c++20"
-          CL: "/std:c++20"
 
       - name: Rebuild Native Modules
         run: |
           cd apps/desktop
-          npx electron-builder install-app-deps
+          # Only rebuild the modules we actually use in Electron
+          npx @electron/rebuild --only keytar
         shell: bash
-        env:
-          # Standard Unix-like flags
-          CXXFLAGS: "-std=c++20"
-          LDFLAGS: "-std=c++20"
-          # Windows MSVC specific flags
-          CL: "/std:c++20"
-          GYP_MSVS_VERSION: "2022"
-          # Force node-gyp to respect the standard
-          npm_config_std: "c++20"
-          npm_config_msvs_version: "2022"
 
       - name: Build Application
         run: |
