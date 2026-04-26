@@ -20,7 +20,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: 'npm'
           cache-dependency-path: apps/desktop/package-lock.json
 
@@ -28,6 +28,9 @@ jobs:
         run: |
           cd apps/desktop
           npm install
+        env:
+          CXXFLAGS: "-std=c++20"
+          LDFLAGS: "-std=c++20"
 
       - name: Build Application
         run: |
