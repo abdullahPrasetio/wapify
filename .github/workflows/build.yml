@@ -40,11 +40,15 @@ jobs:
           npx electron-builder install-app-deps
         shell: bash
         env:
+          # Standard Unix-like flags
           CXXFLAGS: "-std=c++20"
           LDFLAGS: "-std=c++20"
+          # Windows MSVC specific flags
           CL: "/std:c++20"
-          # Use environment variable format for npm config to avoid strict CLI validation
-          npm_config_msbuild_params: "/p:PlatformToolset=v143 /p:CharacterSet=Unicode /p:StdCppVersion=cpp20"
+          GYP_MSVS_VERSION: "2022"
+          # Force node-gyp to respect the standard
+          npm_config_std: "c++20"
+          npm_config_msvs_version: "2022"
 
       - name: Build Application
         run: |
