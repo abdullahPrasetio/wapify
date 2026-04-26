@@ -37,16 +37,14 @@ jobs:
       - name: Rebuild Native Modules
         run: |
           cd apps/desktop
-          # Only run Windows-specific config if on Windows
-          if [ "${{ runner.os }}" = "Windows" ]; then
-            npm config set msbuild_params "/p:PlatformToolset=v143 /p:CharacterSet=Unicode /p:StdCppVersion=cpp20"
-          fi
           npx electron-builder install-app-deps
         shell: bash
         env:
           CXXFLAGS: "-std=c++20"
           LDFLAGS: "-std=c++20"
           CL: "/std:c++20"
+          # Use environment variable format for npm config to avoid strict CLI validation
+          npm_config_msbuild_params: "/p:PlatformToolset=v143 /p:CharacterSet=Unicode /p:StdCppVersion=cpp20"
 
       - name: Build Application
         run: |
