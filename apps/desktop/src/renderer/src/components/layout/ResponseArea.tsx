@@ -40,7 +40,12 @@ export const ResponseArea = (): React.JSX.Element => {
   }
 
   // Detect content type
-  const contentType = (headers['Content-Type'] || headers['content-type'] || '') as string
+  const getHeader = (key: string): string => {
+    const val = headers[key] || headers[key.toLowerCase()]
+    if (Array.isArray(val)) return val[0] || ''
+    return ''
+  }
+  const contentType = getHeader('Content-Type')
   const isPdf = contentType.includes('application/pdf')
 
   const statusColor = status >= 200 && status < 300 ? 'text-success' : 'text-danger'
