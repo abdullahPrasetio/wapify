@@ -51,7 +51,7 @@ func Login(c *fiber.Ctx) error {
 		"user_id":        user.ID,
 		"email":          user.Email,
 		"is_super_admin": user.IsSuperAdmin,
-		"exp":            time.Now().Add(time.Hour * 2).Unix(), // 2 hours
+		"exp":            time.Now().Add(time.Hour * 24).Unix(), // 24 hours
 	})
 
 	t, err := token.SignedString([]byte(os.Getenv("JWT_SECRET")))
@@ -62,7 +62,7 @@ func Login(c *fiber.Ctx) error {
 	// Create Refresh Token
 	refreshToken := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"user_id": user.ID,
-		"exp":     time.Now().Add(time.Hour * 24 * 30).Unix(), // 30 days
+		"exp":     time.Now().Add(time.Hour * 24 * 90).Unix(), // 90 days
 	})
 
 	rt, err := refreshToken.SignedString([]byte(os.Getenv("JWT_SECRET")))

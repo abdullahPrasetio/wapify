@@ -191,6 +191,9 @@ export interface MockScenario {
   response_headers: Record<string, string>
   response_body: string
   conditions: MockCondition[]
+  response_type: 'text' | 'file'
+  file_name?: string
+  file_base64?: string
   is_default: boolean
   order_index: number
   created_at: string

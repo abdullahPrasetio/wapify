@@ -4,13 +4,14 @@ BINARY_NAME=wapify-server
 BACKEND_DIR=backend
 DESKTOP_DIR=apps/desktop
 
-.PHONY: help build-backend build-client build-docker-client keygen license build-desktop run-client
+.PHONY: help build-backend build-client build-docker-client keygen license build-desktop run-client build-landing
 
 help:
 	@echo "Wapify Commands:"
 	@echo "  make build-backend        - Build internal server"
 	@echo "  make build-client         - Build client binary (needs PUB_KEY)"
 	@echo "  make build-docker-client  - Build docker image (needs PUB_KEY, TAG)"
+	@echo "  make build-landing        - Build landing page docker image (needs TAG)"
 	@echo "  make keygen               - Generate keypair"
 	@echo "  make license              - Generate license (needs NAME, EMAIL, DURATION)"
 	@echo "  make build-desktop        - Build Electron app"
@@ -24,6 +25,12 @@ build-client:
 
 build-docker-client:
 	cd $(BACKEND_DIR) && docker build --platform linux/amd64 --build-arg LICENSE_PUBLIC_KEY=$(PUB_KEY) -t abdullahprasetio/wapify-backend-client:$(TAG) -f Dockerfile.client .
+
+build-landing-linux:
+	cd apps/landing-page && docker build --platform linux/amd64 -t abdullahprasetio/wapify-landing:$(TAG) .
+
+build-landing:
+	cd apps/landing-page && docker build -t abdullahprasetio/wapify-landing:$(TAG) .
 
 keygen:
 	cd $(BACKEND_DIR) && go run cmd/license/main.go keygen

@@ -277,3 +277,43 @@
 
 ### Langkah Selanjutnya
 - Fase 6 Selesai secara fungsional. Persiapan untuk Fase 7: Kolaborasi Lanjutan.
+
+---
+
+## [2026-04-26] — Mock Server Pro, Binary Responses & Auth Persistence
+**Fase:** Fase 7 — Kolaborasi Lanjutan & Mock Pro
+**Dikerjakan oleh:** Gemini
+**Status:** ✅ Selesai
+
+### Yang Dikerjakan
+- **Mock Server Pro (Binary Support)**:
+    - Migrasi database `000014_add_mock_scenario_files` untuk mendukung penyimpanan file biner (PDF, Gambar, dll) dalam format Base64.
+    - Upgrade `handleMockRequest` di Go untuk mendeteksi ekstensi file dan mengirimkan `Content-Type` serta `Content-Disposition: inline` yang tepat.
+    - Implementasi UI **File Upload** di panel skenario dengan konversi otomatis ke Base64.
+- **Smart cURL Generator (Scenario Level)**:
+    - Implementasi algoritma pembuat perintah cURL cerdas yang menganalisis aturan skenario (IF rules) dan secara otomatis menyisipkan data Query, Header, dan Body JSON (termasuk *nested object*) agar request langsung memicu skenario tersebut.
+- **UX & Visual Preview**:
+    - Penambahan fitur **PDF Preview** di `ResponseArea.tsx`. Aplikasi kini bisa menampilkan pratinjau file PDF langsung di dalam tab Body tanpa perlu download manual.
+    - Peningkatan akurasi penghitungan ukuran respons (Size) untuk data biner.
+- **Sesi Pengguna & Keamanan**:
+    - Memperpanjang masa berlaku **Access Token** menjadi 24 jam dan **Refresh Token** menjadi 90 hari guna memastikan pengguna "tetap masuk" tanpa gangguan.
+    - Penambahan tautan portal lisensi (`https://wapify.temancode.my.id`) pada layar kunci lisensi dan notifikasi peringatan.
+- **Landing Page & Dev Tooling**:
+    - Update `apps/landing-page` dengan seksi fitur profesional baru dan tabel perbandingan yang diperbarui.
+    - Penambahan target `make build-landing` pada `Makefile` untuk otomatisasi pembangunan image Docker landing page dengan parameter `TAG`.
+
+### Perubahan File
+- `backend/internal/api/auth.go` — Perpanjangan durasi JWT.
+- `backend/internal/api/mock_server.go` — Logika binary serving dan perbaikan Content-Type.
+- `apps/desktop/src/renderer/src/components/layout/ScenariosPanel.tsx` — Smart cURL & File upload UI.
+- `apps/desktop/src/renderer/src/components/layout/ResponseArea.tsx` — PDF Preview engine.
+- `apps/desktop/src/renderer/src/App.tsx` — Integrasi link portal lisensi.
+- `apps/landing-page/src/App.tsx` — Update konten fitur pro.
+- `Makefile` — Penambahan target build docker landing page.
+
+### Keputusan & Catatan
+- Memutuskan untuk menyimpan file biner di kolom `TEXT` (Base64) PostgreSQL untuk sementara demi portabilitas database pada instalasi on-premise yang sederhana, dengan limitasi ukuran file yang disarankan (maks 5MB).
+- Memisahkan logika penetapan `Content-Type` secara ketat antara tipe teks dan biner guna mencegah bug browser yang gagal merender file PDF.
+
+### Langkah Selanjutnya
+- Implementasi Notifikasi in-app saat koleksi diupdate (Fase 7.2).

@@ -237,10 +237,15 @@ Beberapa fitur yang direncanakan di Fase 6 telah disesuaikan prioritasnya dan un
 
 ---
 
-## Fase 7 — Kolaborasi Lanjutan
+## Fase 7 — Kolaborasi Lanjutan & Mock Pro
 **Status:** 🟡 Dalam Proses
 **Estimasi:** 2-3 minggu
 
+### Mock Server Pro
+- [x] **Copy cURL per Scenario**: Generate cURL yang otomatis memenuhi kondisi skenario (inject query/body/header) untuk testing instan.
+- [x] **Binary/PDF Response**: Upload file asli atau simpan base64 sebagai respons mock dengan deteksi otomatis `Content-Type: application/pdf`.
+
+### Kolaborasi & Workflow
 - [ ] Notifikasi in-app saat koleksi diupdate member lain
 - [ ] Diff viewer visual yang lebih baik untuk versioning
 - [ ] Shared environment lintas workspace

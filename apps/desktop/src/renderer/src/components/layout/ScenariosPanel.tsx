@@ -4,11 +4,13 @@ import {
   Plus,
   Trash2,
   Save,
-  Check,
   Info,
   LayoutGrid,
   Code,
-  GripVertical
+  GripVertical,
+  Terminal,
+  FileUp,
+  FileText
 } from 'lucide-react'
 import {
   DndContext,
@@ -47,16 +49,29 @@ const OPERATORS = [
   'regex'
 ] as const
 
+const setDeep = (obj: any, path: string, value: any) => {
+  const parts = path.split('.')
+  let current = obj
+  for (let i = 0; i < parts.length - 1; i++) {
+    const part = parts[i]
+    if (!current[part]) current[part] = {}
+    current = current[part]
+  }
+  current[parts[parts.length - 1]] = value
+}
+
 const SortableScenarioItem = ({ 
   scenario, 
   isActive, 
   isForced,
-  onClick 
+  onClick,
+  onCopyAsCurl
 }: { 
   scenario: MockScenario, 
   isActive: boolean, 
   isForced: boolean,
-  onClick: () => void 
+  onClick: () => void,
+  onCopyAsCurl: () => void
 }) => {
   const {
     attributes,
@@ -90,14 +105,23 @@ const SortableScenarioItem = ({
         <GripVertical size={12} />
       </div>
 
-      <div onClick={onClick} className="pl-5 cursor-pointer">
+      <div onClick={onClick} className="pl-5 cursor-pointer flex-1">
         <div className="flex items-center justify-between w-full">
           <span className={`text-xs font-bold truncate ${isActive ? 'text-violet-400' : ''}`}>{scenario.name}</span>
-          {isForced && (
-            <span className="flex items-center gap-1 text-[8px] font-black bg-amber-500 text-black px-1.5 py-0.5 rounded uppercase tracking-tighter">
-              Forced
-            </span>
-          )}
+          <div className="flex items-center gap-1.5 shrink-0 ml-2">
+            <button 
+              onClick={(e) => { e.stopPropagation(); onCopyAsCurl(); }}
+              className="p-1 rounded hover:bg-violet-500/20 text-muted hover:text-violet-400 transition-colors"
+              title="Copy cURL to trigger this scenario"
+            >
+              <Terminal size={11} />
+            </button>
+            {isForced && (
+              <span className="flex items-center gap-1 text-[8px] font-black bg-amber-500 text-black px-1.5 py-0.5 rounded uppercase tracking-tighter">
+                Forced
+              </span>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-2 text-[9px] font-mono opacity-60">
            <span className={scenario.status_code < 400 ? 'text-emerald-400' : 'text-rose-400'}>{scenario.status_code}</span>
@@ -225,6 +249,60 @@ export const ScenariosPanel: React.FC<ScenariosPanelProps> = ({
     }
   }
 
+  const copyAsCurl = (s: MockScenario) => {
+    const mockBaseUrl = `http://localhost:8000/mock/${endpoint.collection_id}`
+    const url = `${mockBaseUrl}${endpoint.path}`
+    
+    const queryParams: Record<string, string> = {}
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    const bodyObj: any = {}
+
+    // SMART INJECTION: Analyze conditions to satisfy the scenario
+    if (s.conditions && s.conditions.length > 0) {
+      s.conditions.forEach(c => {
+        // Value to inject
+        let val = c.value
+        if (c.operator === 'exists') val = 'example_value'
+        if (c.operator === 'contains' && !val) val = 'search_term'
+        
+        if (!val && (c.operator === 'equals' || c.operator === 'contains')) {
+           val = "required_value"
+        }
+
+        if (c.source === 'query') queryParams[c.key] = val
+        if (c.source === 'header') headers[c.key] = val
+        if (c.source === 'body') setDeep(bodyObj, c.key, val)
+        if (c.source === 'path') {
+           // For path params, we might need a more complex URL replacement logic in the future
+           // For now, we add as query to hint the user or just ignore
+        }
+      })
+    }
+
+    // Build query string
+    const qs = Object.keys(queryParams).length > 0 
+      ? '?' + new URLSearchParams(queryParams).toString() 
+      : ''
+    
+    // Build headers string
+    const headerLines = Object.entries(headers)
+      .map(([k, v]) => `-H "${k}: ${v}"`)
+
+    // Build body string
+    let bodyPart = ''
+    if (Object.keys(bodyObj).length > 0) {
+      bodyPart = ` \\\n     -d '${JSON.stringify(bodyObj, null, 2)}'`
+    } else if (endpoint.method !== 'GET' && endpoint.method !== 'HEAD') {
+      // Add empty JSON if method usually requires body but none in conditions
+      bodyPart = ` \\\n     -d '{}'`
+    }
+
+    const curl = `curl -X ${endpoint.method} "${url}${qs}" \\\n     ${headerLines.join(' \\\n     ')}${bodyPart}`
+    
+    navigator.clipboard.writeText(curl)
+    toast.success(`cURL for "${s.name}" copied with required data!`)
+  }
+
   const handleDeleteScenario = async (id: number) => {
     if (!id || id.toString() === 'undefined') return
     if (!window.confirm('Delete this scenario?') || !endpoint?.id || !endpoint?.collection_id) return
@@ -278,6 +356,24 @@ export const ScenariosPanel: React.FC<ScenariosPanelProps> = ({
     if (!editingScenario) return
     const newConditions = editingScenario.conditions.filter((_, i) => i !== index)
     setEditingScenario({ ...editingScenario, conditions: newConditions })
+  }
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !editingScenario) return
+
+    const reader = new FileReader()
+    reader.onload = () => {
+      const base64 = (reader.result as string).split(',')[1]
+      setEditingScenario({
+        ...editingScenario,
+        response_type: 'file',
+        file_name: file.name,
+        file_base64: base64
+      })
+      toast.success(`File "${file.name}" uploaded locally. Click Save to persist.`)
+    }
+    reader.readAsDataURL(file)
   }
 
   const sortableIds = useMemo(() => scenarios.map(s => s.id), [scenarios])
@@ -352,6 +448,7 @@ export const ScenariosPanel: React.FC<ScenariosPanelProps> = ({
                     isActive={activeScenarioId === s.id}
                     isForced={endpoint.evaluation_mode === 'manual' && s.id === endpoint.active_scenario_id}
                     onClick={() => selectScenario(s)}
+                    onCopyAsCurl={() => copyAsCurl(s)}
                   />
                 ))}
               </SortableContext>
@@ -435,20 +532,63 @@ export const ScenariosPanel: React.FC<ScenariosPanelProps> = ({
                  )}
               </div>
 
-              <div className="flex-1 flex flex-col min-h-[300px]">
-                 <label className="block text-[10px] font-black text-muted uppercase tracking-widest mb-1.5 flex items-center gap-2">
-                   <Code size={12} /> Body (supports {`{{request.body.x}}`})
-                 </label>
-                 <div className="flex-1 border border-white/10 rounded-xl overflow-hidden bg-[#1e1e1e]">
-                   <Editor 
-                     height="300px"
-                     defaultLanguage="json"
-                     theme="vs-dark"
-                     value={editingScenario.response_body}
-                     onChange={val => setEditingScenario({ ...editingScenario, response_body: val || '' })}
-                     options={{ minimap: { enabled: false }, fontSize: 13, automaticLayout: true }}
-                   />
+              <div className="flex-1 flex flex-col min-h-[300px] space-y-3">
+                 <div className="flex items-center justify-between">
+                   <label className="block text-[10px] font-black text-muted uppercase tracking-widest flex items-center gap-2">
+                     <Code size={12} /> Response Content
+                   </label>
+
+                   <div className="flex items-center gap-1 bg-black/40 p-1 rounded-lg border border-white/5">
+                      <button 
+                        onClick={() => setEditingScenario({ ...editingScenario, response_type: 'text' })}
+                        className={`px-3 py-1 text-[9px] font-bold uppercase rounded-md transition-all flex items-center gap-1.5 ${editingScenario.response_type !== 'file' ? 'bg-violet-500 text-white shadow-lg' : 'text-muted hover:text-foreground'}`}
+                      >
+                        <FileText size={10} /> Text / JSON
+                      </button>
+                      <button 
+                        onClick={() => setEditingScenario({ ...editingScenario, response_type: 'file' })}
+                        className={`px-3 py-1 text-[9px] font-bold uppercase rounded-md transition-all flex items-center gap-1.5 ${editingScenario.response_type === 'file' ? 'bg-violet-500 text-white shadow-lg' : 'text-muted hover:text-foreground'}`}
+                      >
+                        <FileUp size={10} /> Binary / File
+                      </button>
+                   </div>
                  </div>
+                 
+                 {editingScenario.response_type === 'file' ? (
+                    <div className="flex-1 flex flex-col items-center justify-center border-2 border-dashed border-white/10 rounded-xl bg-white/[0.02] p-8 space-y-4">
+                       <div className="w-16 h-16 rounded-full bg-violet-500/10 flex items-center justify-center">
+                          <FileUp size={32} className="text-violet-400" />
+                       </div>
+                       <div className="text-center">
+                          <p className="text-sm font-bold text-foreground">
+                             {editingScenario.file_name || 'Select a file to serve'}
+                          </p>
+                          <p className="text-[10px] text-muted mt-1">
+                             Supports PDF, Images, JSON, etc. Max 5MB recommended.
+                          </p>
+                       </div>
+                       <label className="px-6 py-2 bg-violet-500 hover:bg-violet-600 text-white rounded-lg text-xs font-bold transition-all cursor-pointer">
+                          Choose File
+                          <input type="file" className="hidden" onChange={handleFileUpload} />
+                       </label>
+                       {editingScenario.file_base64 && (
+                          <span className="text-[9px] text-emerald-400 font-mono">
+                             {(editingScenario.file_base64.length * 0.75 / 1024).toFixed(1)} KB stored
+                          </span>
+                       )}
+                    </div>
+                 ) : (
+                    <div className="flex-1 border border-white/10 rounded-xl overflow-hidden bg-[#1e1e1e]">
+                      <Editor 
+                        height="300px"
+                        defaultLanguage="json"
+                        theme="vs-dark"
+                        value={editingScenario.response_body}
+                        onChange={val => setEditingScenario({ ...editingScenario, response_body: val || '' })}
+                        options={{ minimap: { enabled: false }, fontSize: 13, automaticLayout: true }}
+                      />
+                    </div>
+                 )}
               </div>
 
               <div className="pt-4 flex items-center justify-between border-t border-white/5">

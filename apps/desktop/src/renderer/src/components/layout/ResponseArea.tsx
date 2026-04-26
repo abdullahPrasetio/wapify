@@ -38,6 +38,11 @@ export const ResponseArea = (): React.JSX.Element => {
     data: null,
     headers: {}
   }
+
+  // Detect content type
+  const contentType = (headers['Content-Type'] || headers['content-type'] || '') as string
+  const isPdf = contentType.includes('application/pdf')
+
   const statusColor = status >= 200 && status < 300 ? 'text-success' : 'text-danger'
 
   const formattedData = typeof data === 'object' ? JSON.stringify(data, null, 2) : String(data)
@@ -150,22 +155,30 @@ export const ResponseArea = (): React.JSX.Element => {
         ) : (
           <>
             {activeTab === 'Body' && (
-              <div className="h-full w-full">
-                <Editor
-                  height="100%"
-                  defaultLanguage="json"
-                  theme="vs-dark"
-                  value={formattedData}
-                  options={{
-                    readOnly: true,
-                    minimap: { enabled: false },
-                    fontSize: 12,
-                    lineNumbers: 'on',
-                    scrollBeyondLastLine: false,
-                    automaticLayout: true,
-                    padding: { top: 10, bottom: 10 }
-                  }}
-                />
+              <div className="h-full w-full bg-[#1e1e1e]">
+                {isPdf ? (
+                   <iframe
+                     src={`data:application/pdf;base64,${data}`}
+                     className="w-full h-full border-none"
+                     title="PDF Preview"
+                   />
+                ) : (
+                  <Editor
+                    height="100%"
+                    defaultLanguage="json"
+                    theme="vs-dark"
+                    value={formattedData}
+                    options={{
+                      readOnly: true,
+                      minimap: { enabled: false },
+                      fontSize: 12,
+                      lineNumbers: 'on',
+                      scrollBeyondLastLine: false,
+                      automaticLayout: true,
+                      padding: { top: 10, bottom: 10 }
+                    }}
+                  />
+                )}
               </div>
             )}
 
@@ -297,7 +310,15 @@ function getStatusText(status: number): string {
 }
 
 function calculateSize(data: unknown): string {
-  const bytes = new TextEncoder().encode(JSON.stringify(data)).length
+  if (!data) return '0 B'
+  let bytes = 0
+  if (typeof data === 'string') {
+    bytes = data.length 
+  } else {
+    bytes = new TextEncoder().encode(JSON.stringify(data)).length
+  }
+  
   if (bytes < 1024) return `${bytes} B`
-  return `${(bytes / 1024).toFixed(2)} KB`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(2)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`
 }

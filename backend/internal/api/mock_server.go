@@ -1,9 +1,12 @@
 package api
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"mime"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -287,6 +290,9 @@ type mockScenarioInput struct {
 	ResponseHeaders map[string]interface{} `json:"response_headers"`
 	ResponseBody    string                 `json:"response_body"`
 	Conditions      []interface{}          `json:"conditions"`
+	ResponseType    string                 `json:"response_type"`
+	FileName        string                 `json:"file_name"`
+	FileBase64      string                 `json:"file_base64"`
 	IsDefault       bool                   `json:"is_default"`
 	OrderIndex      float64                `json:"order_index"`
 }
@@ -307,6 +313,9 @@ func createMockScenario(c *fiber.Ctx) error {
 		ResponseHeaders: repository.JSONB(input.ResponseHeaders),
 		ResponseBody:    input.ResponseBody,
 		Conditions:      repository.JSONBArray(input.Conditions),
+		ResponseType:    input.ResponseType,
+		FileName:        input.FileName,
+		FileBase64:      input.FileBase64,
 		IsDefault:       input.IsDefault,
 		OrderIndex:      input.OrderIndex,
 	}
@@ -349,6 +358,9 @@ func updateMockScenario(c *fiber.Ctx) error {
 	scenario.ResponseHeaders = repository.JSONB(input.ResponseHeaders)
 	scenario.ResponseBody = input.ResponseBody
 	scenario.Conditions = repository.JSONBArray(input.Conditions)
+	scenario.ResponseType = input.ResponseType
+	scenario.FileName = input.FileName
+	scenario.FileBase64 = input.FileBase64
 	scenario.IsDefault = input.IsDefault
 	scenario.OrderIndex = input.OrderIndex
 	scenario.UpdatedAt = time.Now()
@@ -541,13 +553,27 @@ func handleMockRequest(c *fiber.Ctx) error {
 	var responseBody string
 	var statusCode int = 200
 	var responseHeaders map[string]interface{}
+	var binaryData []byte
 	found := false
 
 	// EVALUATION LOGIC
 	if matched.EvaluationMode == "manual" && matched.ActiveScenarioID != nil {
 		var scenario repository.MockScenario
 		if err := repository.DB.First(&scenario, *matched.ActiveScenarioID).Error; err == nil {
-			responseBody = scenario.ResponseBody
+			if scenario.ResponseType == "file" && scenario.FileBase64 != "" {
+				binaryData, _ = base64.StdEncoding.DecodeString(scenario.FileBase64)
+				c.Set("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", scenario.FileName))
+				ext := filepath.Ext(scenario.FileName)
+				if mimeType := mime.TypeByExtension(ext); mimeType != "" {
+					c.Set("Content-Type", mimeType)
+				} else if strings.ToLower(ext) == ".pdf" {
+					c.Set("Content-Type", "application/pdf")
+				} else {
+					c.Set("Content-Type", "application/octet-stream")
+				}
+			} else {
+				responseBody = scenario.ResponseBody
+			}
 			statusCode = scenario.StatusCode
 			bytes, _ := json.Marshal(scenario.ResponseHeaders)
 			json.Unmarshal(bytes, &responseHeaders)
@@ -580,7 +606,20 @@ func handleMockRequest(c *fiber.Ctx) error {
 		}
 
 		if selected != nil {
-			responseBody = selected.ResponseBody
+			if selected.ResponseType == "file" && selected.FileBase64 != "" {
+				binaryData, _ = base64.StdEncoding.DecodeString(selected.FileBase64)
+				c.Set("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", selected.FileName))
+				ext := filepath.Ext(selected.FileName)
+				if mimeType := mime.TypeByExtension(ext); mimeType != "" {
+					c.Set("Content-Type", mimeType)
+				} else if strings.ToLower(ext) == ".pdf" {
+					c.Set("Content-Type", "application/pdf")
+				} else {
+					c.Set("Content-Type", "application/octet-stream")
+				}
+			} else {
+				responseBody = selected.ResponseBody
+			}
 			statusCode = selected.StatusCode
 			bytes, _ := json.Marshal(selected.ResponseHeaders)
 			json.Unmarshal(bytes, &responseHeaders)
@@ -596,8 +635,10 @@ func handleMockRequest(c *fiber.Ctx) error {
 		json.Unmarshal(bytes, &responseHeaders)
 	}
 
-	// Apply templating
-	responseBody = renderMockTemplate(c, responseBody)
+	// Apply templating (only for text)
+	if binaryData == nil {
+		responseBody = renderMockTemplate(c, responseBody)
+	}
 
 	// Apply delay
 	if matched.DelayMs > 0 {
@@ -615,14 +656,18 @@ func handleMockRequest(c *fiber.Ctx) error {
 		}
 	}
 
-	// Ensure Content-Type is set
-	if c.Get("Content-Type") == "" {
-		c.Set("Content-Type", "application/json")
-	}
-
 	// Set CORS headers for convenience
 	c.Set("X-Wapify-Mock", "true")
 	c.Set("X-Mock-Collection", collectionID)
+
+	if binaryData != nil {
+		return c.Status(statusCode).Send(binaryData)
+	}
+
+	// For Text/JSON, ensure Content-Type is set if not already present
+	if c.Get("Content-Type") == "" {
+		c.Set("Content-Type", "application/json")
+	}
 
 	return c.Status(statusCode).SendString(responseBody)
 }

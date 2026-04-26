@@ -29,7 +29,8 @@ import {
   Layout,
   Send,
   User,
-  MessageSquare
+  MessageSquare,
+  FileUp
 } from 'lucide-react';
 
 const GithubIcon = ({ size = 20 }: { size?: number }) => (
@@ -157,6 +158,64 @@ export default function App() {
         </div>
       </section>
 
+      {/* PRO FEATURES SHOWCASE */}
+      <section className="py-32 px-6 max-w-7xl mx-auto overflow-hidden">
+        <div className="flex flex-col lg:flex-row items-center gap-20">
+          <div className="flex-1 space-y-12">
+            <div>
+              <span className="text-primary font-black uppercase tracking-[0.4em] text-[10px] mb-6 block">Professional Capabilities</span>
+              <h2 className="text-5xl md:text-7xl font-black mb-8 tracking-tighter uppercase italic leading-none text-slate-900 dark:text-white">API Mocking <br/> <span className="text-primary not-italic">Refined.</span></h2>
+              <p className="text-lg text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
+                Take your development workflow to the next level with our pro-grade mock server. 
+                Don't just mock responses—simulate entire API behaviors.
+              </p>
+            </div>
+
+            <div className="grid sm:grid-cols-2 gap-8">
+               {[
+                 { icon: Sparkles, title: "Dynamic Logic", desc: "Automated response matching based on Body, Headers, or Query params." },
+                 { icon: FileUp, title: "Binary Power", desc: "Return real PDF, Images, or any binary files from your mock endpoints." },
+                 { icon: Terminal, title: "Smart cURL", desc: "One-click copy that auto-injects all data required to trigger specific scenarios." },
+                 { icon: Workflow, title: "Precise D&D", desc: "Intuitive horizontal-split drag & drop for organizing folders and priority." }
+               ].map((feat, i) => (
+                 <div key={i} className="flex gap-5">
+                    <div className="w-12 h-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0"><feat.icon size={24}/></div>
+                    <div>
+                       <h4 className="font-black text-xs uppercase tracking-widest mb-2 dark:text-white">{feat.title}</h4>
+                       <p className="text-xs text-slate-500 dark:text-slate-400 font-bold leading-relaxed">{feat.desc}</p>
+                    </div>
+                 </div>
+               ))}
+            </div>
+          </div>
+          
+          <div className="flex-1 relative group">
+            <div className="absolute -inset-1 bg-gradient-to-r from-primary to-accent rounded-[3rem] blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200"></div>
+            <div className="relative bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-[3rem] p-4 shadow-2xl">
+               <div className="bg-slate-100 dark:bg-black/50 rounded-[2.5rem] p-8 aspect-video flex items-center justify-center overflow-hidden">
+                  {/* Mockup visualization - representing the Scenario Editor */}
+                  <div className="w-full space-y-4">
+                     <div className="flex items-center gap-3 bg-white/5 p-3 rounded-xl border border-white/5 animate-pulse">
+                        <div className="w-8 h-8 rounded bg-primary/20"></div>
+                        <div className="h-2 w-1/2 bg-white/10 rounded"></div>
+                     </div>
+                     <div className="grid grid-cols-2 gap-4">
+                        <div className="h-24 rounded-2xl border-2 border-dashed border-primary/20 bg-primary/5 flex items-center justify-center">
+                           <FileUp className="text-primary/40" size={24}/>
+                        </div>
+                        <div className="h-24 rounded-2xl bg-black/40 p-4 space-y-3">
+                           <div className="h-1.5 w-full bg-white/5 rounded"></div>
+                           <div className="h-1.5 w-2/3 bg-white/5 rounded"></div>
+                           <div className="h-1.5 w-3/4 bg-white/5 rounded"></div>
+                        </div>
+                     </div>
+                  </div>
+               </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* HOW IT WORKS */}
       <section id="workflow" className="py-32 px-6 bg-slate-900 text-white relative overflow-hidden">
         <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10" />
@@ -202,7 +261,7 @@ export default function App() {
             <div className="absolute top-0 right-0 p-12 opacity-10 rotate-45"><Rocket size={150}/></div>
             <h3 className="text-4xl md:text-5xl font-black mb-12 italic uppercase tracking-tighter text-white">Wapify (Upgrade)</h3>
             <ul className="space-y-8 relative z-10">
-              {["Ultra-light Go Core", "100% On-Premise", "Real-time Collaboration", "Ed25519 Local Security"].map((item, i) => (
+              {["Ultra-light Go Core", "Dynamic Mocking Pro", "Smart cURL Injector", "Real-time Collaboration"].map((item, i) => (
                 <li key={i} className="flex items-center gap-6 font-black text-xl md:text-2xl tracking-tight text-white">
                   <div className="w-10 h-10 rounded-2xl bg-white text-primary flex items-center justify-center shrink-0 shadow-xl"><CheckCircle2 size={24} strokeWidth={4} /></div>
                   {item}

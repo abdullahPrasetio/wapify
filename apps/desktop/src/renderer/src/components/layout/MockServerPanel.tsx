@@ -12,8 +12,7 @@ import {
   Code,
   ChevronDown,
   Zap,
-  LayoutGrid,
-  Play
+  LayoutGrid
 } from 'lucide-react'
 import { apiClient } from '../../api/client'
 import type { MockEndpoint, ApiRequest } from '../../types'

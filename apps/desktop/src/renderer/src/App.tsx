@@ -27,9 +27,13 @@ function App(): React.JSX.Element {
     }
     const handleLicenseWarning = (e: Event) => {
       const detail = (e as CustomEvent).detail
-      toast.warning(detail.message, {
+      toast.warning(`${detail.message} Visit wapify.temancode.my.id to renew.`, {
         id: 'license-warning', // Prevent duplicates
-        duration: 10000
+        duration: 10000,
+        action: {
+          label: 'Renew',
+          onClick: () => window.open('https://wapify.temancode.my.id', '_blank')
+        }
       })
     }
     const handleAccessDenied = (e: Event) => {
@@ -73,17 +77,27 @@ function App(): React.JSX.Element {
           <div className="bg-background/50 border border-border rounded-xl p-4 mb-8 flex items-start gap-3">
             <AlertCircle size={16} className="text-warning shrink-0 mt-0.5" />
             <div className="text-[11px] text-muted leading-normal">
-              Please update your <strong>LICENSE_KEY</strong> in the server configuration or environment variables to continue using Wapify.
+              To renew your license or get a new key, please visit our portal at <a href="https://wapify.temancode.my.id" target="_blank" rel="noreferrer" className="text-primary hover:underline font-bold">wapify.temancode.my.id</a> or update your server configuration.
             </div>
           </div>
 
-          <button 
-            onClick={() => window.location.reload()}
-            className="w-full py-3 bg-primary hover:bg-primary-hover text-white rounded-lg font-bold transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary/20"
-          >
-            <RefreshCw size={16} />
-            Check Again
-          </button>
+          <div className="flex flex-col gap-3">
+            <button 
+              onClick={() => window.location.reload()}
+              className="w-full py-3 bg-primary hover:bg-primary-hover text-white rounded-lg font-bold transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary/20"
+            >
+              <RefreshCw size={16} />
+              Check Again
+            </button>
+            <a 
+              href="https://wapify.temancode.my.id" 
+              target="_blank" 
+              rel="noreferrer"
+              className="w-full py-3 bg-white/5 hover:bg-white/10 text-white rounded-lg font-bold transition-all flex items-center justify-center gap-2 border border-white/10"
+            >
+              Get New License
+            </a>
+          </div>
         </div>
       </div>
     )

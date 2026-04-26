@@ -247,6 +247,9 @@ type MockScenario struct {
 	ResponseHeaders JSONB          `gorm:"type:jsonb;default:'{}'" json:"response_headers"`
 	ResponseBody    string         `gorm:"type:text;default:''" json:"response_body"`
 	Conditions      JSONBArray     `gorm:"type:jsonb;default:'[]'" json:"conditions"`
+	ResponseType    string         `gorm:"not null;default:text;column:response_type" json:"response_type"`
+	FileName        string         `gorm:"column:file_name" json:"file_name"`
+	FileBase64      string         `gorm:"type:text;column:file_base64" json:"file_base64"`
 	IsDefault       bool           `gorm:"default:false;column:is_default" json:"is_default"`
 	OrderIndex      float64        `gorm:"not null;default:0;column:order_index" json:"order_index"`
 	CreatedAt       time.Time      `json:"created_at"`
