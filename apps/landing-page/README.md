@@ -1,11 +1,11 @@
-# Wapify Landing Page 🌐
+# Wapbolt Landing Page 🌐
 
-Landing page modern untuk Wapify, dibangun dengan **React**, **Tailwind CSS**, dan **Framer Motion**. Project ini dirancang untuk menampilkan keunggulan Wapify dibanding Postman dan kemampuannya untuk dideploy di perangkat low-resource seperti STB.
+Landing page modern untuk Wapbolt, dibangun dengan **React**, **Tailwind CSS**, dan **Framer Motion**. Project ini dirancang untuk menampilkan keunggulan Wapbolt dibanding Postman dan kemampuannya untuk dideploy di perangkat low-resource seperti STB.
 
 ## Fitur Utama
 - **Modern UI/UX:** Tema gelap dengan aksen Electric Blue.
 - **High-End Animations:** Menggunakan Framer Motion untuk transisi yang mulus.
-- **Comparison Table:** Menjelaskan kenapa Wapify lebih unggul dari Postman.
+- **Comparison Table:** Menjelaskan kenapa Wapbolt lebih unggul dari Postman.
 - **Tech Stack Showcase:** Menampilkan teknologi inti (Go, React, Electron, Ed25519).
 - **Responsive:** Optimal di desktop, tablet, maupun mobile.
 
@@ -50,4 +50,4 @@ Karena STB biasanya memiliki resource terbatas, cara terbaik adalah melakukan **
 
 ---
 **Developer:** [abdullahPrasetio](https://github.com/abdullahPrasetio)
-**Project:** Wapify API Collaboration
+**Project:** Wapbolt API Collaboration

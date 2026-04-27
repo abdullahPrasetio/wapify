@@ -275,7 +275,7 @@ const replaceVariables = (text: string, variables: Record<string, string>): stri
     const resolved = lowerVars[trimmedKey]
 
     console.log(
-      `[Wapify] Matching variable: "${key.trim()}" -> ${resolved !== undefined ? 'FOUND' : 'NOT FOUND'}`
+      `[Wapbolt] Matching variable: "${key.trim()}" -> ${resolved !== undefined ? 'FOUND' : 'NOT FOUND'}`
     )
 
     return resolved !== undefined ? resolved : match
@@ -722,7 +722,7 @@ export const useDataStore = create<DataState>()(
           if (typeof activeTabId === 'string' && (activeTabId.startsWith('draft-') || activeTabId.startsWith('example-'))) {
             // If it's a draft or an example, we trigger the "Save to Collection" modal via the UI component.
             // The UI (MainArea.tsx) handles the modal trigger for string IDs starting with these prefixes.
-            window.dispatchEvent(new CustomEvent('wapify:trigger-save-modal'))
+            window.dispatchEvent(new CustomEvent('wapbolt:trigger-save-modal'))
             return
           }
 
@@ -1253,7 +1253,7 @@ export const useDataStore = create<DataState>()(
             const url = URL.createObjectURL(blob)
             const a = document.createElement('a')
             a.href = url
-            a.download = `${collection.name}.wapify_collection.json`
+            a.download = `${collection.name}.wapbolt_collection.json`
             a.click()
             URL.revokeObjectURL(url)
             toast.success('Collection exported successfully')
@@ -1330,13 +1330,13 @@ export const useDataStore = create<DataState>()(
                 },
                 setEnvironmentVariable: (key: string, val: unknown) => {
                   const strVal = String(val)
-                  console.log(`[Wapify] Pre-script setting env: ${key}=${strVal}`)
+                  console.log(`[Wapbolt] Pre-script setting env: ${key}=${strVal}`)
                   vars[key] = strVal
                   updateActiveEnvironmentVariable(key, strVal)
                 },
                 setEnv: (key: string, val: unknown) => {
                   const strVal = String(val)
-                  console.log(`[Wapify] Pre-script setting env: ${key}=${strVal}`)
+                  console.log(`[Wapbolt] Pre-script setting env: ${key}=${strVal}`)
                   vars[key] = strVal
                   updateActiveEnvironmentVariable(key, strVal)
                 }
@@ -1384,12 +1384,12 @@ export const useDataStore = create<DataState>()(
           // variables are already updated in 'vars' by the script
 
           // Substitusi variabel di URL
-          console.log('[Wapify] Current vars for replacement:', vars)
+          console.log('[Wapbolt] Current vars for replacement:', vars)
           let substitutedUrl = replaceVariables(workingRequest.url, vars)
 
           // Jangan blokir jika ada {{, biarkan saja agar user bisa debug sendiri (seperti Postman)
           if (substitutedUrl.includes('{{')) {
-            console.warn('[Wapify] Some variables in URL could not be resolved:', substitutedUrl)
+            console.warn('[Wapbolt] Some variables in URL could not be resolved:', substitutedUrl)
           }
 
           // Inject Auth into Headers
@@ -1446,22 +1446,22 @@ export const useDataStore = create<DataState>()(
             // --- 2. Post-request Script (Tests) Execution ---
             if (workingRequest.post_request_script) {
               try {
-                console.log('[Wapify] Starting post-request script execution...')
-                console.log('[Wapify] Response Data:', response.data)
+                console.log('[Wapbolt] Starting post-request script execution...')
+                console.log('[Wapbolt] Response Data:', response.data)
                 const testResults: { name: string; status: 'passed' | 'failed'; error?: string }[] =
                   []
 
                 const wap = {
                   set: (key: string, val: unknown) => {
                     const strVal = String(val)
-                    console.log(`[Wapify] Script setting env: ${key}=${strVal}`)
+                    console.log(`[Wapbolt] Script setting env: ${key}=${strVal}`)
                     vars[key] = strVal
                     updateActiveEnvironmentVariable(key, strVal)
                   },
                   environment: {
                     set: (key: string, val: unknown) => {
                       const strVal = String(val)
-                      console.log(`[Wapify] Script setting env: ${key}=${strVal}`)
+                      console.log(`[Wapbolt] Script setting env: ${key}=${strVal}`)
                       vars[key] = strVal
                       updateActiveEnvironmentVariable(key, strVal)
                     },
@@ -1477,13 +1477,13 @@ export const useDataStore = create<DataState>()(
                   },
                   setEnvironmentVariable: (key: string, val: unknown) => {
                     const strVal = String(val)
-                    console.log(`[Wapify] Script setting env (alias): ${key}=${strVal}`)
+                    console.log(`[Wapbolt] Script setting env (alias): ${key}=${strVal}`)
                     vars[key] = strVal
                     updateActiveEnvironmentVariable(key, strVal)
                   },
                   setEnv: (key: string, val: unknown) => {
                     const strVal = String(val)
-                    console.log(`[Wapify] Script setting env (alias): ${key}=${strVal}`)
+                    console.log(`[Wapbolt] Script setting env (alias): ${key}=${strVal}`)
                     vars[key] = strVal
                     updateActiveEnvironmentVariable(key, strVal)
                   },
@@ -1943,7 +1943,7 @@ export const useDataStore = create<DataState>()(
         }
       }),
       {
-        name: 'wapify-data-storage',
+        name: 'wapbolt-data-storage',
         storage: createJSONStorage(() => localStorage),
         partialize: (state) => ({
           activeTeamId: state.activeTeamId,

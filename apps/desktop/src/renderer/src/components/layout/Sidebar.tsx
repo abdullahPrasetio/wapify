@@ -23,7 +23,8 @@ import {
   X,
   Download,
   Copy,
-  GripVertical
+  GripVertical,
+  Zap
 } from 'lucide-react'
 import { useState, useEffect, useLayoutEffect, useMemo } from 'react'
 import {
@@ -145,9 +146,9 @@ const SortableItem = ({ id, children, disabled, type = 'request' }: SortableItem
   const isOverSelf = isOver && over?.id === id
 
   return (
-    <div 
-      ref={setNodeRef} 
-      style={style} 
+    <div
+      ref={setNodeRef}
+      style={style}
       className="relative group/sortable"
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
@@ -718,9 +719,9 @@ export const Sidebar = (): React.JSX.Element => {
 
       if (overIdStr.startsWith('folder-')) {
         if (isLeftSide) {
-           dropZone = relativeY < overRect.height / 2 ? 'sort-top' : 'sort-bottom'
+          dropZone = relativeY < overRect.height / 2 ? 'sort-top' : 'sort-bottom'
         } else {
-           dropZone = 'nest'
+          dropZone = 'nest'
         }
       } else {
         dropZone = relativeY < overRect.height / 2 ? 'sort-top' : 'sort-bottom'
@@ -815,7 +816,8 @@ export const Sidebar = (): React.JSX.Element => {
           await state.moveFolder(folderId, targetCollectionId, null, maxIdx + 1000)
         }
       }
-    }  }
+    }
+  }
 
   return (
     <DndContext
@@ -825,9 +827,11 @@ export const Sidebar = (): React.JSX.Element => {
     >
       <div className="w-64 h-full bg-surface border-r border-border flex flex-col flex-shrink-0 overflow-hidden">
         <div className="h-14 flex items-center justify-between px-4 border-b border-border shrink-0">
-          <div onClick={() => setActiveView('request-builder')} className="font-semibold text-text flex items-center gap-2 cursor-pointer">
-            <div className="w-6 h-6 rounded bg-primary flex items-center justify-center text-white font-black text-xs shadow-sm shadow-primary/40">W</div>
-            <span className="text-sm">Wapify</span>
+          <div onClick={() => setActiveView('request-builder')} className="font-semibold text-text flex items-center gap-2 cursor-pointer group">
+            <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center text-white shadow-lg shadow-primary/30 group-hover:scale-110 transition-transform">
+              <Zap size={16} fill="currentColor" />
+            </div>
+            <span className="text-sm font-black tracking-tight">WAPBOLT</span>
           </div>
           <button onClick={() => fetchTeams()} title="Refresh" className="text-muted hover:text-text transition-colors">
             <RefreshCw size={14} className={teamsLoading ? 'animate-spin' : ''} />
@@ -931,7 +935,7 @@ export const Sidebar = (): React.JSX.Element => {
           </div>
 
           <div className="px-3 py-2 flex flex-col gap-1 border-t border-border/50 bg-background/50">
-            {appVersion && <div className="px-1 text-[9px] font-black uppercase tracking-[0.2em] text-muted/70 mb-1 text-center">Wapify v{appVersion}</div>}
+            {appVersion && <div className="px-1 text-[9px] font-black uppercase tracking-[0.2em] text-muted/70 mb-1 text-center">Wapbolt v{appVersion}</div>}
             <div className="flex items-center justify-between min-w-0">
               <div className="min-w-0 flex-1">
                 <div className="text-xs font-bold text-text truncate">{user?.name}</div>

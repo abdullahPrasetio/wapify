@@ -1,5 +1,5 @@
-appId: io.wapify.desktop
-productName: Wapify
+appId: io.wapbolt.desktop
+productName: Wapbolt
 directories:
   buildResources: build
   output: dist
@@ -23,7 +23,7 @@ mac:
 win:
   target: nsis
   icon: build/icon.ico
-  executableName: wapify-desktop
+  executableName: wapbolt-desktop
 linux:
   target:
     - AppImage
@@ -39,5 +39,5 @@ nsis:
 publish:
   provider: github
   owner: abdullahPrasetio
-  repo: wapify-desktop-releases
+  repo: wapbolt-desktop-releases
 npmRebuild: false

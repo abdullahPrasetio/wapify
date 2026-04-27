@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/joho/godotenv"
-	"github.com/waluyo/wapify-backend/internal/license"
+	"github.com/waluyo/wapbolt-backend/internal/license"
 )
 
 func main() {
@@ -38,7 +38,7 @@ func main() {
 }
 
 func printUsage() {
-	fmt.Println("Wapify License CLI Usage:")
+	fmt.Println("Wapbolt License CLI Usage:")
 	fmt.Println("  keygen                          - Generate a new Ed25519 keypair")
 	fmt.Println("  generate [flags]                - Generate a new signed license key")
 	fmt.Println("\nFlags for generate:")
@@ -54,7 +54,7 @@ func generateKeypair() {
 		log.Fatalf("Failed to generate keypair: %v", err)
 	}
 
-	fmt.Println("=== Wapify Keypair Generated ===")
+	fmt.Println("=== Wapbolt Keypair Generated ===")
 	fmt.Printf("LICENSE_PRIVATE_KEY=%s\n", base64.StdEncoding.EncodeToString(priv))
 	fmt.Printf("LICENSE_PUBLIC_KEY=%s\n", base64.StdEncoding.EncodeToString(pub))
 	fmt.Println("================================")

@@ -1,13 +1,13 @@
-# Wapify Build System
+# Wapbolt Build System
 
-BINARY_NAME=wapify-server
+BINARY_NAME=wapbolt-server
 BACKEND_DIR=backend
 DESKTOP_DIR=apps/desktop
 
 .PHONY: help build-backend build-client build-docker-client keygen license build-desktop run-client build-landing
 
 help:
-	@echo "Wapify Commands:"
+	@echo "Wapbolt Commands:"
 	@echo "  make build-backend        - Build internal server"
 	@echo "  make build-client         - Build client binary (needs PUB_KEY)"
 	@echo "  make build-docker-client  - Build docker image (needs PUB_KEY, TAG)"
@@ -24,13 +24,19 @@ build-client:
 	cd $(BACKEND_DIR) && go build -ldflags="-X main.LicensePublicKey=$(PUB_KEY)" -o ../$(BINARY_NAME)-client cmd/server/main.go
 
 build-docker-client:
-	cd $(BACKEND_DIR) && docker build --platform linux/amd64 --build-arg LICENSE_PUBLIC_KEY=$(PUB_KEY) -t abdullahprasetio/wapify-backend-client:$(TAG) -f Dockerfile.client .
+	cd $(BACKEND_DIR) && docker build --platform linux/amd64 --build-arg LICENSE_PUBLIC_KEY=$(PUB_KEY) -t abdullahprasetio/wapbolt-backend-client:$(TAG) -f Dockerfile.client .
 
 build-landing-linux:
-	cd apps/landing-page && docker build --platform linux/amd64 -t abdullahprasetio/wapify-landing:$(TAG) .
+	cd apps/landing-page && docker build --platform linux/amd64 -t abdullahprasetio/wapbolt-landing:$(TAG) .
 
 build-landing:
-	cd apps/landing-page && docker build -t abdullahprasetio/wapify-landing:$(TAG) .
+	cd apps/landing-page && docker build -t abdullahprasetio/wapbolt-landing:$(TAG) .
+
+push-backend:
+	docker push abdullahprasetio/wapbolt-backend-client:$(TAG)
+	
+push-landing:
+	docker push abdullahprasetio/wapbolt-landing:$(TAG)
 
 keygen:
 	cd $(BACKEND_DIR) && go run cmd/license/main.go keygen
@@ -49,9 +55,9 @@ run-client:
 		-e DB_PORT=5432 \
 		-e DB_USER=temancode \
 		-e PORT=8000 \
-		-e DB_NAME=wapify \
+		-e DB_NAME=wapbolt \
 		-e LICENSE_KEY=$(LICENSE_KEY) \
-		abdullahprasetio/wapify-backend-client:$(TAG)
+		abdullahprasetio/wapbolt-backend-client:$(TAG)
 
 dev-backend:
 	cd $(BACKEND_DIR) && go run cmd/server/main.go

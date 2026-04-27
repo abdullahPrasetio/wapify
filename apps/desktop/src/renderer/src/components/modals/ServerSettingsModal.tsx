@@ -26,7 +26,7 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({ onClos
             </div>
             <div>
               <h3 className="text-lg font-bold text-foreground">Server Config</h3>
-              <p className="text-xs text-muted">Point Wapify to your backend</p>
+              <p className="text-xs text-muted">Point Wapbolt to your backend</p>
             </div>
           </div>
           <button onClick={onClose} className="text-muted hover:text-foreground transition-colors">

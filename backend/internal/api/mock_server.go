@@ -14,7 +14,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/rs/zerolog/log"
-	"github.com/waluyo/wapify-backend/internal/repository"
+	"github.com/waluyo/wapbolt-backend/internal/repository"
 )
 
 // SetupMockServerRoutes registers mock server endpoints
@@ -657,7 +657,7 @@ func handleMockRequest(c *fiber.Ctx) error {
 	}
 
 	// Set CORS headers for convenience
-	c.Set("X-Wapify-Mock", "true")
+	c.Set("X-Wapbolt-Mock", "true")
 	c.Set("X-Mock-Collection", collectionID)
 
 	if binaryData != nil {
