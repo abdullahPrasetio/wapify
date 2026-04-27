@@ -1,4 +1,4 @@
-module github.com/waluyo/wapify-backend
+module github.com/waluyo/wapbolt-backend
 
 go 1.25.0
 

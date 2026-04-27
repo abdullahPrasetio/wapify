@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/waluyo/wapify-backend/internal/license"
+	"github.com/waluyo/wapbolt-backend/internal/license"
 )
 
 // CheckLicense is a middleware that ensures the client has a valid license.
@@ -60,15 +60,15 @@ func CheckLicense(publicKey string) fiber.Handler {
 		if now.After(validUntil) {
 			// In Grace Period
 			hoursLeft := int(24 - now.Sub(validUntil).Hours())
-			c.Set("X-Wapify-License-Warning", "Grace Period: License expired. You have "+fmt.Sprint(hoursLeft)+" hours of access left.")
+			c.Set("X-Wapbolt-License-Warning", "Grace Period: License expired. You have "+fmt.Sprint(hoursLeft)+" hours of access left.")
 		} else if validUntil.Sub(now) < 72*time.Hour {
 			// Nearing Expiry (3 days)
 			daysLeft := int(validUntil.Sub(now).Hours() / 24)
 			if daysLeft > 0 {
-				c.Set("X-Wapify-License-Warning", "License will expire in "+fmt.Sprint(daysLeft)+" days.")
+				c.Set("X-Wapbolt-License-Warning", "License will expire in "+fmt.Sprint(daysLeft)+" days.")
 			} else {
 				hoursLeft := int(validUntil.Sub(now).Hours())
-				c.Set("X-Wapify-License-Warning", "License will expire in "+fmt.Sprint(hoursLeft)+" hours.")
+				c.Set("X-Wapbolt-License-Warning", "License will expire in "+fmt.Sprint(hoursLeft)+" hours.")
 			}
 		}
 

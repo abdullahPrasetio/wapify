@@ -1,4 +1,4 @@
-# Wapify — Development Log
+# Wapbolt — Development Log
 
 ## [2026-04-21] — Inisialisasi License Management (Fase 5 MVP)
 **Fase:** Fase 5 — On-Premise & License
@@ -58,7 +58,7 @@
 
 ### Langkah Selanjutnya
 - Implementasi runner untuk folder individual.
-- Integrasi runner dengan CLI (`wapify run`).
+- Integrasi runner dengan CLI (`wapbolt run`).
 
 ---
 
@@ -180,7 +180,7 @@
 
 ### Yang Dikerjakan
 - **Import dari cURL (Fase 6.4)**:
-    - Integrasi library `curlconverter` untuk memproses perintah cURL menjadi request Wapify.
+    - Integrasi library `curlconverter` untuk memproses perintah cURL menjadi request Wapbolt.
     - Implementasi `ImportCurlModal` untuk mengimpor perintah cURL secara manual.
     - **Smart Auto-Detection**: Menambahkan logika deteksi otomatis saat pengguna mem-paste perintah yang diawali `curl ` ke dalam URL bar, memicu dialog konfirmasi import otomatis.
 - **Export Code Snippet (Fase 6.5)**:
@@ -297,7 +297,7 @@
     - Peningkatan akurasi penghitungan ukuran respons (Size) untuk data biner.
 - **Sesi Pengguna & Keamanan**:
     - Memperpanjang masa berlaku **Access Token** menjadi 24 jam dan **Refresh Token** menjadi 90 hari guna memastikan pengguna "tetap masuk" tanpa gangguan.
-    - Penambahan tautan portal lisensi (`https://wapify.temancode.my.id`) pada layar kunci lisensi dan notifikasi peringatan.
+    - Penambahan tautan portal lisensi (`https://wapbolt.temancode.my.id`) pada layar kunci lisensi dan notifikasi peringatan.
 - **Landing Page & Dev Tooling**:
     - Update `apps/landing-page` dengan seksi fitur profesional baru dan tabel perbandingan yang diperbarui.
     - Penambahan target `make build-landing` pada `Makefile` untuk otomatisasi pembangunan image Docker landing page dengan parameter `TAG`.
@@ -317,3 +317,36 @@
 
 ### Langkah Selanjutnya
 - Implementasi Notifikasi in-app saat koleksi diupdate (Fase 7.2).
+
+---
+
+## [2026-04-27] — Rebranding to Wapbolt & UX Improvements
+**Fase:** Fase 6 — UX & Power Features
+**Dikerjakan oleh:** Gemini
+**Status:** ✅ Selesai
+
+### Yang Dikerjakan
+- **Rebranding Massal**:
+    - Mengubah identitas produk dari **Wapify** menjadi **Wapbolt** di seluruh ekosistem (Backend, Desktop, Landing Page, dan Infrastruktur).
+    - Update module path di `go.mod`, jalur impor Go, header HTTP (`X-Wapbolt-*`), dan metadata aplikasi (`appId`, `productName`).
+    - Migrasi kunci LocalStorage (`wapbolt_server_url`, `wapbolt-data-storage`) dan IPC channels agar sinkron dengan nama baru.
+- **Identitas Visual Baru**:
+    - Mendesain ulang ikon `resources/icon.svg` dengan menggabungkan inisial "W" dan simbol "Bolt" (Petir).
+    - Memperbarui komponen UI (Login, Sidebar, Main Area) dengan ikon **Zap** (Lucide React) sebagai logo utama yang lebih modern dan dinamis.
+- **UX Resizer Improvement**:
+    - Memperbaiki bug pada *Response Area Resizer* yang sebelumnya bisa ditarik hingga hilang.
+    - Implementasi `minBottomHeightPx` sebesar 80px untuk memastikan Tab Response (Body, Headers, dll) tetap terlihat saat panel diturunkan maksimal.
+
+### Perubahan File
+- Seluruh file proyek (Rebranding massal).
+- `apps/desktop/resources/icon.svg` — Ikon baru.
+- `apps/desktop/src/renderer/src/components/layout/MainArea.tsx` — Logika resizer baru.
+- `docker-compose.yml`, `Makefile`, `go.mod` — Sinkronisasi metadata.
+
+### Keputusan & Catatan
+- Memilih nama **Wapbolt** karena unik (zero search competition), mencerminkan kecepatan, dan tetap mempertahankan inisial personal (WAP).
+- Memilih batas minimal 80px pada resizer berdasarkan kebutuhan visual agar kontrol utama tidak tersembunyi.
+
+### Langkah Selanjutnya
+- Persiapan rename repositori di GitHub (Wapbolt & Wapbolt-desktop-releases).
+- Implementasi Notifikasi in-app (Fase 7.2).

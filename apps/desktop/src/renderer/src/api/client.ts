@@ -1,15 +1,15 @@
 import type { IpcResponse } from '../types'
 
-// Base URL untuk Wapify backend - Bisa dikonfigurasi via settings
+// Base URL untuk Wapbolt backend - Bisa dikonfigurasi via settings
 export const getBaseUrl = (): string => {
-  const savedUrl = localStorage.getItem('wapify_server_url')
+  const savedUrl = localStorage.getItem('wapbolt_server_url')
   return savedUrl || 'http://localhost:8000'
 }
 
 export const setBaseUrl = (url: string): void => {
   // Ensure no trailing slash
   const cleanUrl = url.replace(/\/$/, '')
-  localStorage.setItem('wapify_server_url', cleanUrl)
+  localStorage.setItem('wapbolt_server_url', cleanUrl)
 }
 
 interface RequestConfig {
@@ -43,14 +43,14 @@ async function ipcRequest<T>(config: RequestConfig): Promise<IpcResponse<T>> {
     headers['Content-Type'] = 'application/json'
   }
 
-  // Hanya tambahkan Authorization Wapify jika merequest ke backend Wapify dan tidak skipAuth
+  // Hanya tambahkan Authorization Wapbolt jika merequest ke backend Wapbolt dan tidak skipAuth
   if (authToken && config.url.startsWith(getBaseUrl()) && !config.skipAuth) {
     headers['Authorization'] = `Bearer ${authToken}`
   }
 
   if (!window.api) {
     if (config.url.startsWith(getBaseUrl())) {
-      console.warn('Running in Browser Mode: Using standard fetch for Wapify API')
+      console.warn('Running in Browser Mode: Using standard fetch for Wapbolt API')
       const res = await fetch(config.url, {
         method: config.method,
         headers,
@@ -61,21 +61,21 @@ async function ipcRequest<T>(config: RequestConfig): Promise<IpcResponse<T>> {
       try { data = JSON.parse(raw) } catch { data = raw }
       return { status: res.status, headers: {}, data, timing: 0 } as IpcResponse<T>
     } else {
-      console.error('Wapify IPC is not available. Are you running in Chrome instead of Electron?')
+      console.error('Wapbolt IPC is not available. Are you running in Chrome instead of Electron?')
       throw new Error('This app requires Electron to run.')
     }
   }
 
-  let response = await window.api.wapifyRequest({
+  let response = await window.api.wapboltRequest({
     ...config,
     headers
   })
 
   // Handle License Warnings
-  const licenseWarning = response.headers?.['x-wapify-license-warning']
+  const licenseWarning = response.headers?.['x-wapbolt-license-warning']
   if (licenseWarning) {
     window.dispatchEvent(
-      new CustomEvent('wapify:license-warning', {
+      new CustomEvent('wapbolt:license-warning', {
         detail: { message: licenseWarning }
       })
     )
@@ -86,7 +86,7 @@ async function ipcRequest<T>(config: RequestConfig): Promise<IpcResponse<T>> {
     const errorData = response.data as any
     if (errorData?.code === 'LICENSE_REQUIRED' || errorData?.code === 'INVALID_LICENSE') {
       window.dispatchEvent(
-        new CustomEvent('wapify:license-invalid', {
+        new CustomEvent('wapbolt:license-invalid', {
           detail: {
             message: errorData.error || 'Your license is invalid or has expired.',
             code: errorData.code
@@ -95,7 +95,7 @@ async function ipcRequest<T>(config: RequestConfig): Promise<IpcResponse<T>> {
       )
     } else if (errorData?.code === 'FORBIDDEN') {
       window.dispatchEvent(
-        new CustomEvent('wapify:access-denied', {
+        new CustomEvent('wapbolt:access-denied', {
           detail: { message: errorData.error || 'You do not have permission to perform this action.' }
         })
       )
@@ -112,7 +112,7 @@ async function ipcRequest<T>(config: RequestConfig): Promise<IpcResponse<T>> {
     const refreshToken = await window.api.getToken()
     if (refreshToken) {
       // Try to refresh
-      const refreshResponse = await window.api.wapifyRequest({
+      const refreshResponse = await window.api.wapboltRequest({
         method: 'POST',
         url: `${getBaseUrl()}/api/v1/auth/refresh`,
         headers: { 'Content-Type': 'application/json' },
@@ -126,7 +126,7 @@ async function ipcRequest<T>(config: RequestConfig): Promise<IpcResponse<T>> {
 
         // Retry original request
         headers['Authorization'] = `Bearer ${newAuthToken}`
-        response = await window.api.wapifyRequest({
+        response = await window.api.wapboltRequest({
           ...config,
           headers
         })
@@ -134,7 +134,7 @@ async function ipcRequest<T>(config: RequestConfig): Promise<IpcResponse<T>> {
         // Refresh failed, clear tokens and let the UI handle logout (e.g. via zustand listener or just let it fail)
         setAuthToken(null)
         await window.api.deleteToken()
-        window.dispatchEvent(new Event('wapify:auth-expired'))
+        window.dispatchEvent(new Event('wapbolt:auth-expired'))
       }
     }
   }
@@ -175,7 +175,7 @@ export const apiClient = {
     ipcRequest<T>({ method: 'DELETE', url: `${getBaseUrl()}${path}`, headers }),
 
   /**
-   * Untuk mengirim request ke Target API arbitrary (bukan hanya backend Wapify).
+   * Untuk mengirim request ke Target API arbitrary (bukan hanya backend Wapbolt).
    * Digunakan saat user menekan tombol "Send" di request builder.
    */
   executeRequest: <T>(

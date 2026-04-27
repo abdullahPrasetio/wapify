@@ -1,4 +1,4 @@
-# Wapify — Development Plan
+# Wapbolt — Development Plan
 
 **Terakhir Diperbarui:** 24 April 2026
 **Status Saat Ini:** ✅ Fase 0-6 Selesai → 🟡 Fase 7 In Progress
@@ -17,7 +17,7 @@
 | 5 | On-Premise & License | Jual ke client luar | ✅ Selesai |
 | 6 | UX & Power Features | Workspace, body types, export, drag-drop, mock dynamic | ✅ Selesai |
 | 7 | Kolaborasi Lanjutan | Notifikasi, shared env, diff visual | 🟡 Dalam Proses |
-| 8 | SaaS (Opsional) | Cloud hosted di wapify.io | ⬜ Belum Mulai |
+| 8 | SaaS (Opsional) | Cloud hosted di wapbolt.io | ⬜ Belum Mulai |
 
 ---
 
@@ -48,7 +48,7 @@
 - [x] Collection, Folder, Request CRUD
 - [x] Import Postman v2.1 JSON
 - [x] Environment CRUD + interpolasi `{{variable}}` (Case-Insensitive)
-- [x] Scripting Engine: Pre-request & Post-request (Wapify SDK v1.0)
+- [x] Scripting Engine: Pre-request & Post-request (Wapbolt SDK v1.0)
 - [x] Variable persistence: simpan hasil `setEnv` ke DB permanen
 - [x] Ghost Input engine: click-to-set di URL, Body, Header, Docs
 - [x] Request History CRUD
@@ -101,7 +101,7 @@
 - [x] Test runner JavaScript via Renderer-side execution (sandbox)
 - [x] Collection Runner (jalankan seluruh koleksi)
 - [x] UI: test script editor + laporan hasil
-- [ ] CLI: `wapify run --collection --env --reporter json|junit` ← **TODO**
+- [ ] CLI: `wapbolt run --collection --env --reporter json|junit` ← **TODO**
 - [ ] GitHub Actions: lint + test on PR ← **TODO**
 
 > CLI bisa dikerjakan paralel saat Fase 6 berlangsung.
@@ -117,7 +117,7 @@
 - [x] UI: layar kunci (License Required) + toast warning
 - [x] Branding: ikon baru "API Pulse"
 - [x] Makefile: otomasi build + packaging
-- [x] Landing page wapify.io (Beta Registration via Gmail)
+- [x] Landing page wapbolt.io (Beta Registration via Gmail)
 - [x] Dockerfile untuk landing page di STB
 - [x] Dynamic Server Config: point app ke backend manapun tanpa rebuild
 - [x] Build multi-platform: `linux/amd64`, `linux/arm64`, `windows/amd64`, `darwin/arm64`
@@ -131,7 +131,7 @@
 
 ## Fase 6 — UX & Power Features
 **Status:** 🟡 In Progress
-**Target:** Wapify terasa lebih powerful dan nyaman dari Postman.
+**Target:** Wapbolt terasa lebih powerful dan nyaman dari Postman.
 **Estimasi:** 2-3 minggu
 
 ### Fitur Ditunda (Coming Soon)

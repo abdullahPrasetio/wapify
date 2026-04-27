@@ -8,7 +8,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/waluyo/wapify-backend/internal/repository"
+	"github.com/waluyo/wapbolt-backend/internal/repository"
 )
 
 // SyncUserSignatures ensures all existing users have a valid integrity signature.

@@ -436,7 +436,7 @@ const MockEndpointForm: React.FC<MockEndpointFormProps> = ({
   const [path, setPath] = useState(existing?.path ?? '/')
   const [statusCode, setStatusCode] = useState(existing?.status_code ?? 200)
   const [responseBody, setResponseBody] = useState(
-    existing?.response_body ?? '{\n  "message": "Hello from Wapify Mock!"\n}'
+    existing?.response_body ?? '{\n  "message": "Hello from Wapbolt Mock!"\n}'
   )
   const [delayMs, setDelayMs] = useState(existing?.delay_ms ?? 0)
   const [saving, setSaving] = useState(false)

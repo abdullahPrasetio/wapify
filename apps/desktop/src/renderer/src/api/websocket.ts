@@ -19,7 +19,7 @@ export class WebSocketClient {
       this.ws = new WebSocket(url)
 
       this.ws.onopen = () => {
-        console.log('[Wapify WS] Connected to collaboration server')
+        console.log('[Wapbolt WS] Connected to collaboration server')
         this.isConnecting = false
         if (this.reconnectTimer) {
           clearTimeout(this.reconnectTimer)
@@ -41,12 +41,12 @@ export class WebSocketClient {
           const data = JSON.parse(event.data)
           this.handleMessage(data)
         } catch (e) {
-          console.error('[Wapify WS] Failed to parse message', e)
+          console.error('[Wapbolt WS] Failed to parse message', e)
         }
       }
 
       this.ws.onclose = () => {
-        console.log('[Wapify WS] Disconnected')
+        console.log('[Wapbolt WS] Disconnected')
         this.ws = null
         this.isConnecting = false
         // Clear all presence/locks locally
@@ -55,11 +55,11 @@ export class WebSocketClient {
       }
 
       this.ws.onerror = (err) => {
-        console.error('[Wapify WS] Error:', err)
+        console.error('[Wapbolt WS] Error:', err)
         // onclose will be called
       }
     } catch (e) {
-      console.error('[Wapify WS] Connection error:', e)
+      console.error('[Wapbolt WS] Connection error:', e)
       this.isConnecting = false
       this.scheduleReconnect(teamId, userId, userName)
     }
@@ -67,7 +67,7 @@ export class WebSocketClient {
 
   private scheduleReconnect(teamId: number, userId: number, userName: string) {
     if (this.reconnectTimer) return
-    console.log('[Wapify WS] Reconnecting in 5 seconds...')
+    console.log('[Wapbolt WS] Reconnecting in 5 seconds...')
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null
       this.connect(teamId, userId, userName)
@@ -107,7 +107,7 @@ export class WebSocketClient {
           // Optionally, we could show a toast or auto-fetch
           // store.fetchCollectionContents(...)
           window.dispatchEvent(
-            new CustomEvent('wapify:entity-updated', { detail: message.payload })
+            new CustomEvent('wapbolt:entity-updated', { detail: message.payload })
           )
         }
         break
@@ -119,32 +119,32 @@ export const wsClient = new WebSocketClient()
 
 // Auto-connect hook
 export function initWebSocketIntegration() {
-  console.log('[Wapify WS] Initializing WebSocket integration...')
+  console.log('[Wapbolt WS] Initializing WebSocket integration...')
 
   // Listen to store changes to connect/disconnect or join/leave requests
   useDataStore.subscribe(
     (state) => ({ activeTeamId: state.activeTeamId, activeTabId: state.activeTabId }),
     (currentState, previousState) => {
       const auth = useAuthStore.getState()
-      console.log('[Wapify WS] Data store change detected:', { 
+      console.log('[Wapbolt WS] Data store change detected:', { 
         activeTeamId: currentState.activeTeamId, 
         hasUser: !!auth.user 
       })
 
       // If team changed, reconnect
       if (currentState.activeTeamId !== previousState.activeTeamId || (currentState.activeTeamId && !wsClient.ws)) {
-        console.log('[Wapify WS] Team changed or missing connection, reconnecting...')
+        console.log('[Wapbolt WS] Team changed or missing connection, reconnecting...')
         wsClient.disconnect()
         if (currentState.activeTeamId && auth.user) {
           wsClient.connect(currentState.activeTeamId, auth.user.id, auth.user.name)
         } else {
-          console.log('[Wapify WS] Missing teamId or user, skipping connection')
+          console.log('[Wapbolt WS] Missing teamId or user, skipping connection')
         }
       }
 
       // If active tab changed, send JOIN/LEAVE
       if (currentState.activeTabId !== previousState.activeTabId) {
-        console.log('[Wapify WS] Active tab changed:', currentState.activeTabId)
+        console.log('[Wapbolt WS] Active tab changed:', currentState.activeTabId)
         if (previousState.activeTabId) {
           const prevTab = useDataStore
             .getState()
@@ -169,7 +169,7 @@ export function initWebSocketIntegration() {
   const initialData = useDataStore.getState()
   const initialAuth = useAuthStore.getState()
   if (initialData.activeTeamId && initialAuth.user) {
-    console.log('[Wapify WS] Attempting initial connection...')
+    console.log('[Wapbolt WS] Attempting initial connection...')
     wsClient.connect(initialData.activeTeamId, initialAuth.user.id, initialAuth.user.name)
   }
 
@@ -178,7 +178,7 @@ export function initWebSocketIntegration() {
     (state) => state.user,
     (user) => {
       if (!user) {
-        console.log('[Wapify WS] User logged out, disconnecting...')
+        console.log('[Wapbolt WS] User logged out, disconnecting...')
         wsClient.disconnect()
       }
     }

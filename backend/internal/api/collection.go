@@ -3,8 +3,8 @@ package api
 import (
 	"encoding/json"
 	"github.com/gofiber/fiber/v2"
-	"github.com/waluyo/wapify-backend/internal/middleware"
-	"github.com/waluyo/wapify-backend/internal/repository"
+	"github.com/waluyo/wapbolt-backend/internal/middleware"
+	"github.com/waluyo/wapbolt-backend/internal/repository"
 	"gorm.io/gorm"
 )
 

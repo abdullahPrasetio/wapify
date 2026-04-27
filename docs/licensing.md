@@ -1,18 +1,18 @@
-# Wapify Licensing System (Simplified) 🔐
+# Wapbolt Licensing System (Simplified) 🔐
 
-Dokumen ini menjelaskan arsitektur manajemen lisensi Wapify yang menggunakan pendekatan **Offline-First**.
+Dokumen ini menjelaskan arsitektur manajemen lisensi Wapbolt yang menggunakan pendekatan **Offline-First**.
 
 ---
 
 ## 1. Konsep Utama: Offline Validation
-Wapify menggunakan validasi kriptografi Ed25519 untuk memastikan lisensi valid tanpa memerlukan koneksi internet ke server pusat.
+Wapbolt menggunakan validasi kriptografi Ed25519 untuk memastikan lisensi valid tanpa memerlukan koneksi internet ke server pusat.
 
 ### A. License CLI (Alat Waluyo)
 *   **Peran:** Sebagai *Authority* (Penerbit Izin).
 *   **Fungsi:** Digunakan oleh Waluyo untuk men-generate pasangan kunci (Keypair) dan membuat string lisensi untuk klien.
 *   **Lokasi:** `backend/cmd/license/main.go`.
 
-### B. Wapify App (Aplikasi Klien)
+### B. Wapbolt App (Aplikasi Klien)
 *   **Peran:** Sebagai *Verifier* (Pemeriksa Izin).
 *   **Kunci:** Memiliki `LICENSE_PUBLIC_KEY` yang di-embed di dalam kode/binary.
 *   **Fungsi:** Memverifikasi integritas lisensi secara lokal (offline) menggunakan Public Key.

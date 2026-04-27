@@ -45,12 +45,14 @@ const Navbar = ({ theme, toggleTheme }: any) => {
   return (
     <nav className="fixed top-0 w-full z-[100] bg-white/90 dark:bg-[#0F172A]/90 backdrop-blur-xl border-b border-slate-200 dark:border-white/10">
       <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center text-white font-black text-lg shadow-lg">W</div>
-          <span className="font-black text-xl tracking-tighter text-slate-900 dark:text-white uppercase italic">Wapify</span>
+        <div className="flex items-center gap-3 group cursor-pointer">
+          <div className="w-11 h-11 rounded-xl bg-primary flex items-center justify-center text-white shadow-xl shadow-primary/30 group-hover:rotate-12 transition-transform">
+            <Zap size={22} fill="currentColor" />
+          </div>
+          <span className="font-black text-2xl tracking-tighter text-slate-900 dark:text-white uppercase italic">Wapbolt</span>
         </div>
         <div className="hidden md:flex items-center gap-8 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em]">
-          <a href="#about" className="hover:text-primary dark:hover:text-white transition-colors">Why Wapify</a>
+          <a href="#about" className="hover:text-primary dark:hover:text-white transition-colors">Why Wapbolt</a>
           <a href="#workflow" className="hover:text-primary dark:hover:text-white transition-colors">Architecture</a>
           <a href="#comparison" className="hover:text-primary dark:hover:text-white transition-colors">Vs Postman</a>
           <a href="#download" className="hover:text-primary dark:hover:text-white transition-colors">Download</a>
@@ -73,7 +75,7 @@ const Navbar = ({ theme, toggleTheme }: any) => {
       <AnimatePresence>
         {isOpen && (
           <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="md:hidden absolute top-full left-0 w-full bg-white dark:bg-[#0F172A] border-b border-slate-200 dark:border-white/10 p-8 flex flex-col gap-6 font-black uppercase tracking-widest text-xs shadow-2xl dark:text-white">
-            <a href="#about" onClick={() => setIsOpen(false)}>Why Wapify</a>
+            <a href="#about" onClick={() => setIsOpen(false)}>Why Wapbolt</a>
             <a href="#workflow" onClick={() => setIsOpen(false)}>Architecture</a>
             <a href="#comparison" onClick={() => setIsOpen(false)}>Vs Postman</a>
             <a href="#download" onClick={() => setIsOpen(false)}>Download</a>
@@ -103,7 +105,7 @@ export default function App() {
 
   const handleSendEmail = (e: React.FormEvent) => {
     e.preventDefault();
-    const subject = encodeURIComponent(`Wapify Beta Inquiry from ${formData.name}`);
+    const subject = encodeURIComponent(`Wapbolt Beta Inquiry from ${formData.name}`);
     const body = encodeURIComponent(
       `Name: ${formData.name}\n` +
       `Email: ${formData.email}\n\n` +
@@ -127,7 +129,7 @@ export default function App() {
             <Sparkles size={12} className="inline mr-2" /> Next-Generation API Platform
           </span>
           <h1 className="text-6xl md:text-9xl font-black mb-10 leading-none tracking-tighter dark:text-white uppercase italic">
-            Wapify <span className="text-primary not-italic">Engine</span>
+            Wapbolt <span className="text-primary not-italic">Engine</span>
           </h1>
           <p className="text-xl md:text-2xl text-slate-500 dark:text-slate-400 mb-14 max-w-3xl mx-auto font-medium leading-relaxed">
             The lightweight, self-hosted alternative to Postman. <br className="hidden md:block"/>Built for speed, privacy, and real-time team collaboration.
@@ -139,7 +141,7 @@ export default function App() {
         </motion.div>
       </section>
 
-      {/* WHY WAPIFY */}
+      {/* WHY WAPBOLT */}
       <section id="about" className="py-24 px-6 max-w-7xl mx-auto grid md:grid-cols-3 gap-10">
         <div className="p-12 rounded-[3.5rem] bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-white/5 flex flex-col items-center text-center group hover:border-primary/50 transition-all shadow-sm">
           <div className="w-20 h-20 rounded-3xl bg-blue-500/10 flex items-center justify-center text-blue-500 mb-10 group-hover:scale-110 transition-transform shadow-inner"><Zap size={40} /></div>
@@ -259,7 +261,7 @@ export default function App() {
           </div>
           <div className="bg-gradient-to-br from-primary to-accent p-12 md:p-20 rounded-[4rem] text-white shadow-2xl shadow-primary/20 relative overflow-hidden">
             <div className="absolute top-0 right-0 p-12 opacity-10 rotate-45"><Rocket size={150}/></div>
-            <h3 className="text-4xl md:text-5xl font-black mb-12 italic uppercase tracking-tighter text-white">Wapify (Upgrade)</h3>
+            <h3 className="text-4xl md:text-5xl font-black mb-12 italic uppercase tracking-tighter text-white">Wapbolt (Upgrade)</h3>
             <ul className="space-y-8 relative z-10">
               {["Ultra-light Go Core", "Dynamic Mocking Pro", "Smart cURL Injector", "Real-time Collaboration"].map((item, i) => (
                 <li key={i} className="flex items-center gap-6 font-black text-xl md:text-2xl tracking-tight text-white">
@@ -278,15 +280,15 @@ export default function App() {
            <h2 className="text-5xl md:text-7xl font-black mb-12 tracking-tighter uppercase italic">Ready to Switch?</h2>
            <div className="grid sm:grid-cols-3 gap-6">
               {[
-                { platform: 'Windows', icon: Monitor, file: 'Wapify_Win.exe', color: 'primary' },
-                { platform: 'macOS', icon: Box, file: 'Wapify_Mac.dmg', color: 'slate-400' },
-                { platform: 'Linux', icon: Layout, file: 'Wapify.AppImage', color: 'orange-500' }
+                { platform: 'Windows', icon: Monitor, file: 'Wapbolt_Win.exe', color: 'primary' },
+                { platform: 'macOS', icon: Box, file: 'Wapbolt_Mac.dmg', color: 'slate-400' },
+                { platform: 'Linux', icon: Layout, file: 'Wapbolt.AppImage', color: 'orange-500' }
               ].map((item, i) => (
                 <div key={i} className="p-8 rounded-[2.5rem] bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-white/10 hover:border-primary/50 transition-all group shadow-xl">
                    <item.icon className={`mx-auto mb-6 text-${item.color} group-hover:scale-110 transition-transform`} size={48} />
                    <h4 className="font-black dark:text-white mb-6 uppercase text-xs tracking-widest">{item.platform}</h4>
                    <a 
-                     href="https://github.com/abdullahPrasetio/wapify-desktop-releases/releases/latest" 
+                     href="https://github.com/abdullahPrasetio/wapbolt-desktop-releases/releases/latest" 
                      target="_blank" 
                      rel="noopener noreferrer"
                      className="block w-full py-4 bg-slate-900 dark:bg-primary text-white rounded-2xl font-black text-[10px] shadow-lg uppercase tracking-widest text-center"
@@ -346,7 +348,7 @@ export default function App() {
           <div className="flex items-center gap-4 text-slate-900 dark:text-white">
             <div className="w-14 h-14 rounded-2xl bg-primary flex items-center justify-center text-white font-black text-2xl shadow-xl">W</div>
             <div>
-              <span className="font-black text-3xl tracking-tighter uppercase italic block">Wapify</span>
+              <span className="font-black text-3xl tracking-tighter uppercase italic block">Wapbolt</span>
               <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.5em]">Built for Speed by abdullahPrasetio</span>
             </div>
           </div>
@@ -362,3 +364,4 @@ export default function App() {
     </div>
   );
 }
+

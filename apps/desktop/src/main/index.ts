@@ -13,19 +13,19 @@ autoUpdater.logger = log
 log.transports.file.level = 'info'
 log.info('App starting...')
 
-const KEYTAR_SERVICE = 'io.wapify.desktop'
+const KEYTAR_SERVICE = 'io.wapbolt.desktop'
 const KEYTAR_ACCOUNT = 'refresh_token'
 
 // ─── IPC: Keytar (Secure Storage) ──────────────────────────────────────────
-ipcMain.handle('wapify:set-token', async (_event, token: string) => {
+ipcMain.handle('wapbolt:set-token', async (_event, token: string) => {
   return keytar.setPassword(KEYTAR_SERVICE, KEYTAR_ACCOUNT, token)
 })
 
-ipcMain.handle('wapify:get-token', async () => {
+ipcMain.handle('wapbolt:get-token', async () => {
   return keytar.getPassword(KEYTAR_SERVICE, KEYTAR_ACCOUNT)
 })
 
-ipcMain.handle('wapify:delete-token', async () => {
+ipcMain.handle('wapbolt:delete-token', async () => {
   return keytar.deletePassword(KEYTAR_SERVICE, KEYTAR_ACCOUNT)
 })
 
@@ -45,7 +45,7 @@ interface IpcResponse {
   timing: number
 }
 
-ipcMain.handle('wapify:request', async (_event, config: IpcRequestConfig): Promise<IpcResponse> => {
+ipcMain.handle('wapbolt:request', async (_event, config: IpcRequestConfig): Promise<IpcResponse> => {
   const startTime = Date.now()
   try {
     let requestData: any = config.body
@@ -120,7 +120,7 @@ function createWindow(): void {
     minWidth: 960,
     minHeight: 600,
     show: false,
-    title: 'Wapify',
+    title: 'Wapbolt',
     autoHideMenuBar: true,
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
@@ -146,7 +146,7 @@ function createWindow(): void {
 }
 
 app.whenReady().then(() => {
-  electronApp.setAppUserModelId('io.wapify.desktop')
+  electronApp.setAppUserModelId('io.wapbolt.desktop')
 
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
@@ -155,7 +155,7 @@ app.whenReady().then(() => {
   createWindow()
   autoUpdater.checkForUpdatesAndNotify()
 
-  ipcMain.handle('wapify:get-version', () => {
+  ipcMain.handle('wapbolt:get-version', () => {
     return app.getVersion()
   })
 

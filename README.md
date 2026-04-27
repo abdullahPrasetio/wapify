@@ -1,6 +1,6 @@
-# Wapify — All-in-One API Ecosystem
+# Wapbolt — All-in-One API Ecosystem
 
-Project monorepo untuk Wapify (API Orchestration, Collaboration, & Documentation).
+Project monorepo untuk Wapbolt (API Orchestration, Collaboration, & Documentation).
 
 ## 📁 Struktur Project
 - `apps/desktop`: Aplikasi Electron + React (Client)

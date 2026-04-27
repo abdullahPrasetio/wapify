@@ -116,7 +116,7 @@ export const UserManagement = (): React.JSX.Element => {
       <div className="p-6 border-b border-border bg-surface/30 shrink-0 flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-text">User Management</h1>
-          <p className="text-sm text-muted">Manage all registered users in Wapify.</p>
+          <p className="text-sm text-muted">Manage all registered users in Wapbolt.</p>
         </div>
 
         <Dialog.Root open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
