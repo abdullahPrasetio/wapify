@@ -1,4 +1,4 @@
-# Wapbolt — Development Log
+# Wapify — Development Log
 
 ## [2026-04-21] — Inisialisasi License Management (Fase 5 MVP)
 **Fase:** Fase 5 — On-Premise & License
@@ -317,6 +317,39 @@
 
 ### Langkah Selanjutnya
 - Implementasi Notifikasi in-app saat koleksi diupdate (Fase 7.2).
+
+---
+
+## [2026-04-27] — Rebranding to Wapbolt & UX Improvements
+**Fase:** Fase 6 — UX & Power Features
+**Dikerjakan oleh:** Gemini
+**Status:** ✅ Selesai
+
+### Yang Dikerjakan
+- **Rebranding Massal**:
+    - Mengubah identitas produk dari **Wapify** menjadi **Wapbolt** di seluruh ekosistem (Backend, Desktop, Landing Page, dan Infrastruktur).
+    - Update module path di `go.mod`, jalur impor Go, header HTTP (`X-Wapbolt-*`), dan metadata aplikasi (`appId`, `productName`).
+    - Migrasi kunci LocalStorage (`wapbolt_server_url`, `wapbolt-data-storage`) dan IPC channels agar sinkron dengan nama baru.
+- **Identitas Visual Baru**:
+    - Mendesain ulang ikon `resources/icon.svg` dengan menggabungkan inisial "W" dan simbol "Bolt" (Petir).
+    - Memperbarui komponen UI (Login, Sidebar, Main Area) dengan ikon **Zap** (Lucide React) sebagai logo utama yang lebih modern dan dinamis.
+- **UX Resizer Improvement**:
+    - Memperbaiki bug pada *Response Area Resizer* yang sebelumnya bisa ditarik hingga hilang.
+    - Implementasi `minBottomHeightPx` sebesar 80px untuk memastikan Tab Response (Body, Headers, dll) tetap terlihat saat panel diturunkan maksimal.
+
+### Perubahan File
+- Seluruh file proyek (Rebranding massal).
+- `apps/desktop/resources/icon.svg` — Ikon baru.
+- `apps/desktop/src/renderer/src/components/layout/MainArea.tsx` — Logika resizer baru.
+- `docker-compose.yml`, `Makefile`, `go.mod` — Sinkronisasi metadata.
+
+### Keputusan & Catatan
+- Memilih nama **Wapbolt** karena unik (zero search competition), mencerminkan kecepatan, dan tetap mempertahankan inisial personal (WAP).
+- Memilih batas minimal 80px pada resizer berdasarkan kebutuhan visual agar kontrol utama tidak tersembunyi.
+
+### Langkah Selanjutnya
+- Persiapan rename repositori di GitHub (Wapbolt & Wapbolt-desktop-releases).
+- Implementasi Notifikasi in-app (Fase 7.2).
 
 ---
 
