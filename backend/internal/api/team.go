@@ -17,6 +17,9 @@ func SetupTeamRoutes(app *fiber.App) {
 
 	teamGroup.Post("/", CreateTeam)
 	teamGroup.Get("/", ListTeams)
+	teamGroup.Get("/:id", GetTeamDetail)
+	teamGroup.Put("/:id", UpdateTeam)
+	teamGroup.Delete("/:id", DeleteTeam)
 	teamGroup.Get("/:id/members", ListTeamMembers)
 	teamGroup.Post("/:id/members", AddTeamMember)
 	teamGroup.Put("/:id/members/:userId", UpdateTeamMember)

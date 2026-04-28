@@ -27,7 +27,7 @@ import {
   useSortable
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { apiClient } from '../../api/client'
+import { apiClient, getBaseUrl } from '../../api/client'
 import type { MockEndpoint, MockScenario, MockCondition } from '../../types'
 import { toast } from 'sonner'
 import Editor from '@monaco-editor/react'
@@ -250,7 +250,7 @@ export const ScenariosPanel: React.FC<ScenariosPanelProps> = ({
   }
 
   const copyAsCurl = (s: MockScenario) => {
-    const mockBaseUrl = `http://localhost:8000/mock/${endpoint.collection_id}`
+    const mockBaseUrl = `${getBaseUrl()}/mock/${endpoint.collection_id}`
     const url = `${mockBaseUrl}${endpoint.path}`
     
     const queryParams: Record<string, string> = {}

@@ -14,7 +14,7 @@ import {
   Zap,
   LayoutGrid
 } from 'lucide-react'
-import { apiClient } from '../../api/client'
+import { apiClient, getBaseUrl } from '../../api/client'
 import type { MockEndpoint, ApiRequest } from '../../types'
 import { MethodBadge } from '../ui/MethodBadge'
 import { toast } from 'sonner'
@@ -42,7 +42,7 @@ export const MockServerPanel: React.FC<MockServerPanelProps> = ({
   const [copiedId, setCopiedId] = useState<number | null>(null)
   const [managingScenariosEndpoint, setManagingScenariosEndpoint] = useState<MockEndpoint | null>(null)
 
-  const mockBaseUrl = `http://localhost:8000/mock/${collectionId}`
+  const mockBaseUrl = `${getBaseUrl()}/mock/${collectionId}`
 
   const fetchEndpoints = useCallback(async () => {
     setLoading(true)

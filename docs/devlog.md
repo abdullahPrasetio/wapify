@@ -350,3 +350,32 @@
 ### Langkah Selanjutnya
 - Persiapan rename repositori di GitHub (Wapbolt & Wapbolt-desktop-releases).
 - Implementasi Notifikasi in-app (Fase 7.2).
+
+---
+
+## [2026-04-27] — Fix Workspace Members & Dynamic Server URLs
+**Fase:** Fase 6 — UX & Power Features
+**Dikerjakan oleh:** Gemini
+**Status:** ✅ Selesai
+
+### Yang Dikerjakan
+- **Fix Workspace Member List**:
+    - Memperbaiki rute API `GET /api/v1/teams/:id` yang sebelumnya tidak terdaftar dengan benar sehingga list member tidak muncul.
+    - Melakukan konsolidasi rute manajemen tim dari `team_member.go` ke `team.go` agar lebih terstruktur.
+    - Memastikan GORM melakukan `.Preload("User")` pada endpoint detail tim agar informasi nama dan email member tampil di UI.
+- **Dynamic Server URLs**:
+    - Menghapus hardcode `localhost:8000` pada panel **Mock Server** dan **Scenarios**. Kini URL mock dan cURL generator otomatis mengikuti konfigurasi server di Settings.
+    - Memperbarui `WebSocketClient` agar menggunakan protocol yang sesuai (`ws` atau `wss`) secara dinamis berdasarkan URL backend yang aktif, menjamin fitur kolaborasi tetap jalan di domain kustom/Cloudflare.
+
+### Perubahan File
+- `backend/internal/api/team.go` & `team_member.go` — Perbaikan rute dan konsolidasi.
+- `apps/desktop/src/renderer/src/components/layout/MockServerPanel.tsx` — Dynamic URL.
+- `apps/desktop/src/renderer/src/components/layout/ScenariosPanel.tsx` — Dynamic URL.
+- `apps/desktop/src/renderer/src/api/websocket.ts` — Dynamic protocol detection.
+
+### Keputusan & Catatan
+- Menggabungkan rute tim dan member ke satu file `team.go` untuk menyederhanakan pemeliharaan karena keduanya sangat berkaitan erat secara logika.
+- Menggunakan helper `getBaseUrl()` yang sudah ada di frontend sebagai sumber kebenaran tunggal untuk semua alamat endpoint eksternal.
+
+### Langkah Selanjutnya
+- Implementasi Notifikasi in-app (Fase 7.2).

@@ -1,8 +1,12 @@
 // websocket.ts
 import { useAuthStore } from '../store/useAuthStore'
 import { useDataStore } from '../store/useDataStore'
+import { getBaseUrl } from './client'
 
-const WS_BASE_URL = 'ws://localhost:8000'
+const getWsBaseUrl = () => {
+  const baseUrl = getBaseUrl()
+  return baseUrl.replace(/^http/, 'ws')
+}
 
 export class WebSocketClient {
   public ws: WebSocket | null = null
@@ -13,7 +17,7 @@ export class WebSocketClient {
     if (this.ws || this.isConnecting) return
 
     this.isConnecting = true
-    const url = `${WS_BASE_URL}/ws?team_id=${teamId}&user_id=${userId}&user_name=${encodeURIComponent(userName)}`
+    const url = `${getWsBaseUrl()}/ws?team_id=${teamId}&user_id=${userId}&user_name=${encodeURIComponent(userName)}`
 
     try {
       this.ws = new WebSocket(url)

@@ -2,7 +2,6 @@ package api
 
 import (
 	"github.com/gofiber/fiber/v2"
-	"github.com/waluyo/wapbolt-backend/internal/middleware"
 	"github.com/waluyo/wapbolt-backend/internal/repository"
 )
 
@@ -13,16 +12,6 @@ type AddMemberRequest struct {
 
 type UpdateMemberRequest struct {
 	Role string `json:"role"`
-}
-
-func SetupTeamMemberRoutes(app *fiber.App) {
-	teamGroup := app.Group("/api/v1/teams/:id", middleware.RequireAuth)
-	teamGroup.Get("/", GetTeamDetail)
-	teamGroup.Put("/", UpdateTeam)
-	teamGroup.Delete("/", DeleteTeam)
-	teamGroup.Post("/members", AddTeamMember)
-	teamGroup.Put("/members/:userId", UpdateTeamMember)
-	teamGroup.Delete("/members/:userId", RemoveTeamMember)
 }
 
 func GetTeamDetail(c *fiber.Ctx) error {
