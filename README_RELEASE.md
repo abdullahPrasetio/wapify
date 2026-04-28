@@ -6,7 +6,7 @@ Wapbolt adalah API Testing, Orchestration & Collaboration platform yang dirancan
 
 ---
 
-## 📥 Download Terbaru
+## 📥 Download Terbaru (v1.4.1)
 
 Silakan unduh installer sesuai dengan Sistem Operasi Anda melalui link di bawah ini:
 
@@ -20,28 +20,33 @@ Silakan unduh installer sesuai dengan Sistem Operasi Anda melalui link di bawah 
 
 ---
 
+## ✨ Highlight v1.4.1
+- **Dynamic Connectivity**: Menghapus hardcode localhost, mendukung URL server kustom dan Cloudflare secara penuh.
+- **WebSocket Sync Fix**: Deteksi otomatis protokol SSL (WSS) untuk kolaborasi tim yang lebih stabil.
+- **Team Management**: Perbaikan daftar anggota workspace yang sebelumnya tidak muncul.
+
+---
+
 ## 🛠️ Catatan Instalasi
 
 ### Windows
 Jika Anda melihat peringatan **"Windows protected your PC"** atau **"SmartScreen"**:
 1. Klik **"More info"**.
 2. Klik **"Run anyway"**.
-*Hal ini wajar karena aplikasi belum menggunakan sertifikat berbayar (EV Code Signing).*
 
 ### macOS
-Aplikasi ini dioptimalkan untuk arsitektur ARM (M1/M2/M3) dan Intel. Jika muncul peringatan keamanan:
+Jika muncul peringatan keamanan:
 1. Buka **System Settings** > **Privacy & Security**.
 2. Scroll ke bawah dan klik **"Open Anyway"** pada bagian Wapbolt.
 
 ---
 
 ## 🔄 Pembaruan Otomatis (Auto-Update)
-Aplikasi Wapbolt dilengkapi dengan fitur pembaruan otomatis. Setiap kali Anda membuka aplikasi, Wapbolt akan mengecek apakah ada versi terbaru di repositori ini. Jika tersedia, pembaruan akan diunduh di background dan Anda akan diminta untuk melakukan restart aplikasi.
+Aplikasi Wapbolt dilengkapi dengan fitur pembaruan otomatis. Setiap kali Anda membuka aplikasi, Wapbolt akan mengecek apakah ada versi terbaru di repositori ini.
 
 ---
 
 ## 👨‍💻 Developer
 Project ini dikembangkan oleh **[abdullahPrasetio](https://github.com/abdullahPrasetio)**.
 
-Jika Anda mengalami kendala atau membutuhkan lisensi beta, silakan hubungi kami di:
 📧 **temancode@gmail.com**

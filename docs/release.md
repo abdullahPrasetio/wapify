@@ -1,29 +1,24 @@
-# Wapbolt v1.4.0 — The Rebrand & UX Polish ⚡️
+# Wapbolt v1.4.1 — Dynamic Connectivity & Workspace Fixes ⚡️
 
-Rilis ini menandai era baru bagi aplikasi kita dengan identitas brand yang sepenuhnya baru: **Wapbolt**. Kami juga menyertakan beberapa perbaikan UX penting untuk kenyamanan pengujian API Anda.
+Rilis ini membawa perbaikan krusial pada fleksibilitas konektivitas server dan manajemen workspace, melengkapi transisi besar kita ke identitas **Wapbolt**.
 
 ### ✨ Apa yang Baru?
 
-#### ⚡️ Rebranding: Say Hello to Wapbolt!
-Kami telah mengganti nama aplikasi dari Wapify menjadi **Wapbolt**. Nama baru ini mencerminkan kecepatan (*lightning fast*), kekuatan, dan efisiensi yang menjadi inti dari tool ini.
-- **Identitas Visual Baru**: Logo kini menggunakan simbol **Zap (Petir)** yang modern dan dinamis di seluruh aplikasi.
-- **SVG Ikon Baru**: Ikon aplikasi resmi (`icon.svg`) telah didesain ulang dengan perpaduan inisial "W" dan elemen "Bolt" emas.
-- **Pembaruan Ekosistem**: Seluruh infrastruktur (Backend, Desktop, Landing Page) kini telah menggunakan identitas Wapbolt secara seragam.
+#### 🌐 Dynamic Server Connectivity
+Kami menghapus sisa-sisa ketergantungan pada `localhost:8000`. Kini aplikasi sepenuhnya dinamis:
+- **Mock Server & Scenarios**: Semua link mock dan cURL yang di-generate kini otomatis mengikuti URL server yang Anda atur di Settings.
+- **WebSocket Protocol Detection**: Fitur kolaborasi kini secara otomatis mendeteksi penggunaan `ws://` atau `wss://` (untuk Cloudflare/HTTPS), memastikan sinkronisasi tim tetap lancar di lingkungan produksi.
 
-#### 📏 UX Improvement: Resizer Constraint
-Kami memperbaiki salah satu kendala navigasi yang paling sering dilaporkan:
-- **Sticky Response Panel**: Kini panel respon di bagian bawah tidak akan bisa hilang saat ditarik ke bawah.
-- **Min-Height Protection**: Kami memberikan batas minimal **80px** untuk memastikan baris Tabs (Body, Headers, Console) tetap terlihat dan dapat diakses setiap saat.
+#### 👥 Workspace Management Fix
+Kami memperbaiki kendala pada fitur manajemen tim:
+- **Member List Visibility**: Memperbaiki rute API backend agar daftar anggota workspace muncul dengan detail nama dan email yang lengkap.
+- **Route Consolidation**: Menyederhanakan struktur backend untuk manajemen member agar lebih stabil dan cepat.
 
-#### 🚀 Infrastruktur & Backend
-- **Module Migration**: Semua jalur impor Go telah diperbarui ke `github.com/waluyo/wapbolt-backend`.
-- **IPC & Storage**: Jalur komunikasi antar-proses dan kunci penyimpanan lokal telah dimigrasi ke namespace `wapbolt` untuk stabilitas data jangka panjang.
-- **HTTP Headers**: Standarisasi header kustom menjadi `X-Wapbolt-License-Warning` dan `X-Wapbolt-Mock`.
-
-### 🛠 Peningkatan Lainnya
-- **Clean Documentation**: Seluruh panduan teknis (`PRD`, `DevLog`, `DevPlan`) telah diperbarui agar selaras dengan branding baru.
-- **Landing Page Refresh**: Halaman depan kini tampil lebih berenergi dengan tema visual Wapbolt yang baru.
-- **Auto-Update Path**: Menyiapkan jalur rilis ke repositori `wapbolt-desktop-releases`.
+### ⏪ Sebelumnya di v1.4.0 (Rebrand)
+- **Official Rebrand**: Perubahan nama dari Wapify menjadi **Wapbolt**.
+- **New Visual Identity**: Logo baru berbasis ikon **Zap (Petir)** dan pembaruan ikon aplikasi (`icon.svg`).
+- **Resizer Constraint**: Perbaikan panel respon agar tidak bisa ditarik hingga hilang (Min-height 80px).
+- **Module Migration**: Update jalur impor Go ke `github.com/waluyo/wapbolt-backend`.
 
 ---
 
