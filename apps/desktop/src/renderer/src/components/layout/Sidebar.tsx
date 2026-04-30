@@ -23,7 +23,7 @@ import {
   X,
   Download,
   Copy,
-  GripVertical,
+  GripVertical, Key, DatabaseZap,
   Zap
 } from 'lucide-react'
 import { useState, useEffect, useLayoutEffect, useMemo } from 'react'
@@ -51,6 +51,8 @@ import { ImportModal } from '../modals/ImportModal'
 import { PromptModal } from '../modals/PromptModal'
 import { EnvironmentModal } from '../modals/EnvironmentModal'
 import { ServerSettingsModal } from '../modals/ServerSettingsModal'
+import { ChangePasswordModal } from "../modals/ChangePasswordModal"
+import { StandaloneMockPanel } from "./StandaloneMockPanel"
 import { DocumentationPanel } from './DocumentationPanel'
 import { MockServerPanel } from './MockServerPanel'
 import type { ApiRequest, Collection, Folder, RequestExample } from '../../types'
@@ -649,6 +651,8 @@ const CollectionItem = ({ collection }: { collection: Collection }): React.JSX.E
 export const Sidebar = (): React.JSX.Element => {
   const { user, logout } = useAuthStore()
   const [showServerSettings, setShowServerSettings] = useState(false)
+  const [showChangePassword, setShowChangePassword] = useState(false)
+  const [showStandaloneMock, setShowStandaloneMock] = useState(false)
   const [appVersion, setAppVersion] = useState<string>('')
 
   const {
@@ -854,9 +858,9 @@ export const Sidebar = (): React.JSX.Element => {
                     <UserCog size={12} /> User Management
                   </div>
                   <div onClick={() => setActiveView('admin-teams')} className={`flex items-center gap-2 px-2 py-1.5 rounded text-xs cursor-pointer ${activeView === 'admin-teams' ? 'bg-primary/10 text-primary' : 'text-text hover:bg-background'}`}>
-                    <Building2 size={12} /> Team Management
+                    <Building2 size={12} /> Workspace Management
                   </div>
-                </div>
+                  </div>
               )}
             </div>
           )}
@@ -874,6 +878,12 @@ export const Sidebar = (): React.JSX.Element => {
                 </div>
               ))}
             </div>
+
+            {activeTeamId && (
+              <div onClick={() => setShowStandaloneMock(true)} className="flex items-center gap-2 px-2 py-1.5 rounded text-[10px] cursor-pointer text-emerald-400 hover:bg-emerald-500/10 transition-colors mt-2 border border-emerald-500/10 bg-emerald-500/5 font-black uppercase tracking-[0.1em] shadow-lg shadow-emerald-500/5">
+                <DatabaseZap size={11} /> Workspace Mock Server
+              </div>
+            )}
           </div>
 
           <div className="flex px-3 pt-3 gap-4 border-b border-border">
@@ -941,7 +951,8 @@ export const Sidebar = (): React.JSX.Element => {
                 <div className="text-xs font-bold text-text truncate">{user?.name}</div>
                 <div className="text-[10px] text-muted truncate">{user?.email}</div>
               </div>
-              <div className="flex items-center gap-2 shrink-0 ml-2">
+              <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                <button onClick={() => setShowChangePassword(true)} title="Change Password" className="text-muted hover:text-text"><Key size={14} /></button>
                 <button onClick={() => setShowServerSettings(true)} className="text-muted hover:text-text"><Settings size={14} /></button>
                 <button onClick={logout} className="text-muted hover:text-danger"><LogOut size={14} /></button>
               </div>
@@ -950,6 +961,14 @@ export const Sidebar = (): React.JSX.Element => {
         </div>
 
         {showServerSettings && <ServerSettingsModal onClose={() => setShowServerSettings(false)} />}
+        {showChangePassword && <ChangePasswordModal isOpen={showChangePassword} onClose={() => setShowChangePassword(false)} />}
+        {showStandaloneMock && activeTeam && (
+          <StandaloneMockPanel 
+            teamId={activeTeam.id} 
+            workspaceName={activeTeam.name} 
+            onClose={() => setShowStandaloneMock(false)} 
+          />
+        )}
 
         {isNewCollectionModalOpen && (
           <PromptModal

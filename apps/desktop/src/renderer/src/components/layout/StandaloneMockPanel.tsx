@@ -11,28 +11,25 @@ import {
   Clock,
   Code,
   ChevronDown,
-  Zap,
   LayoutGrid
 } from 'lucide-react'
 import { apiClient, getBaseUrl } from '../../api/client'
-import type { MockEndpoint, ApiRequest } from '../../types'
+import type { MockEndpoint } from '../../types'
 import { MethodBadge } from '../ui/MethodBadge'
 import { toast } from 'sonner'
 import { ScenariosPanel } from './ScenariosPanel'
 
 const HTTP_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS']
 
-interface MockServerPanelProps {
-  collectionId: number
-  collectionName: string
-  requests: ApiRequest[]
+interface StandaloneMockPanelProps {
+  teamId: number
+  workspaceName: string
   onClose: () => void
 }
 
-export const MockServerPanel: React.FC<MockServerPanelProps> = ({
-  collectionId,
-  collectionName,
-  requests,
+export const StandaloneMockPanel: React.FC<StandaloneMockPanelProps> = ({
+  teamId,
+  workspaceName,
   onClose
 }) => {
   const [endpoints, setEndpoints] = useState<MockEndpoint[]>([])
@@ -42,21 +39,21 @@ export const MockServerPanel: React.FC<MockServerPanelProps> = ({
   const [copiedId, setCopiedId] = useState<number | null>(null)
   const [managingScenariosEndpoint, setManagingScenariosEndpoint] = useState<MockEndpoint | null>(null)
 
-  const mockBaseUrl = `${getBaseUrl()}/mock/${collectionId}`
+  const mockBaseUrl = `${getBaseUrl()}/mock/w/${teamId}`
 
   const fetchEndpoints = useCallback(async () => {
     setLoading(true)
     try {
       const res = await apiClient.get<MockEndpoint[]>(
-        `/api/v1/collections/${collectionId}/mock/endpoints`
+        `/api/v1/workspaces/${teamId}/mock/endpoints`
       )
       setEndpoints(res.data as MockEndpoint[])
     } catch {
-      toast.error('Failed to load mock endpoints')
+      toast.error('Failed to load standalone mock endpoints')
     } finally {
       setLoading(false)
     }
-  }, [collectionId])
+  }, [teamId])
 
   useEffect(() => {
     fetchEndpoints()
@@ -65,9 +62,9 @@ export const MockServerPanel: React.FC<MockServerPanelProps> = ({
   const handleDelete = async (id: number) => {
     if (!window.confirm('Delete this mock endpoint?')) return
     try {
-      await apiClient.delete(`/api/v1/collections/${collectionId}/mock/endpoints/${id}`)
+      await apiClient.delete(`/api/v1/workspaces/${teamId}/mock/endpoints/${id}`)
       setEndpoints((prev) => prev.filter((e) => e.id !== id))
-      toast.success('Mock endpoint deleted')
+      toast.success('Standalone mock endpoint deleted')
     } catch {
       toast.error('Failed to delete')
     }
@@ -77,7 +74,7 @@ export const MockServerPanel: React.FC<MockServerPanelProps> = ({
     try {
       const newActiveStatus = !ep.is_active
       const res = await apiClient.put<MockEndpoint>(
-        `/api/v1/collections/${collectionId}/mock/endpoints/${ep.id}`,
+        `/api/v1/workspaces/${teamId}/mock/endpoints/${ep.id}`,
         {
           method: ep.method,
           path: ep.path,
@@ -92,19 +89,6 @@ export const MockServerPanel: React.FC<MockServerPanelProps> = ({
       toast.success(newActiveStatus ? 'Mock endpoint enabled' : 'Mock endpoint disabled')
     } catch {
       toast.error('Failed to toggle')
-    }
-  }
-
-  const handleQuickMock = async (request: ApiRequest) => {
-    try {
-      const res = await apiClient.post<MockEndpoint>(
-        `/api/v1/collections/${collectionId}/mock/endpoints/from-request/${request.id}`,
-        {}
-      )
-      setEndpoints((prev) => [...prev, res.data as MockEndpoint])
-      toast.success(`Mock created from "${request.name}"`)
-    } catch {
-      toast.error('Failed to create mock from request')
     }
   }
 
@@ -128,7 +112,7 @@ export const MockServerPanel: React.FC<MockServerPanelProps> = ({
   if (managingScenariosEndpoint) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-        <div className="bg-surface border border-white/10 rounded-xl shadow-2xl w-[95vw] max-w-6xl h-[90vh] flex flex-col overflow-hidden">
+        <div className="bg-surface border border-white/10 rounded-xl shadow-2xl w-[95vw] max-w-6xl h-[90vh] flex flex-col overflow-hidden text-slate-100">
           <ScenariosPanel 
             endpoint={managingScenariosEndpoint} 
             onBack={() => setManagingScenariosEndpoint(null)}
@@ -144,47 +128,30 @@ export const MockServerPanel: React.FC<MockServerPanelProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="bg-surface border border-white/10 rounded-xl shadow-2xl w-[90vw] max-w-5xl h-[85vh] flex flex-col overflow-hidden">
+      <div className="bg-surface border border-white/10 rounded-xl shadow-2xl w-[90vw] max-w-5xl h-[85vh] flex flex-col overflow-hidden text-slate-100">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-surface/80 backdrop-blur-sm flex-shrink-0">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-violet-500/10 border border-violet-500/20">
-              <Server size={18} className="text-violet-400" />
+            <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+              <Server size={18} className="text-emerald-400" />
             </div>
             <div>
-              <h2 className="text-sm font-semibold text-foreground">Mock Server</h2>
+              <h2 className="text-sm font-semibold text-foreground">Standalone Mock Server</h2>
               <p className="text-xs text-muted">
-                {collectionName} •{' '}
-                <span className="text-violet-400">{activeCount} active</span> /{' '}
+                Workspace: {workspaceName} •{' '}
+                <span className="text-emerald-400">{activeCount} active</span> /{' '}
                 {endpoints.length} endpoint{endpoints.length !== 1 ? 's' : ''}
               </p>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button
-              onClick={async () => {
-                if (!window.confirm('Generate mock endpoints and scenarios from all requests and examples in this collection?')) return
-                try {
-                  const res = await apiClient.post<{ message: string, count: number }>(`/api/v1/collections/${collectionId}/mock/generate-from-collection`, {})
-                  toast.success(res.data.message)
-                  fetchEndpoints()
-                } catch {
-                  toast.error('Failed to generate mocks')
-                }
-              }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20 hover:bg-amber-500/20 transition-all mr-2"
-              title="Generate mocks from collection requests and examples"
-            >
-              <Zap size={13} />
-              Auto-Generate
-            </button>
             <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono bg-black/30 border border-white/10 text-muted">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
               {mockBaseUrl}
             </div>
             <button
               onClick={() => setCreating(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-violet-500/10 text-violet-400 border border-violet-500/20 hover:bg-violet-500/20 transition-all"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 transition-all"
             >
               <Plus size={13} />
               New Endpoint
@@ -198,102 +165,74 @@ export const MockServerPanel: React.FC<MockServerPanelProps> = ({
           </div>
         </div>
 
-        <div className="flex flex-1 overflow-hidden">
-          {/* Quick Mock from Requests */}
-          <div className="w-60 flex-shrink-0 border-r border-white/10 overflow-y-auto py-3 px-2 bg-black/20">
-            <p className="text-[10px] font-semibold text-muted uppercase tracking-widest px-2 mb-2">
-              Quick Mock from Request
-            </p>
-            {requests.length === 0 ? (
-              <p className="text-xs text-muted px-2">No requests in collection</p>
-            ) : (
-              requests.map((req) => (
-                <button
-                  key={req.id}
-                  onClick={() => handleQuickMock(req)}
-                  className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs text-muted hover:text-foreground hover:bg-white/5 transition-colors"
-                  title={`Create mock from ${req.name}`}
-                >
-                  <MethodBadge method={req.method} size="sm" />
-                  <span className="truncate text-left">{req.name}</span>
-                  <Zap size={11} className="ml-auto flex-shrink-0 opacity-40" />
-                </button>
-              ))
-            )}
-          </div>
+        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+          {loading ? (
+            <div className="flex items-center justify-center h-full">
+              <div className="w-6 h-6 border-2 border-emerald-500/30 border-t-emerald-400 rounded-full animate-spin" />
+            </div>
+          ) : (
+            <>
+              {creating && (
+                <StandaloneMockEndpointForm
+                  teamId={teamId}
+                  onSave={(ep) => {
+                    setEndpoints((prev) => [...prev, ep])
+                    setCreating(false)
+                  }}
+                  onCancel={() => setCreating(false)}
+                />
+              )}
 
-          {/* Endpoint List */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-3">
-            {loading ? (
-              <div className="flex items-center justify-center h-full">
-                <div className="w-6 h-6 border-2 border-violet-500/30 border-t-violet-400 rounded-full animate-spin" />
-              </div>
-            ) : (
-              <>
-                {creating && (
-                  <MockEndpointForm
-                    collectionId={collectionId}
-                    onSave={(ep) => {
-                      setEndpoints((prev) => [...prev, ep])
-                      setCreating(false)
-                    }}
-                    onCancel={() => setCreating(false)}
-                  />
-                )}
-
-                {endpoints.length === 0 && !creating ? (
-                  <div className="flex flex-col items-center justify-center h-64 gap-3 text-muted">
-                    <Server size={32} className="opacity-20" />
-                    <p className="text-sm">No mock endpoints yet</p>
-                    <button
-                      onClick={() => setCreating(true)}
-                      className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium bg-violet-500/10 text-violet-400 border border-violet-500/20 hover:bg-violet-500/20 transition-all"
-                    >
-                      <Plus size={13} />
-                      Create First Endpoint
-                    </button>
-                  </div>
-                ) : (
-                  endpoints.map((ep) =>
-                    editingId === ep.id ? (
-                      <MockEndpointForm
-                        key={ep.id}
-                        collectionId={collectionId}
-                        existing={ep}
-                        onSave={(updated) => {
-                          setEndpoints((prev) =>
-                            prev.map((e) => (e.id === updated.id ? updated : e))
-                          )
-                          setEditingId(null)
-                        }}
-                        onCancel={() => setEditingId(null)}
-                      />
-                    ) : (
-                      <MockEndpointCard
-                        key={ep.id}
-                        endpoint={ep}
-                        mockBaseUrl={mockBaseUrl}
-                        copiedId={copiedId}
-                        onEdit={() => setEditingId(ep.id)}
-                        onDelete={() => handleDelete(ep.id)}
-                        onToggle={() => handleToggle(ep)}
-                        onCopy={() => copyMockUrl(ep)}
-                        onCopyAsCurl={() => copyAsCurl(ep)}
-                        onManageScenarios={() => setManagingScenariosEndpoint(ep)}
-                      />
-                    )
+              {endpoints.length === 0 && !creating ? (
+                <div className="flex flex-col items-center justify-center h-64 gap-3 text-muted">
+                  <Server size={32} className="opacity-20" />
+                  <p className="text-sm">No standalone mock endpoints yet</p>
+                  <button
+                    onClick={() => setCreating(true)}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 transition-all"
+                  >
+                    <Plus size={13} />
+                    Create Workspace Mock
+                  </button>
+                </div>
+              ) : (
+                endpoints.map((ep) =>
+                  editingId === ep.id ? (
+                    <StandaloneMockEndpointForm
+                      key={ep.id}
+                      teamId={teamId}
+                      existing={ep}
+                      onSave={(updated) => {
+                        setEndpoints((prev) =>
+                          prev.map((e) => (e.id === updated.id ? updated : e))
+                        )
+                        setEditingId(null)
+                      }}
+                      onCancel={() => setEditingId(null)}
+                    />
+                  ) : (
+                    <MockEndpointCard
+                      key={ep.id}
+                      endpoint={ep}
+                      mockBaseUrl={mockBaseUrl}
+                      copiedId={copiedId}
+                      onEdit={() => setEditingId(ep.id)}
+                      onDelete={() => handleDelete(ep.id)}
+                      onToggle={() => handleToggle(ep)}
+                      onCopy={() => copyMockUrl(ep)}
+                      onCopyAsCurl={() => copyAsCurl(ep)}
+                      onManageScenarios={() => setManagingScenariosEndpoint(ep)}
+                    />
                   )
-                )}
-              </>
-            )}
-          </div>
+                )
+              )}
+            </>
+          )}
         </div>
       </div>
     </div>
   )
 }
-
-// ─── Endpoint Card ─────────────────────────────────────────────────────────────
 
 const MockEndpointCard: React.FC<{
   endpoint: MockEndpoint
@@ -314,16 +253,14 @@ const MockEndpointCard: React.FC<{
         endpoint.is_active ? 'border-white/10' : 'border-white/5 opacity-60'
       }`}
     >
-      {/* Card header */}
       <div className="flex items-center gap-3 px-4 py-3 bg-white/[0.02]">
         <MethodBadge method={endpoint.method} size="sm" />
         <code className="flex-1 text-xs font-mono text-foreground/90 truncate">
           {mockBaseUrl}
-          <span className="text-violet-400">{endpoint.path}</span>
+          <span className="text-emerald-400">{endpoint.path}</span>
         </code>
 
         <div className="flex items-center gap-1.5 ml-auto">
-          {/* Status badge */}
           <span
             className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
               endpoint.status_code < 300
@@ -336,12 +273,10 @@ const MockEndpointCard: React.FC<{
             {endpoint.status_code}
           </span>
 
-          {/* Evaluation Mode badge */}
-          <span className={`text-[9px] px-1.5 py-0.5 rounded-full border font-bold uppercase tracking-tighter ${endpoint.evaluation_mode === 'auto' ? 'border-violet-500/30 text-violet-400 bg-violet-500/5' : 'border-amber-500/30 text-amber-400 bg-amber-500/5'}`}>
+          <span className={`text-[9px] px-1.5 py-0.5 rounded-full border font-bold uppercase tracking-tighter ${endpoint.evaluation_mode === 'auto' ? 'border-emerald-500/30 text-emerald-400 bg-emerald-500/5' : 'border-amber-500/30 text-amber-400 bg-amber-500/5'}`}>
             {endpoint.evaluation_mode}
           </span>
 
-          {/* Delay badge */}
           {endpoint.delay_ms > 0 && (
             <span className="flex items-center gap-0.5 text-[10px] text-muted">
               <Clock size={9} />
@@ -349,7 +284,6 @@ const MockEndpointCard: React.FC<{
             </span>
           )}
 
-          {/* Copy URL */}
           <button
             onClick={onCopy}
             className="p-1 rounded text-muted hover:text-foreground transition-colors"
@@ -362,17 +296,15 @@ const MockEndpointCard: React.FC<{
             )}
           </button>
 
-          {/* Copy as cURL */}
           <button
             onClick={onCopyAsCurl}
             className="p-1 rounded text-muted hover:text-foreground transition-colors flex items-center gap-1 border border-white/5 px-1.5"
             title="Copy as cURL command"
           >
-            <Code size={12} className="text-violet-400" />
+            <Code size={12} className="text-emerald-400" />
             <span className="text-[9px] font-bold uppercase">cURL</span>
           </button>
 
-          {/* Expand body */}
           <button
             onClick={() => setExpanded((v) => !v)}
             className="p-1 rounded text-muted hover:text-foreground transition-colors"
@@ -381,7 +313,6 @@ const MockEndpointCard: React.FC<{
             <Code size={12} />
           </button>
 
-          {/* Toggle active */}
           <button
             onClick={onToggle}
             className={`p-1 rounded transition-colors ${
@@ -394,7 +325,6 @@ const MockEndpointCard: React.FC<{
             {endpoint.is_active ? <ToggleRight size={16} /> : <ToggleLeft size={16} />}
           </button>
 
-          {/* Edit */}
           <button
             onClick={onEdit}
             className="p-1 rounded text-muted hover:text-foreground transition-colors text-[10px] font-medium border border-white/10 px-2"
@@ -402,16 +332,14 @@ const MockEndpointCard: React.FC<{
             Edit
           </button>
 
-          {/* Scenarios */}
           <button
             onClick={onManageScenarios}
-            className="flex items-center gap-1 p-1 rounded bg-violet-500/10 text-violet-400 hover:bg-violet-500/20 transition-colors text-[10px] font-bold border border-violet-500/20 px-2"
+            className="flex items-center gap-1 p-1 rounded bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-colors text-[10px] font-bold border border-emerald-500/20 px-2"
           >
             <LayoutGrid size={11} />
             Scenarios
           </button>
 
-          {/* Delete */}
           <button
             onClick={onDelete}
             className="p-1 rounded text-muted hover:text-rose-400 transition-colors"
@@ -421,7 +349,6 @@ const MockEndpointCard: React.FC<{
         </div>
       </div>
 
-      {/* Expandable body */}
       {expanded && (
         <div className="border-t border-white/5 bg-black/30 p-3">
           <p className="text-[10px] text-muted uppercase tracking-wider mb-1.5">Response Body</p>
@@ -434,17 +361,15 @@ const MockEndpointCard: React.FC<{
   )
 }
 
-// ─── Endpoint Form ─────────────────────────────────────────────────────────────
-
-interface MockEndpointFormProps {
-  collectionId: number
+interface StandaloneMockEndpointFormProps {
+  teamId: number
   existing?: MockEndpoint
   onSave: (ep: MockEndpoint) => void
   onCancel: () => void
 }
 
-const MockEndpointForm: React.FC<MockEndpointFormProps> = ({
-  collectionId,
+const StandaloneMockEndpointForm: React.FC<StandaloneMockEndpointFormProps> = ({
+  teamId,
   existing,
   onSave,
   onCancel
@@ -453,7 +378,7 @@ const MockEndpointForm: React.FC<MockEndpointFormProps> = ({
   const [path, setPath] = useState(existing?.path ?? '/')
   const [statusCode, setStatusCode] = useState(existing?.status_code ?? 200)
   const [responseBody, setResponseBody] = useState(
-    existing?.response_body ?? '{\n  "message": "Hello from Wapbolt Mock!"\n}'
+    existing?.response_body ?? '{\n  "message": "Hello from Standalone Mock!"\n}'
   )
   const [delayMs, setDelayMs] = useState(existing?.delay_ms ?? 0)
   const [saving, setSaving] = useState(false)
@@ -465,37 +390,36 @@ const MockEndpointForm: React.FC<MockEndpointFormProps> = ({
       let res
       if (existing) {
         res = await apiClient.put<MockEndpoint>(
-          `/api/v1/collections/${collectionId}/mock/endpoints/${existing.id}`,
+          `/api/v1/workspaces/${teamId}/mock/endpoints/${existing.id}`,
           payload
         )
       } else {
         res = await apiClient.post<MockEndpoint>(
-          `/api/v1/collections/${collectionId}/mock/endpoints`,
+          `/api/v1/workspaces/${teamId}/mock/endpoints`,
           payload
         )
       }
       onSave(res.data as MockEndpoint)
-      toast.success(existing ? 'Mock endpoint updated' : 'Mock endpoint created')
+      toast.success(existing ? 'Standalone mock updated' : 'Standalone mock created')
     } catch {
-      toast.error('Failed to save mock endpoint')
+      toast.error('Failed to save standalone mock endpoint')
     } finally {
       setSaving(false)
     }
   }
 
   return (
-    <div className="border border-violet-500/20 rounded-xl bg-violet-500/5 p-4 space-y-3">
-      <p className="text-xs font-semibold text-violet-400">
-        {existing ? 'Edit Endpoint' : 'New Mock Endpoint'}
+    <div className="border border-emerald-500/20 rounded-xl bg-emerald-500/5 p-4 space-y-3">
+      <p className="text-xs font-semibold text-emerald-400">
+        {existing ? 'Edit Standalone Endpoint' : 'New Standalone Mock'}
       </p>
 
-      {/* Method + Path */}
-      <div className="flex gap-2">
+      <div className="flex gap-2 text-slate-100">
         <div className="relative">
           <select
             value={method}
             onChange={(e) => setMethod(e.target.value)}
-            className="appearance-none bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-xs font-mono text-foreground focus:outline-none focus:border-violet-500/50 pr-7"
+            className="appearance-none bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-xs font-mono text-foreground focus:outline-none focus:border-emerald-500/50 pr-7"
           >
             {HTTP_METHODS.map((m) => (
               <option key={m} value={m}>
@@ -509,12 +433,11 @@ const MockEndpointForm: React.FC<MockEndpointFormProps> = ({
           type="text"
           value={path}
           onChange={(e) => setPath(e.target.value)}
-          placeholder="/path/to/endpoint"
-          className="flex-1 bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-xs font-mono text-foreground placeholder-muted focus:outline-none focus:border-violet-500/50"
+          placeholder="/api/mock/path"
+          className="flex-1 bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-xs font-mono text-foreground placeholder-muted focus:outline-none focus:border-emerald-500/50"
         />
       </div>
 
-      {/* Status code + Delay */}
       <div className="flex gap-2">
         <div className="flex-1">
           <label className="block text-[10px] text-muted mb-1">Status Code</label>
@@ -522,7 +445,7 @@ const MockEndpointForm: React.FC<MockEndpointFormProps> = ({
             type="number"
             value={statusCode}
             onChange={(e) => setStatusCode(Number(e.target.value))}
-            className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-xs font-mono text-foreground focus:outline-none focus:border-violet-500/50"
+            className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-xs font-mono text-foreground focus:outline-none focus:border-emerald-500/50"
           />
         </div>
         <div className="flex-1">
@@ -533,12 +456,11 @@ const MockEndpointForm: React.FC<MockEndpointFormProps> = ({
             min={0}
             max={10000}
             onChange={(e) => setDelayMs(Number(e.target.value))}
-            className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-xs font-mono text-foreground focus:outline-none focus:border-violet-500/50"
+            className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-xs font-mono text-foreground focus:outline-none focus:border-emerald-500/50"
           />
         </div>
       </div>
 
-      {/* Response body */}
       <div>
         <label className="block text-[10px] text-muted mb-1">Response Body</label>
         <textarea
@@ -546,11 +468,10 @@ const MockEndpointForm: React.FC<MockEndpointFormProps> = ({
           onChange={(e) => setResponseBody(e.target.value)}
           rows={5}
           placeholder='{"key": "value"}'
-          className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-xs font-mono text-foreground placeholder-muted focus:outline-none focus:border-violet-500/50 resize-none"
+          className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-xs font-mono text-foreground placeholder-muted focus:outline-none focus:border-emerald-500/50 resize-none"
         />
       </div>
 
-      {/* Actions */}
       <div className="flex gap-2">
         <button
           onClick={onCancel}
@@ -561,7 +482,7 @@ const MockEndpointForm: React.FC<MockEndpointFormProps> = ({
         <button
           onClick={handleSave}
           disabled={saving}
-          className="flex-1 py-2 rounded-lg text-xs font-medium bg-violet-500/80 hover:bg-violet-500 text-white transition-colors disabled:opacity-40"
+          className="flex-1 py-2 rounded-lg text-xs font-medium bg-emerald-500/80 hover:bg-emerald-500 text-white transition-colors disabled:opacity-40"
         >
           {saving ? 'Saving...' : existing ? 'Update' : 'Create'}
         </button>

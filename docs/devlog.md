@@ -412,3 +412,36 @@
 
 ### Langkah Selanjutnya
 - Implementasi Notifikasi in-app (Fase 7.2).
+
+---
+
+## [2026-04-30] — Backend Compilation Fixes, UI Bug Squashing & Mock Server UX
+**Fase:** Fase 7 — Kolaborasi Lanjutan & Mock Pro
+**Dikerjakan oleh:** Agent
+**Status:** ✅ Selesai
+
+### Yang Dikerjakan
+- **Backend Compilation Fix**:
+    - Memperbaiki error `undefined: middleware` pada `auth.go` dengan menambahkan import yang hilang.
+    - Memperbaiki ketidakcocokan tipe data `uint` vs `*uint` pada `CollectionID` di `mock_server.go`.
+- **UI Bug Squashing**:
+    - Memperbaiki crash `TypeError: scenarios.map is not a function` pada `ScenariosPanel.tsx` dengan menambahkan pengecekan defensif `Array.isArray`.
+- **Mock Server UX & Routing**:
+    - **Pemindahan Akses**: Mengeluarkan "Workspace Mock Server" dari Admin Panel (Super Admin Only) ke bagian **Workspaces** di Sidebar, sehingga bisa diakses oleh semua anggota tim.
+    - **Universal API Routes**: Implementasi rute universal `/api/v1/mock-endpoints/:id/...` di backend untuk mengelola skenario tanpa ketergantungan pada `collection_id`.
+    - **Fix Routing Hijacking**: Memperbaiki urutan rute mock di backend agar rute Standalone (`/mock/w/`) tidak "dibajak" oleh rute Koleksi.
+    - **Database Compatibility**: Memperbaiki pencarian `team_id` pada query standalone mock agar menggunakan `uint` demi kompatibilitas database yang lebih baik.
+
+### Perubahan File
+- `backend/internal/api/auth.go` — Penambahan import middleware.
+- `backend/internal/api/mock_server.go` — Perbaikan tipe data, urutan rute, universal API, dan parsing ID.
+- `apps/desktop/src/renderer/src/components/layout/ScenariosPanel.tsx` — Pengecekan defensif `.map` dan migrasi ke universal API.
+- `apps/desktop/src/renderer/src/components/layout/Sidebar.tsx` — Pemindahan akses fitur mock server ke level workspace.
+- `apps/desktop/src/renderer/src/types/index.ts` — Update interface `MockEndpoint` untuk mendukung `collection_id: null`.
+
+### Keputusan & Catatan
+- Memutuskan untuk membuat rute universal `/api/v1/mock-endpoints/` guna menghindari redundansi logika manajemen skenario antara mock koleksi dan standalone.
+- Memindahkan akses fitur ke level Workspace karena secara fungsional fitur ini memang ditujukan untuk tim, bukan sekadar administrasi sistem.
+
+### Langkah Selanjutnya
+- Melanjutkan implementasi Notifikasi in-app (Fase 7.2).

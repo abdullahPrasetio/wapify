@@ -167,7 +167,8 @@ export interface CollectionDocs {
 // ─── Mock Server Types ────────────────────────────────────────────────────────
 export interface MockEndpoint {
   id: number
-  collection_id: number
+  collection_id: number | null
+  team_id?: number | null
   request_id: number | null
   method: string
   path: string
