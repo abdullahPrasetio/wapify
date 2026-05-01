@@ -60,38 +60,97 @@ export const ExportCodeModal = ({
 
   const codeSnippet = useMemo(() => {
     const { method, url, headers, body, body_type } = requestData
-    const bodyStr = typeof body === 'string' ? body : JSON.stringify(body, null, 2)
-    const hasBody = body_type !== 'none' && body && (typeof body === 'string' ? body.length > 0 : true)
+    const hasBody = body_type !== 'none' && body && (typeof body === 'string' ? body.length > 0 : Array.isArray(body) ? body.length > 0 : true)
+
+    let bodyStr = ''
+    if (hasBody) {
+      if (body_type === 'x-www-form-urlencoded' && Array.isArray(body)) {
+        const params = new URLSearchParams()
+        body.forEach((item: any) => {
+          if (item.enabled && item.key) params.append(item.key, item.value || '')
+        })
+        bodyStr = params.toString()
+      } else if (body_type === 'form-data' && Array.isArray(body)) {
+        // Simple string representation for cURL, etc.
+        bodyStr = body
+          .filter((item: any) => item.enabled && item.key)
+          .map((item: any) => `${item.key}=${item.value || ''}`)
+          .join('&')
+      } else {
+        bodyStr = typeof body === 'string' ? body : JSON.stringify(body, null, 2)
+      }
+    }
 
     switch (selectedLang) {
       case 'curl': {
         let s = `curl -X ${method} "${url}"`
         Object.entries(headers).forEach(([k, v]) => s += ` \\\n  -H "${k}: ${v}"`)
-        if (hasBody) s += ` \\\n  -d '${bodyStr.replace(/'/g, "'\\''")}'`
+        if (hasBody) {
+          if (body_type === 'x-www-form-urlencoded' && Array.isArray(body)) {
+            const items = (body as any[]).filter(i => i.enabled && i.key)
+            items.forEach(item => {
+              s += ` \\\n  --data-urlencode '${item.key}=${(item.value || '').replace(/'/g, "'\\''")}'`
+            })
+          } else if (body_type === 'form-data' && Array.isArray(body)) {
+            const items = (body as any[]).filter(i => i.enabled && i.key)
+            items.forEach(item => {
+              s += ` \\\n  -F "${item.key}=${item.value || ''}"`
+            })
+          } else {
+            s += ` \\\n  -d '${bodyStr.replace(/'/g, "'\\''")}'`
+          }
+        }
         return s
       }
       case 'httpie': {
         let s = `http ${method} "${url}"`
         Object.entries(headers).forEach(([k, v]) => s += ` \\\n  "${k}:${v}"`)
-        if (hasBody) s += ` \\\n  rawBody='${bodyStr}'`
+        if (hasBody) {
+          if ((body_type === 'x-www-form-urlencoded' || body_type === 'form-data') && Array.isArray(body)) {
+            const items = (body as any[]).filter(i => i.enabled && i.key)
+            items.forEach(item => {
+              s += ` \\\n  ${item.key}='${item.value || ''}'`
+            })
+          } else {
+            s += ` \\\n  rawBody='${bodyStr}'`
+          }
+        }
         return s
       }
       case 'wget': {
-        return `wget --method=${method} \\\n  --header='Content-Type: application/json' \\\n  --body-data='${bodyStr}' \\\n  '${url}'`
+        return `wget --method=${method} \\\n  --header='Content-Type: ${headers['Content-Type'] || 'application/json'}' \\\n  --body-data='${bodyStr}' \\\n  '${url}'`
       }
       case 'js-fetch': {
-        return `fetch("${url}", {\n  method: "${method}",\n  headers: ${JSON.stringify(headers, null, 2)}${hasBody ? `,\n  body: JSON.stringify(${bodyStr})` : ''}\n})\n.then(res => res.json())\n.then(console.log);`
+        let bodyCode = ''
+        if (hasBody) {
+          if (body_type === 'x-www-form-urlencoded' && Array.isArray(body)) {
+            bodyCode = `,\n  body: new URLSearchParams(${JSON.stringify(Object.fromEntries((body as any[]).filter(i => i.enabled).map(i => [i.key, i.value])))})`
+          } else if (body_type === 'form-data' && Array.isArray(body)) {
+            bodyCode = `,\n  body: formData` // Assumption: formData is defined
+          } else {
+            bodyCode = `,\n  body: ${body_type.includes('json') ? `JSON.stringify(${bodyStr})` : `\`${bodyStr}\``}`
+          }
+        }
+        return `${body_type === 'form-data' && Array.isArray(body) ? 'const formData = new FormData();\n' + (body as any[]).filter(i => i.enabled).map(i => `formData.append("${i.key}", "${i.value}");`).join('\n') + '\n\n' : ''}fetch("${url}", {\n  method: "${method}",\n  headers: ${JSON.stringify(headers, null, 2)}${bodyCode}\n})\n.then(res => res.json())\n.then(console.log);`
       }
       case 'js-axios': {
-        return `axios({\n  method: '${method}',\n  url: '${url}',\n  headers: ${JSON.stringify(headers, null, 2)}${hasBody ? `,\n  data: ${bodyStr}` : ''}\n}).then(res => console.log(res.data));`
+        let dataProp = ''
+        if (hasBody) {
+          if (body_type === 'x-www-form-urlencoded' && Array.isArray(body)) {
+            dataProp = `,\n  data: new URLSearchParams(${JSON.stringify(Object.fromEntries((body as any[]).filter(i => i.enabled).map(i => [i.key, i.value])))})`
+          } else {
+            dataProp = `,\n  data: ${body_type.includes('json') ? bodyStr : `\`${bodyStr}\``}`
+          }
+        }
+        return `axios({\n  method: '${method}',\n  url: '${url}',\n  headers: ${JSON.stringify(headers, null, 2)}${dataProp}\n}).then(res => console.log(res.data));`
       }
       case 'js-jquery': {
-        return `$.ajax({\n  url: "${url}",\n  method: "${method}",\n  headers: ${JSON.stringify(headers, null, 2)},\n  data: ${hasBody ? bodyStr : 'null'}\n}).done(res => console.log(res));`
+        return `$.ajax({\n  url: "${url}",\n  method: "${method}",\n  headers: ${JSON.stringify(headers, null, 2)},\n  data: ${hasBody ? (body_type.includes('json') ? bodyStr : `\`${bodyStr}\``) : 'null'}\n}).done(res => console.log(res));`
       }
       case 'node-native': {
         try {
           const urlObj = new URL(url)
-          return `const http = require("https");\n\nconst options = {\n  method: "${method}",\n  hostname: "${urlObj.hostname}",\n  path: "${urlObj.pathname}",\n  headers: ${JSON.stringify(headers, null, 2)}\n};\n\nconst req = http.request(options, (res) => {\n  res.on("data", (d) => process.stdout.write(d));\n});\n${hasBody ? `req.write(JSON.stringify(${bodyStr}));` : ''}\nreq.end();`
+          return `const http = require("https");\n\nconst options = {\n  method: "${method}",\n  hostname: "${urlObj.hostname}",\n  path: "${urlObj.pathname}",\n  headers: ${JSON.stringify(headers, null, 2)}\n};\n\nconst req = http.request(options, (res) => {\n  res.on("data", (d) => process.stdout.write(d));\n});\n${hasBody ? `req.write(${body_type.includes('json') ? `JSON.stringify(${bodyStr})` : `\`${bodyStr}\``});` : ''}\nreq.end();`
         } catch (e) {
           return `// Invalid URL for Node Native: ${url}`
         }
@@ -100,10 +159,11 @@ export const ExportCodeModal = ({
         return `package main\nimport (\n\t"fmt"\n\t"net/http"\n\t"strings"\n)\nfunc main() {\n\tpayload := strings.NewReader(\`${hasBody ? bodyStr : ''}\`)\n\treq, _ := http.NewRequest("${method}", "${url}", payload)\n\t${Object.entries(headers).map(([k, v]) => `req.Header.Add("${k}", "${v}")`).join('\n\t')}\n\tres, _ := http.DefaultClient.Do(req)\n\tdefer res.Body.Close()\n\tfmt.Println(res.Status)\n}`
       }
       case 'python-requests': {
-        return `import requests\n\nurl = "${url}"\npayload = ${hasBody ? bodyStr : 'None'}\nheaders = ${JSON.stringify(headers, null, 2)}\n\nresponse = requests.request("${method}", url, json=payload, headers=headers)\nprint(response.text)`
+        const isJson = body_type.includes('json')
+        return `import requests\n\nurl = "${url}"\npayload = ${hasBody ? (isJson ? bodyStr : `'''${bodyStr}'''`) : 'None'}\nheaders = ${JSON.stringify(headers, null, 2)}\n\nresponse = requests.request("${method}", url, ${isJson ? 'json' : 'data'}=payload, headers=headers)\nprint(response.text)`
       }
       case 'php-curl': {
-        return `<?php\n$curl = curl_init();\ncurl_setopt_array($curl, [\n  CURLOPT_URL => "${url}",\n  CURLOPT_CUSTOMREQUEST => "${method}",\n  CURLOPT_HTTPHEADER => ${JSON.stringify(Object.entries(headers).map(([k, v]) => `${k}: ${v}`))},\n]);\n$response = curl_exec($curl);\ncurl_close($curl);\necho $response;`
+        return `<?php\n$curl = curl_init();\ncurl_setopt_array($curl, [\n  CURLOPT_URL => "${url}",\n  CURLOPT_CUSTOMREQUEST => "${method}",\n  CURLOPT_POSTFIELDS => '${bodyStr}',\n  CURLOPT_HTTPHEADER => ${JSON.stringify(Object.entries(headers).map(([k, v]) => `${k}: ${v}`))},\n]);\n$response = curl_exec($curl);\ncurl_close($curl);\necho $response;`
       }
       default: return `// Snippet for ${selectedLang} coming soon...`
     }

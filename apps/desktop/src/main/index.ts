@@ -60,6 +60,9 @@ ipcMain.handle('wapbolt:request', async (_event, config: IpcRequestConfig): Prom
         }
       })
       requestData = form
+      // Ensure Content-Type is NOT set manually so Axios/FormData can set boundary
+      delete finalHeaders['Content-Type']
+      delete finalHeaders['content-type']
       // Merge form-data headers (boundary)
       Object.assign(finalHeaders, form.getHeaders())
     } else if (config.body_type === 'x-www-form-urlencoded' && Array.isArray(config.body)) {
@@ -69,7 +72,10 @@ ipcMain.handle('wapbolt:request', async (_event, config: IpcRequestConfig): Prom
           params.append(item.key, item.value || '')
         }
       })
-      requestData = params.toString()
+      requestData = params // Pass object directly, Axios handles serialization and Content-Type
+      
+      // If user hasn't set Content-Type, or it's wrong, we force it or let Axios handle it
+      // Standard practice: if we pass URLSearchParams, Axios sets application/x-www-form-urlencoded
     } else if (config.body_type?.startsWith('raw-')) {
        // Just use string data directly
     }
@@ -82,6 +88,12 @@ ipcMain.handle('wapbolt:request', async (_event, config: IpcRequestConfig): Prom
       timeout: 30000,
       validateStatus: () => true // Don't throw on 4xx/500
     })
+
+    console.log(`\n[Main Process] >>> SENDING REQUEST: ${config.method} ${config.url}`)
+    console.log(`[Main Process] HEADERS:`, JSON.stringify(finalHeaders, null, 2))
+    console.log(`[Main Process] BODY TYPE: ${config.body_type}`)
+    console.log(`[Main Process] SERIALIZED BODY:`, requestData?.toString?.() || requestData)
+    console.log(`[Main Process] <<< RESPONSE STATUS: ${response.status}\n`)
 
     const timing = Date.now() - startTime
     

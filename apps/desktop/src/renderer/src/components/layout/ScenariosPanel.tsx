@@ -298,7 +298,13 @@ export const ScenariosPanel: React.FC<ScenariosPanelProps> = ({
     // Build body string
     let bodyPart = ''
     if (Object.keys(bodyObj).length > 0) {
-      bodyPart = ` \\\n     -d '${JSON.stringify(bodyObj, null, 2)}'`
+      if (headers['Content-Type'] === 'application/x-www-form-urlencoded') {
+        const params = new URLSearchParams()
+        Object.entries(bodyObj).forEach(([k, v]) => params.append(k, String(v)))
+        bodyPart = ` \\\n     -d '${params.toString()}'`
+      } else {
+        bodyPart = ` \\\n     -d '${JSON.stringify(bodyObj, null, 2)}'`
+      }
     } else if (endpoint.method !== 'GET' && endpoint.method !== 'HEAD') {
       // Add empty JSON if method usually requires body but none in conditions
       bodyPart = ` \\\n     -d '{}'`

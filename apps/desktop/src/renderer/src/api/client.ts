@@ -17,6 +17,7 @@ interface RequestConfig {
   url: string
   headers?: Record<string, string>
   body?: any
+  body_type?: string
   skipAuth?: boolean
 }
 
@@ -38,8 +39,8 @@ async function ipcRequest<T>(config: RequestConfig): Promise<IpcResponse<T>> {
     ...config.headers
   }
 
-  // Hanya tambahkan Content-Type JSON jika belum ada dan ada body
-  if (!headers['Content-Type'] && config.body) {
+  // Hanya tambahkan Content-Type JSON jika belum ada, ada body, dan bukan tipe khusus (urlencoded/form-data)
+  if (!headers['Content-Type'] && config.body && !config.body_type) {
     headers['Content-Type'] = 'application/json'
   }
 
@@ -182,6 +183,7 @@ export const apiClient = {
     method: string,
     url: string,
     headers?: Record<string, string>,
-    body?: any
-  ) => ipcRequest<T>({ method, url, headers, body, skipAuth: true })
+    body?: any,
+    body_type?: string
+  ) => ipcRequest<T>({ method, url, headers, body, body_type, skipAuth: true })
 }

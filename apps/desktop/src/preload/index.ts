@@ -6,7 +6,8 @@ interface RequestConfig {
   method: string
   url: string
   headers?: Record<string, string>
-  body?: string
+  body?: any
+  body_type?: string
 }
 
 interface IpcResponse {

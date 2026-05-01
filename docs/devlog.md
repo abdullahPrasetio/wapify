@@ -445,3 +445,37 @@
 
 ### Langkah Selanjutnya
 - Melanjutkan implementasi Notifikasi in-app (Fase 7.2).
+
+---
+
+## [2026-04-30] (Part 2) — Request Execution Overhaul, Wire Format History & Pro Console
+**Fase:** Fase 7 — Kolaborasi Lanjutan & Mock Pro
+**Dikerjakan oleh:** Agent
+**Status:** ✅ Selesai
+
+### Yang Dikerjakan
+- **Request Execution Fixes**:
+    - Memperbaiki pengiriman data `x-www-form-urlencoded` dan `form-data` dengan menggunakan `URLSearchParams` dan `FormData` langsung di Main Process demi akurasi spesifikasi HTTP.
+    - Memperbaiki bug "header hijacking" di mana `application/json` dipaksakan meskipun user memilih tipe body lain.
+- **Advanced Console & Network Logging**:
+    - Implementasi **Network Logger** yang mendetail: mencatat Request/Response Headers dan Body (Wire Format) secara transparan di tab Console.
+    - Menambahkan UI detail log yang bisa di-expand (collapsible) untuk debugging mendalam ala Postman Console.
+    - Implementasi Pascal-Case formatting untuk Response Headers agar lebih enak dibaca.
+- **Wire Format History**:
+    - Mengubah sistem penyimpanan riwayat agar menyimpan body dalam format string asli yang dikirim ke jaringan (urlencoded string), bukan format array internal.
+- **Crash Fixes**:
+    - Memperbaiki crash `TypeError: body.filter is not a function` pada fitur Ekspor Kode dengan menambahkan validasi tipe data yang ketat.
+
+### Perubahan File
+- `apps/desktop/src/main/index.ts` — Perbaikan serialisasi body dan penambahan debug logging.
+- `apps/desktop/src/renderer/src/api/client.ts` — Perbaikan logika header default dan sinkronisasi parameter `body_type`.
+- `apps/desktop/src/renderer/src/store/useDataStore.ts` — Perbaikan penyimpanan history (wire format) dan implementasi log network.
+- `apps/desktop/src/renderer/src/components/layout/ResponseArea.tsx` — Implementasi UI Log mendetail dan Pascal-Case headers.
+- `apps/desktop/src/renderer/src/components/modals/ExportCodeModal.tsx` — Fix crash filter dan perbaikan akurasi generator snippet.
+
+### Keputusan & Catatan
+- Memutuskan untuk menyimpan format asli (string) ke riwayat agar user mendapatkan gambaran 1:1 antara apa yang ada di aplikasi dengan apa yang diterima server.
+- Menggunakan Main Process (Electron) sebagai tempat final serialisasi untuk menjamin kompatibilitas `FormData` yang lebih baik dibanding lingkungan browser murni.
+
+### Langkah Selanjutnya
+- Melanjutkan implementasi Notifikasi in-app (Fase 7.2).
