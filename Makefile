@@ -61,3 +61,9 @@ run-client:
 
 dev-backend:
 	cd $(BACKEND_DIR) && go run cmd/server/main.go
+
+test-backend:
+	cd $(BACKEND_DIR) && go test -v ./... -cover
+
+test-coverage:
+	cd $(BACKEND_DIR) && go test -v ./... -coverprofile=coverage.out && go tool cover -html=coverage.out

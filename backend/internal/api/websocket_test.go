@@ -3,6 +3,9 @@ package api
 import (
 	"testing"
 	"time"
+	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/stretchr/testify/assert"
+	"github.com/waluyo/wapbolt-backend/internal/repository"
 )
 
 func TestHub_Presence(t *testing.T) {
@@ -23,10 +26,6 @@ func TestHub_Presence(t *testing.T) {
 		t.Errorf("Expected 2 clients in team 1, got %d", len(clients))
 	}
 	hub.mu.RUnlock()
-
-	// Simulating broadcast presence check
-	// (Since writing to websocket.Conn requires a real connection, we skip the WriteMessage part in unit tests 
-	// or mock it. For now we just check the internal state logic).
 }
 
 func TestHub_Locking(t *testing.T) {
@@ -72,4 +71,36 @@ func TestHub_Locking(t *testing.T) {
 		t.Errorf("Lock should have been cleaned up")
 	}
 	hub.mu.RUnlock()
+}
+
+func TestLogActivity(t *testing.T) {
+	mock, cleanup := repository.SetupTestDB()
+	defer cleanup()
+
+	teamID := uint(1)
+	userID := uint(1)
+	action := "CREATED_COLLECTION"
+	entityType := "COLLECTION"
+	entityID := uint(10)
+	details := map[string]interface{}{"name": "Test"}
+
+	mock.ExpectBegin()
+	mock.ExpectQuery("^INSERT INTO \"activity_logs\"").
+		WithArgs(teamID, userID, action, entityType, entityID, sqlmock.AnyArg(), sqlmock.AnyArg()).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(1))
+	mock.ExpectCommit()
+
+	LogActivity(repository.DB, teamID, userID, action, entityType, entityID, details)
+
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestBroadcastEntityUpdate(t *testing.T) {
+	hub := &Hub{
+		Clients: make(map[uint]map[*Client]bool),
+		Locks:   make(map[uint]LockInfo),
+	}
+	
+	// No clients registered, should return silently
+	hub.BroadcastEntityUpdate(1, "TEAM", 1)
 }

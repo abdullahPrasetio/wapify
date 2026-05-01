@@ -479,3 +479,60 @@
 
 ### Langkah Selanjutnya
 - Melanjutkan implementasi Notifikasi in-app (Fase 7.2).
+- Ekspansi Unit Test untuk mencapai target coverage 80-100% (Fase 7.3).
+
+---
+
+## [2026-05-01] (Part 2) — Advanced Unit Testing & Database Mocking
+**Fase:** Fase 7 — Kolaborasi Lanjutan & Mock Pro
+**Dikerjakan oleh:** Agent
+**Status:** 🔄 Dalam Proses (Fase 2-3)
+
+### Yang Dikerjakan
+- **Database Mocking Strategy**: Implementasi `sqlmock` untuk menguji Handler API tanpa database asli.
+- **Auth Coverage**: Menambahkan pengujian untuk Login, Change Password, Refresh Token, dan Logout.
+- **Collaboration Coverage**: Pengujian alur pembuatan versi request, komentar, dan fitur rollback.
+- **Team & Member Management**: Pengujian CRUD Tim, manajemen anggota, dan validasi role-based access.
+- **Collection & Folder**: Pengujian struktur organisasi data dan fitur Move Request.
+- **Mock Server Engine**: Verifikasi logika pencocokan path dinamis dan evaluasi kondisi mock.
+- **Email Service**: Implementasi pengujian dasar untuk layanan pengiriman email selamat datang.
+
+### Perubahan File
+- `backend/internal/repository/test_util.go` — Utilitas setup mock database.
+- `backend/internal/api/*_test.go` — Rangkaian file tes baru untuk setiap modul API.
+- `backend/internal/email/service_test.go` — Pengujian layanan email.
+- `backend/internal/middleware/auth_test.go` — Pengujian keamanan JWT.
+
+### Keputusan & Catatan
+- Memilih penggunaan *AnyArg()* dan regex fleksibel pada SQL expectations untuk mengatasi variasi query yang dihasilkan oleh GORM, sehingga tes menjadi lebih tangguh (robust).
+- Memisahkan logic pengetesan ke rute dummy di unit test untuk menghindari ketergantungan pada middleware asli saat menguji fungsi utilitas.
+
+### Langkah Selanjutnya
+- Ekspansi skenario error (Negative Cases) untuk meningkatkan cakupan hingga 80-100%.
+- Implementasi pengujian terintegrasi untuk WebSocket Hub.
+
+---
+
+## [2026-05-01] — Unit Testing Infrastructure & Initial Backend Tests
+**Fase:** Fase 7 — Kolaborasi Lanjutan & Mock Pro
+**Dikerjakan oleh:** Agent
+**Status:** ✅ Selesai (Fase 1)
+
+### Yang Dikerjakan
+- **Build System Integration**: Menambahkan perintah `make test-backend` dan `make test-coverage` ke dalam `Makefile`.
+- **Agent Workflows**: Membuat standar operasional prosedur untuk penulisan dan pengecekan tes di folder `.agents/workflows/`.
+- **Initial Utility Tests**: Implementasi unit test pertama di `backend/internal/api/util_test.go` untuk menguji fungsi `parseUint` dan `CalculateRoleSignature`.
+- **Verification**: Verifikasi keberhasilan eksekusi tes dengan hasil `PASS`.
+
+### Perubahan File
+- `Makefile` — Penambahan target testing.
+- `.agents/workflows/update-unit-test.md` — Panduan penulisan tes.
+- `.agents/workflows/check-unit-test.md` — Panduan verifikasi tes.
+- `backend/internal/api/util_test.go` — Implementasi tes pertama.
+
+### Keputusan & Catatan
+- Menggunakan pendekatan *phased implementation* untuk mengejar target coverage 80-100% agar tidak mengganggu stabilitas fitur yang sedang dikembangkan.
+- Memilih pola *Table-Driven Tests* sebagai standar proyek untuk efisiensi skenario pengujian.
+
+### Langkah Selanjutnya
+- Implementasi Mocking Database untuk menguji API Handlers (Fase 2).
