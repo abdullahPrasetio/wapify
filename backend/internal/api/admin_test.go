@@ -143,6 +143,36 @@ func TestAdminAddTeamMember(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 	})
+
+	t.Run("Forbidden Owner Role", func(t *testing.T) {
+		reqBody := map[string]interface{}{"user_id": 2, "role": "Owner"}
+		body, _ := json.Marshal(reqBody)
+		req := httptest.NewRequest("POST", "/api/v1/admin/teams/1/members", bytes.NewBuffer(body))
+		req.Header.Set("Content-Type", "application/json")
+
+		resp, _ := app.Test(req)
+		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	})
+}
+
+func TestAdminRemoveTeamMember(t *testing.T) {
+	mock, cleanup := repository.SetupTestDB()
+	defer cleanup()
+
+	app := fiber.New()
+	app.Delete("/api/v1/admin/teams/:id/members/:userId", AdminRemoveTeamMember)
+
+	t.Run("Success", func(t *testing.T) {
+		mock.ExpectBegin()
+		mock.ExpectExec("^DELETE FROM \"team_members\" WHERE team_id = \\$1 AND user_id = \\$2").
+			WithArgs("1", "2").
+			WillReturnResult(sqlmock.NewResult(0, 1))
+		mock.ExpectCommit()
+
+		req := httptest.NewRequest("DELETE", "/api/v1/admin/teams/1/members/2", nil)
+		resp, _ := app.Test(req)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+	})
 }
 
 func TestListAllTeams(t *testing.T) {

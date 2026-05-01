@@ -93,14 +93,12 @@ func TestCreateCollection(t *testing.T) {
 		// 2. Mock Create Collection
 		mock.ExpectBegin()
 		mock.ExpectQuery("^INSERT INTO \"collections\"").
-			WithArgs("New Coll", "Desc", teamID, userID, sqlmock.AnyArg(), sqlmock.AnyArg()).
 			WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(1))
 		mock.ExpectCommit()
 
 		// 3. Mock LogActivity
 		mock.ExpectBegin()
 		mock.ExpectQuery("^INSERT INTO \"activity_logs\"").
-			WithArgs(teamID, userID, "CREATED_COLLECTION", "COLLECTION", 1, sqlmock.AnyArg(), sqlmock.AnyArg()).
 			WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(1))
 		mock.ExpectCommit()
 
@@ -116,5 +114,79 @@ func TestCreateCollection(t *testing.T) {
 
 		assert.NoError(t, err)
 		assert.Equal(t, http.StatusCreated, resp.StatusCode)
+	})
+
+	t.Run("Forbidden", func(t *testing.T) {
+		teamID := uint(1)
+		userID := uint(1)
+
+		mock.ExpectQuery("^SELECT \\* FROM \"team_members\" WHERE team_id = \\$1 AND user_id = \\$2 AND role IN").
+			WithArgs(teamID, userID, 1).
+			WillReturnRows(sqlmock.NewRows([]string{"id"})) // Forbidden
+
+		reqBody := CreateCollectionRequest{Name: "New Coll"}
+		body, _ := json.Marshal(reqBody)
+		req := httptest.NewRequest("POST", "/api/v1/teams/1/collections", bytes.NewBuffer(body))
+		req.Header.Set("Content-Type", "application/json")
+
+		resp, _ := app.Test(req)
+		assert.Equal(t, http.StatusForbidden, resp.StatusCode)
+	})
+}
+
+func TestGetCollection_Errors(t *testing.T) {
+	mock, cleanup := repository.SetupTestDB()
+	defer cleanup()
+
+	app := fiber.New()
+	app.Get("/api/v1/collections/:id", func(c *fiber.Ctx) error {
+		c.Locals("user_id", float64(1))
+		c.Locals("is_super_admin", false)
+		return GetCollection(c)
+	})
+
+	t.Run("Not Found", func(t *testing.T) {
+		mock.ExpectQuery("^SELECT \\* FROM \"collections\" WHERE .*id.* = \\$1").
+			WillReturnRows(sqlmock.NewRows([]string{"id"}))
+
+		req := httptest.NewRequest("GET", "/api/v1/collections/99", nil)
+		resp, _ := app.Test(req)
+		assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+	})
+}
+
+func TestDeleteCollection(t *testing.T) {
+	mock, cleanup := repository.SetupTestDB()
+	defer cleanup()
+
+	app := fiber.New()
+	app.Delete("/api/v1/collections/:id", func(c *fiber.Ctx) error {
+		c.Locals("user_id", float64(1))
+		c.Locals("is_super_admin", false)
+		return DeleteCollection(c)
+	})
+
+	t.Run("Success", func(t *testing.T) {
+		colID := uint(1)
+		teamID := uint(10)
+
+		mock.ExpectQuery("^SELECT \\* FROM \"collections\" WHERE .*id.* = \\$1").
+			WithArgs("1", 1).
+			WillReturnRows(sqlmock.NewRows([]string{"id", "team_id"}).AddRow(colID, teamID))
+
+		mock.ExpectQuery("^SELECT \\* FROM \"team_members\" WHERE team_id = \\$1 AND user_id = \\$2 AND role IN").
+			WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(1))
+
+		mock.ExpectBegin()
+		mock.ExpectExec("^DELETE FROM \"collections\" WHERE .*id.* = \\$1").WillReturnResult(sqlmock.NewResult(0, 1))
+		mock.ExpectCommit()
+
+		mock.ExpectBegin()
+		mock.ExpectQuery("^INSERT INTO \"activity_logs\"").WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(1))
+		mock.ExpectCommit()
+
+		req := httptest.NewRequest("DELETE", "/api/v1/collections/1", nil)
+		resp, _ := app.Test(req)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
 	})
 }

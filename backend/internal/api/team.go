@@ -32,6 +32,10 @@ func CreateTeam(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body", "code": "BAD_REQUEST"})
 	}
 
+	if req.Name == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Team name is required", "code": "BAD_REQUEST"})
+	}
+
 	userId := c.Locals("user_id").(float64) // JWT map claims parse numbers as float64
 	uid := uint(userId)
 

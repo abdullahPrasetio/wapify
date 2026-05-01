@@ -210,3 +210,23 @@ func TestRollbackRequestVersion(t *testing.T) {
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 	})
 }
+
+func TestGetActivities(t *testing.T) {
+	mock, cleanup := repository.SetupTestDB()
+	defer cleanup()
+
+	app := fiber.New()
+	app.Get("/api/v1/teams/:id/activities", getActivities)
+
+	t.Run("Success", func(t *testing.T) {
+		mock.ExpectQuery("^SELECT .* FROM \"activity_logs\"").
+			WillReturnRows(sqlmock.NewRows([]string{"id", "action"}).AddRow(1, "TEST_ACTION"))
+
+		mock.ExpectQuery("^SELECT .* FROM \"users\"").
+			WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(1))
+
+		req := httptest.NewRequest("GET", "/api/v1/teams/1/activities", nil)
+		resp, _ := app.Test(req)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+	})
+}

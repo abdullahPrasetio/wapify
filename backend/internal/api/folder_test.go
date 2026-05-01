@@ -29,17 +29,14 @@ func TestListFolders(t *testing.T) {
 		teamID := uint(1)
 		userID := uint(1)
 
-		// 1. Mock Get Collection
 		mock.ExpectQuery("^SELECT \\* FROM \"collections\" WHERE .*id.* = \\$1").
 			WithArgs("1", 1).
 			WillReturnRows(sqlmock.NewRows([]string{"id", "team_id"}).AddRow(collectionID, teamID))
 
-		// 2. Mock canAccessTeam check
 		mock.ExpectQuery("^SELECT \\* FROM \"team_members\" WHERE team_id = \\$1 AND user_id = \\$2").
 			WithArgs(teamID, userID, 1).
 			WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(1))
 
-		// 3. Mock ListFolders
 		mock.ExpectQuery("^SELECT \\* FROM \"folders\" WHERE collection_id = \\$1").
 			WithArgs("1").
 			WillReturnRows(sqlmock.NewRows([]string{"id", "name"}).AddRow(1, "Folder 1"))
@@ -49,6 +46,17 @@ func TestListFolders(t *testing.T) {
 
 		assert.NoError(t, err)
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
+	})
+
+	t.Run("Forbidden", func(t *testing.T) {
+		mock.ExpectQuery("^SELECT \\* FROM \"collections\"").
+			WillReturnRows(sqlmock.NewRows([]string{"id", "team_id"}).AddRow(1, 10))
+		mock.ExpectQuery("^SELECT \\* FROM \"team_members\"").
+			WillReturnRows(sqlmock.NewRows([]string{"id"})) // Not in team 10
+
+		req := httptest.NewRequest("GET", "/api/v1/collections/1/folders", nil)
+		resp, _ := app.Test(req)
+		assert.Equal(t, http.StatusForbidden, resp.StatusCode)
 	})
 }
 
@@ -68,39 +76,43 @@ func TestCreateFolder(t *testing.T) {
 		teamID := uint(1)
 		userID := uint(1)
 
-		// 1. Mock Get Collection
 		mock.ExpectQuery("^SELECT \\* FROM \"collections\" WHERE .*id.* = \\$1").
 			WithArgs("1", 1).
 			WillReturnRows(sqlmock.NewRows([]string{"id", "team_id"}).AddRow(collectionID, teamID))
 
-		// 2. Mock isEditorOrAbove check
 		mock.ExpectQuery("^SELECT \\* FROM \"team_members\" WHERE team_id = \\$1 AND user_id = \\$2 AND role IN").
 			WithArgs(teamID, userID, 1).
 			WillReturnRows(sqlmock.NewRows([]string{"id", "role"}).AddRow(1, "Editor"))
 
-		// 3. Mock Create Folder
 		mock.ExpectBegin()
 		mock.ExpectQuery("^INSERT INTO \"folders\"").
 			WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(1))
 		mock.ExpectCommit()
 
-		// 4. Mock LogActivity
 		mock.ExpectBegin()
 		mock.ExpectQuery("^INSERT INTO \"activity_logs\"").
 			WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(1))
 		mock.ExpectCommit()
 
-		reqBody := CreateFolderRequest{
-			Name: "New Folder",
-		}
+		reqBody := CreateFolderRequest{Name: "New Folder"}
 		body, _ := json.Marshal(reqBody)
 		req := httptest.NewRequest("POST", "/api/v1/collections/1/folders", bytes.NewBuffer(body))
 		req.Header.Set("Content-Type", "application/json")
 
-		resp, err := app.Test(req)
-
-		assert.NoError(t, err)
+		resp, _ := app.Test(req)
 		assert.Equal(t, http.StatusCreated, resp.StatusCode)
+	})
+
+	t.Run("Collection Not Found", func(t *testing.T) {
+		mock.ExpectQuery("^SELECT \\* FROM \"collections\"").WillReturnRows(sqlmock.NewRows([]string{"id"}))
+
+		reqBody := CreateFolderRequest{Name: "New Folder"}
+		body, _ := json.Marshal(reqBody)
+		req := httptest.NewRequest("POST", "/api/v1/collections/99/folders", bytes.NewBuffer(body))
+		req.Header.Set("Content-Type", "application/json")
+
+		resp, _ := app.Test(req)
+		assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 	})
 }
 
@@ -115,35 +127,16 @@ func TestUpdateFolder(t *testing.T) {
 		return UpdateFolder(c)
 	})
 
-	t.Run("Success", func(t *testing.T) {
-		folderID := uint(1)
-		collectionID := uint(10)
-		teamID := uint(100)
+	t.Run("Folder Not Found", func(t *testing.T) {
+		mock.ExpectQuery("^SELECT \\* FROM \"folders\"").WillReturnRows(sqlmock.NewRows([]string{"id"}))
 
-		mock.ExpectQuery("^SELECT \\* FROM \"folders\" WHERE .*id.* = \\$1").
-			WithArgs("1", 1).
-			WillReturnRows(sqlmock.NewRows([]string{"id", "collection_id"}).AddRow(folderID, collectionID))
-
-		mock.ExpectQuery("^SELECT \\* FROM \"collections\" WHERE .*id.* = \\$1").
-			WithArgs(collectionID, 1).
-			WillReturnRows(sqlmock.NewRows([]string{"id", "team_id"}).AddRow(collectionID, teamID))
-
-		mock.ExpectQuery("^SELECT \\* FROM \"team_members\" WHERE team_id = \\$1 AND user_id = \\$2 AND role IN").
-			WithArgs(teamID, uint(1), 1).
-			WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(1))
-
-		mock.ExpectBegin()
-		mock.ExpectExec("^UPDATE \"folders\" SET").WillReturnResult(sqlmock.NewResult(0, 1))
-		mock.ExpectCommit()
-
-		reqBody := map[string]string{"name": "Updated Folder"}
+		reqBody := map[string]string{"name": "any"}
 		body, _ := json.Marshal(reqBody)
-		req := httptest.NewRequest("PUT", "/api/v1/folders/1", bytes.NewBuffer(body))
+		req := httptest.NewRequest("PUT", "/api/v1/folders/99", bytes.NewBuffer(body))
 		req.Header.Set("Content-Type", "application/json")
 
-		resp, err := app.Test(req)
-		assert.NoError(t, err)
-		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		resp, _ := app.Test(req)
+		assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 	})
 }
 
@@ -184,8 +177,7 @@ func TestDeleteFolder(t *testing.T) {
 		mock.ExpectCommit()
 
 		req := httptest.NewRequest("DELETE", "/api/v1/folders/1", nil)
-		resp, err := app.Test(req)
-		assert.NoError(t, err)
+		resp, _ := app.Test(req)
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 	})
 }

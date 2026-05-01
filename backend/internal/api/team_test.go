@@ -51,6 +51,16 @@ func TestCreateTeam(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, http.StatusCreated, resp.StatusCode)
 	})
+
+	t.Run("Missing Name", func(t *testing.T) {
+		reqBody := CreateTeamRequest{Name: ""}
+		body, _ := json.Marshal(reqBody)
+		req := httptest.NewRequest("POST", "/api/v1/teams", bytes.NewBuffer(body))
+		req.Header.Set("Content-Type", "application/json")
+
+		resp, _ := app.Test(req)
+		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	})
 }
 
 func TestListTeams(t *testing.T) {
@@ -116,6 +126,14 @@ func TestGetTeamDetail(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 	})
+
+	t.Run("Not Found", func(t *testing.T) {
+		mock.ExpectQuery("^SELECT \\* FROM \"teams\"").WillReturnRows(sqlmock.NewRows([]string{"id"}))
+
+		req := httptest.NewRequest("GET", "/api/v1/teams/99", nil)
+		resp, _ := app.Test(req)
+		assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+	})
 }
 
 func TestDeleteTeam(t *testing.T) {
@@ -150,5 +168,16 @@ func TestDeleteTeam(t *testing.T) {
 
 		assert.NoError(t, err)
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
+	})
+
+	t.Run("Forbidden as Viewer", func(t *testing.T) {
+		teamID := uint(1)
+
+		mock.ExpectQuery("^SELECT \\* FROM \"teams\"").WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(teamID))
+		mock.ExpectQuery("^SELECT \\* FROM \"team_members\"").WillReturnRows(sqlmock.NewRows([]string{"id"})) // Not Owner
+
+		req := httptest.NewRequest("DELETE", "/api/v1/teams/1", nil)
+		resp, _ := app.Test(req)
+		assert.Equal(t, http.StatusForbidden, resp.StatusCode)
 	})
 }
