@@ -1,24 +1,30 @@
-# Wapbolt v1.4.1 — Dynamic Connectivity & Workspace Fixes ⚡️
+# Wapbolt v1.4.2 — Pro Console & Precision Request Engine ⚡️
 
-Rilis ini membawa perbaikan krusial pada fleksibilitas konektivitas server dan manajemen workspace, melengkapi transisi besar kita ke identitas **Wapbolt**.
+Rilis ini merupakan pembaruan stabilitas besar yang fokus pada akurasi pengiriman data ke server tujuan dan transparansi debugging melalui fitur Console yang baru.
 
 ### ✨ Apa yang Baru?
 
-#### 🌐 Dynamic Server Connectivity
-Kami menghapus sisa-sisa ketergantungan pada `localhost:8000`. Kini aplikasi sepenuhnya dinamis:
-- **Mock Server & Scenarios**: Semua link mock dan cURL yang di-generate kini otomatis mengikuti URL server yang Anda atur di Settings.
-- **WebSocket Protocol Detection**: Fitur kolaborasi kini secara otomatis mendeteksi penggunaan `ws://` atau `wss://` (untuk Cloudflare/HTTPS), memastikan sinkronisasi tim tetap lancar di lingkungan produksi.
+#### 🛠️ Precision Request Engine (Wire Format Fix)
+Kami melakukan perbaikan mendalam pada cara Wapbolt mengirimkan data `x-www-form-urlencoded` dan `form-data`:
+- **Standard-Compliant Serialization**: Kini menggunakan `URLSearchParams` dan `FormData` asli dari Node.js (Main Process). Data yang sampai ke server Anda kini 100% akurat sesuai spesifikasi HTTP.
+- **Header Auto-Correction**: Menghapus konflik header yang sering terjadi (seperti memaksa JSON pada data form), memastikan server backend (seperti Go Fiber) dapat mem-parsing request dengan lancar.
 
-#### 👥 Workspace Management Fix
-Kami memperbaiki kendala pada fitur manajemen tim:
-- **Member List Visibility**: Memperbaiki rute API backend agar daftar anggota workspace muncul dengan detail nama dan email yang lengkap.
-- **Route Consolidation**: Menyederhanakan struktur backend untuk manajemen member agar lebih stabil dan cepat.
+#### 🖥️ Advanced Network Console (Postman Style)
+Tab Console kini jauh lebih bertenaga untuk debugging profesional:
+- **Detailed Network Logs**: Setiap request secara otomatis mencatat detail **Request Headers**, **Request Body**, **Response Headers**, dan **Response Body**.
+- **Collapsible UI**: Tampilan detail log yang bisa dibuka-tutup untuk menjaga kebersihan workspace Anda.
+- **Wire Format Preview**: Melihat data asli yang dikirim "lewat kabel", memudahkan pencocokan dengan log server.
 
-### ⏪ Sebelumnya di v1.4.0 (Rebrand)
-- **Official Rebrand**: Perubahan nama dari Wapify menjadi **Wapbolt**.
-- **New Visual Identity**: Logo baru berbasis ikon **Zap (Petir)** dan pembaruan ikon aplikasi (`icon.svg`).
-- **Resizer Constraint**: Perbaikan panel respon agar tidak bisa ditarik hingga hilang (Min-height 80px).
-- **Module Migration**: Update jalur impor Go ke `github.com/waluyo/wapbolt-backend`.
+#### 🌍 Standalone Mock Server for Everyone
+Aksesibilitas fitur Mock Server ditingkatkan untuk kolaborasi tim:
+- **Democratized Access**: Menu "Workspace Mock Server" dipindahkan dari Admin Panel ke bagian **Workspaces** di Sidebar. Kini semua anggota tim (bukan hanya Super Admin) bisa mengelola mock server untuk workspace mereka.
+- **Universal Scenario Routes**: Pengelolaan skenario kini lebih stabil dan tidak lagi bergantung pada ID koleksi tertentu.
+
+### 🐛 Bug Fixes & UI Improvements
+- **Crash Fixes**: Memperbaiki error `scenarios.map` dan `body.filter` yang sebelumnya menyebabkan aplikasi crash saat transisi data.
+- **Pretty Headers**: Tabel Response Headers kini menggunakan format **Pascal-Case** (misal: `Content-Type`) dan visual spacing yang lebih lega.
+- **History Accuracy**: Data riwayat kini menyimpan format asli (serialized string), memberikan gambaran yang benar tentang apa yang dikirim sebelumnya.
+- **Backend Stability**: Memperbaiki kesalahan kompilasi pada rute auth dan perbaikan routing hijacking pada engine mock.
 
 ---
 
