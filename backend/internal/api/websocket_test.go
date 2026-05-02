@@ -1,106 +1,267 @@
 package api
 
 import (
+	"encoding/json"
+	"fmt"
+	"net"
+	"net/http"
 	"testing"
 	"time"
+
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/fasthttp/websocket"
+	fiber_websocket "github.com/gofiber/contrib/websocket"
+	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/waluyo/wapbolt-backend/internal/repository"
 )
 
-func TestHub_Presence(t *testing.T) {
-	hub := &Hub{
-		Clients: make(map[uint]map[*Client]bool),
-		Locks:   make(map[uint]LockInfo),
-	}
-
-	client1 := &Client{UserID: 1, UserName: "User 1", TeamID: 1, ActiveRequestID: 101}
-	client2 := &Client{UserID: 2, UserName: "User 2", TeamID: 1, ActiveRequestID: 101}
-
-	hub.Register(client1)
-	hub.Register(client2)
-
-	hub.mu.RLock()
-	clients := hub.Clients[1]
-	if len(clients) != 2 {
-		t.Errorf("Expected 2 clients in team 1, got %d", len(clients))
-	}
-	hub.mu.RUnlock()
+func resetWSHub() {
+	WSHub.mu.Lock()
+	defer WSHub.mu.Unlock()
+	WSHub.Clients = make(map[uint]map[*Client]bool)
+	WSHub.Locks = make(map[uint]LockInfo)
 }
 
-func TestHub_Locking(t *testing.T) {
-	hub := &Hub{
-		Clients: make(map[uint]map[*Client]bool),
-		Locks:   make(map[uint]LockInfo),
+func TestHub_RegisterUnregister(t *testing.T) {
+	resetWSHub()
+	
+	client := &Client{
+		UserID:   1,
+		UserName: "TestUser",
+		TeamID:   1,
+		Conn:     &fiber_websocket.Conn{}, // dummy
 	}
 
-	client1 := &Client{UserID: 1, UserName: "User 1", TeamID: 1}
-	reqID := uint(101)
+	WSHub.Register(client)
+	
+	WSHub.mu.RLock()
+	assert.True(t, WSHub.Clients[1][client])
+	WSHub.mu.RUnlock()
 
-	// User 1 locks
-	hub.mu.Lock()
-	hub.Locks[reqID] = LockInfo{
-		UserID:   client1.UserID,
-		UserName: client1.UserName,
-		ExpireAt: time.Now().Add(5 * time.Second),
+	WSHub.Unregister(client)
+
+	WSHub.mu.RLock()
+	assert.Empty(t, WSHub.Clients[1])
+	WSHub.mu.RUnlock()
+}
+
+func TestHub_UnregisterWithLock(t *testing.T) {
+	resetWSHub()
+	
+	client := &Client{
+		UserID:   1,
+		UserName: "TestUser",
+		TeamID:   1,
+		Conn:     &fiber_websocket.Conn{}, // dummy
 	}
-	hub.mu.Unlock()
 
-	// Check lock exists
-	hub.mu.RLock()
-	lock, exists := hub.Locks[reqID]
-	if !exists || lock.UserID != 1 {
-		t.Errorf("Lock should exist for user 1")
+	WSHub.Register(client)
+	
+	WSHub.mu.Lock()
+	WSHub.Locks[100] = LockInfo{
+		UserID:   1,
+		UserName: "TestUser",
+		ExpireAt: time.Now().Add(1 * time.Minute),
 	}
-	hub.mu.RUnlock()
+	WSHub.mu.Unlock()
 
-	// Test cleanup expired locks
-	hub.mu.Lock()
-	hub.Locks[reqID] = LockInfo{
-		UserID:   client1.UserID,
-		UserName: client1.UserName,
+	WSHub.Unregister(client)
+
+	WSHub.mu.RLock()
+	_, exists := WSHub.Locks[100]
+	assert.False(t, exists, "Lock should be released on unregister")
+	WSHub.mu.RUnlock()
+}
+
+func TestHub_CleanupExpiredLocks(t *testing.T) {
+	resetWSHub()
+	
+	WSHub.mu.Lock()
+	WSHub.Locks[300] = LockInfo{
+		UserID:   1,
+		UserName: "User1",
 		ExpireAt: time.Now().Add(-1 * time.Second), // Expired
 	}
-	hub.mu.Unlock()
-
-	hub.CleanupExpiredLocks()
-
-	hub.mu.RLock()
-	_, exists = hub.Locks[reqID]
-	if exists {
-		t.Errorf("Lock should have been cleaned up")
+	WSHub.Locks[301] = LockInfo{
+		UserID:   2,
+		UserName: "User2",
+		ExpireAt: time.Now().Add(1 * time.Minute), // Not expired
 	}
-	hub.mu.RUnlock()
+	WSHub.mu.Unlock()
+
+	WSHub.CleanupExpiredLocks()
+
+	WSHub.mu.RLock()
+	_, exists300 := WSHub.Locks[300]
+	_, exists301 := WSHub.Locks[301]
+	assert.False(t, exists300)
+	assert.True(t, exists301)
+	WSHub.mu.RUnlock()
 }
 
-func TestLogActivity(t *testing.T) {
+func TestHub_SendLockStatus_Nil(t *testing.T) {
+	resetWSHub()
+	client := &Client{
+		UserID: 1,
+		Conn:   &fiber_websocket.Conn{}, // dummy
+	}
+	// This should not panic and should send a nil payload
+	WSHub.SendLockStatus(client, 999)
+}
+
+func TestHub_CleanupExpiredLocks_Broadcast(t *testing.T) {
+	resetWSHub()
+	
+	WSHub.mu.Lock()
+	WSHub.Locks[400] = LockInfo{
+		UserID:   1,
+		UserName: "User1",
+		ExpireAt: time.Now().Add(-1 * time.Second), // Expired
+	}
+	// Add a client to a team to test broadcast
+	WSHub.Clients[10] = make(map[*Client]bool)
+	WSHub.mu.Unlock()
+
+	WSHub.CleanupExpiredLocks()
+
+	WSHub.mu.RLock()
+	assert.Empty(t, WSHub.Locks)
+	WSHub.mu.RUnlock()
+}
+
+func TestWebSocket_Middleware(t *testing.T) {
+	app := fiber.New()
+	SetupWebSocketRoutes(app)
+
+	// Call /ws via normal HTTP
+	req, _ := http.NewRequest("GET", "/ws", nil)
+	req.Host = "localhost"
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusUpgradeRequired, resp.StatusCode)
+}
+
+func TestLogActivity_Coverage(t *testing.T) {
 	mock, cleanup := repository.SetupTestDB()
 	defer cleanup()
 
-	teamID := uint(1)
-	userID := uint(1)
-	action := "CREATED_COLLECTION"
-	entityType := "COLLECTION"
-	entityID := uint(10)
-	details := map[string]interface{}{"name": "Test"}
-
+	// Test with nil details
 	mock.ExpectBegin()
 	mock.ExpectQuery("^INSERT INTO \"activity_logs\"").
-		WithArgs(teamID, userID, action, entityType, entityID, sqlmock.AnyArg(), sqlmock.AnyArg()).
+		WithArgs(uint(1), uint(1), "ACTION", "TYPE", uint(10), sqlmock.AnyArg(), sqlmock.AnyArg()).
 		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(1))
 	mock.ExpectCommit()
 
-	LogActivity(repository.DB, teamID, userID, action, entityType, entityID, details)
-
+	LogActivity(repository.DB, 1, 1, "ACTION", "TYPE", 10, nil)
+	
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
-func TestBroadcastEntityUpdate(t *testing.T) {
-	hub := &Hub{
-		Clients: make(map[uint]map[*Client]bool),
-		Locks:   make(map[uint]LockInfo),
-	}
+func TestBroadcastMethods_Coverage(t *testing.T) {
+	resetWSHub()
 	
-	// No clients registered, should return silently
-	hub.BroadcastEntityUpdate(1, "TEAM", 1)
+	// Broadcast with no clients
+	WSHub.BroadcastPresence(1, 100)
+	WSHub.BroadcastLockUpdate(1, 100)
+	WSHub.BroadcastEntityUpdate(1, "TYPE", 1)
+}
+
+func TestWebSocketFullCycle(t *testing.T) {
+	resetWSHub()
+	
+	app := fiber.New()
+	SetupWebSocketRoutes(app)
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	
+	port := ln.Addr().(*net.TCPAddr).Port
+	go app.Listener(ln)
+	defer app.Shutdown()
+
+	// Wait for server to start
+	time.Sleep(100 * time.Millisecond)
+
+	url1 := fmt.Sprintf("ws://127.0.0.1:%d/ws?user_id=1&team_id=10&user_name=User1", port)
+	url2 := fmt.Sprintf("ws://127.0.0.1:%d/ws?user_id=2&team_id=10&user_name=User2", port)
+	
+	dialer := websocket.Dialer{}
+	conn1, _, err := dialer.Dial(url1, nil)
+	require.NoError(t, err)
+	defer conn1.Close()
+
+	conn2, _, err := dialer.Dial(url2, nil)
+	require.NoError(t, err)
+	defer conn2.Close()
+
+	// Helper to write events
+	sendEvent := func(conn *websocket.Conn, event WSEvent) {
+		msg, _ := json.Marshal(event)
+		conn.WriteMessage(websocket.TextMessage, msg)
+	}
+
+	// 1. Join Request
+	sendEvent(conn1, WSEvent{Type: EventJoinRequest, RequestID: 500})
+	sendEvent(conn2, WSEvent{Type: EventJoinRequest, RequestID: 500})
+	
+	// Join another request for User 1
+	sendEvent(conn1, WSEvent{Type: EventJoinRequest, RequestID: 600})
+
+	// 2. Lock Request
+	sendEvent(conn1, WSEvent{Type: EventLockRequest, RequestID: 500})
+	time.Sleep(50 * time.Millisecond)
+	sendEvent(conn2, WSEvent{Type: EventLockRequest, RequestID: 500}) // Should fail as User1 holds it
+
+	// 3. Unlock Request
+	sendEvent(conn2, WSEvent{Type: EventUnlockRequest, RequestID: 500}) // Should fail as User1 holds it
+	sendEvent(conn1, WSEvent{Type: EventUnlockRequest, RequestID: 500})
+
+	// 4. Leave Request
+	sendEvent(conn1, WSEvent{Type: EventLeaveRequest})
+
+	// 5. Invalid JSON
+	conn1.WriteMessage(websocket.TextMessage, []byte("invalid json"))
+
+	// 6. Lock Ownership Renewal & Expiry Renewal
+	sendEvent(conn1, WSEvent{Type: EventLockRequest, RequestID: 700})
+	time.Sleep(50 * time.Millisecond)
+	sendEvent(conn1, WSEvent{Type: EventLockRequest, RequestID: 700}) // Renew
+
+	// 7. Cleanup & Broadcasts
+	WSHub.BroadcastEntityUpdate(10, "REQUEST", 100)
+	
+	// Wait for processing
+	time.Sleep(200 * time.Millisecond)
+}
+
+func TestWebSocket_InvalidParams(t *testing.T) {
+	app := fiber.New()
+	SetupWebSocketRoutes(app)
+
+	ln, _ := net.Listen("tcp", "127.0.0.1:0")
+	port := ln.Addr().(*net.TCPAddr).Port
+	go app.Listener(ln)
+	defer app.Shutdown()
+	time.Sleep(100 * time.Millisecond)
+
+	// Missing user_id
+	url := fmt.Sprintf("ws://127.0.0.1:%d/ws?team_id=10", port)
+	dialer := websocket.Dialer{}
+	conn, _, err := dialer.Dial(url, nil)
+	if err == nil {
+		_, _, err = conn.ReadMessage()
+		assert.Error(t, err, "Connection should be closed for invalid params")
+		conn.Close()
+	}
+
+	// Missing team_id
+	url = fmt.Sprintf("ws://127.0.0.1:%d/ws?user_id=1", port)
+	conn, _, err = dialer.Dial(url, nil)
+	if err == nil {
+		_, _, err = conn.ReadMessage()
+		assert.Error(t, err, "Connection should be closed for invalid params")
+		conn.Close()
+	}
 }

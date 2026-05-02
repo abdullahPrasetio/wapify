@@ -46,12 +46,20 @@ type UserPresence struct {
 
 // Client represents a connected websocket client
 type Client struct {
+	mu              sync.Mutex
 	Conn            *websocket.Conn
 	UserID          uint
 	UserName        string
 	TeamID          uint
 	ActiveRequestID uint // 0 if not focusing on any request
 }
+
+func (c *Client) WriteMessage(messageType int, data []byte) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.Conn.WriteMessage(messageType, data)
+}
+
 
 // Hub manages websocket connections and states
 type Hub struct {
@@ -259,7 +267,7 @@ func (h *Hub) BroadcastPresence(teamID uint, requestID uint) {
 
 	// Broadcast to everyone in the team
 	for c := range h.Clients[teamID] {
-		c.Conn.WriteMessage(websocket.TextMessage, msg)
+		c.WriteMessage(websocket.TextMessage, msg)
 	}
 }
 
@@ -288,7 +296,7 @@ func (h *Hub) BroadcastLockUpdate(teamID uint, requestID uint) {
 	msg, _ := json.Marshal(event)
 
 	for c := range h.Clients[teamID] {
-		c.Conn.WriteMessage(websocket.TextMessage, msg)
+		c.WriteMessage(websocket.TextMessage, msg)
 	}
 }
 
@@ -311,7 +319,7 @@ func (h *Hub) SendLockStatus(client *Client, requestID uint) {
 		Payload:   payload,
 	}
 	msg, _ := json.Marshal(event)
-	client.Conn.WriteMessage(websocket.TextMessage, msg)
+	client.WriteMessage(websocket.TextMessage, msg)
 }
 
 func (h *Hub) CleanupExpiredLocks() {
@@ -364,7 +372,7 @@ func (h *Hub) BroadcastEntityUpdate(teamID uint, entityType string, entityID uin
 	msg, _ := json.Marshal(event)
 
 	for c := range h.Clients[teamID] {
-		c.Conn.WriteMessage(websocket.TextMessage, msg)
+		c.WriteMessage(websocket.TextMessage, msg)
 	}
 }
 

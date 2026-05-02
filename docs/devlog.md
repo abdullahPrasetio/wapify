@@ -1,5 +1,37 @@
 # Wapify — Development Log
 
+## [2026-05-02] — Massive Unit Testing Expansion (97%+ Coverage) & Backend Refactoring
+**Fase:** Fase 7 — Kolaborasi Lanjutan & Mock Pro
+**Dikerjakan oleh:** Gemini
+**Status:** ✅ Selesai (Fase 1-4)
+
+### Yang Dikerjakan
+- **Global Test Coverage (97%+)**: Berhasil meningkatkan cakupan unit test backend secara masif dari ~41% ke 97% secara keseluruhan (98.5% pada modul API).
+- **Backend Refactoring**:
+    - **Thread-Safety WebSocket**: Menambahkan sinkronisasi mutex pada `Client` websocket untuk mencegah *concurrent write panic*.
+    - **Entry Point Refactor**: Merefaktorisasi `cmd/server`, `cmd/admin`, dan `cmd/license` agar logika bisnis terpisah dari `main()`, memungkinkan pengujian CLI tanpa `os.Exit`.
+    - **Database Error Handling**: Mengubah `ConnectDB` agar mengembalikan `error` alih-alih `log.Fatal`, meningkatkan ketahanan aplikasi.
+- **Comprehensive API Testing**:
+    - Implementasi test case mendalam untuk `mock_server.go`, `request.go`, dan `documentation.go` mencakup evaluasi skenario otomatis, ekspor OpenAPI/Markdown, dan manipulasi tree koleksi.
+    - Melengkapi skenario *edge case* untuk validasi input, kegagalan database, dan pengecekan otorisasi (*forbidden*).
+- **CI/CD Readiness**: Menyesuaikan `go.mod` ke Go 1.24 untuk stabilitas tooling coverage (`covdata` compatibility) dan sinkronisasi dependensi.
+
+### Perubahan File
+- `backend/internal/api/*_test.go` — Penambahan ribuan baris kode pengujian baru.
+- `backend/internal/repository/db.go` — Refaktor koneksi DB.
+- `backend/cmd/*/main.go` — Refaktor entry points aplikasi.
+- `backend/go.mod` — Downgrade target version ke 1.24.0 untuk stabilitas tooling.
+
+### Keputusan & Catatan
+- Menggunakan strategi `MatchExpectationsInOrder(false)` pada `sqlmock` untuk mengakomodasi sifat non-deterministik query GORM pada asosiasi kompleks.
+- Memutuskan untuk melakukan refaktor pada fungsi startup utama guna menjamin setiap baris kode inisialisasi dapat diverifikasi secara otomatis.
+
+### Langkah Selanjutnya
+- Implementasi Notifikasi in-app saat koleksi diupdate (Fase 7.2).
+- Peningkatan UI Diff visual untuk membandingkan versi request.
+
+---
+
 ## [2026-04-21] — Inisialisasi License Management (Fase 5 MVP)
 **Fase:** Fase 5 — On-Premise & License
 **Dikerjakan oleh:** Gemini

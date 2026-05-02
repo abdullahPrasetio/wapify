@@ -17,17 +17,52 @@ import (
 var LicensePublicKey = ""
 
 func main() {
-	// Load environment variables
-	if err := godotenv.Load(); err != nil {
-		log.Println("Warning: No .env file found")
+	if err := Run(); err != nil {
+		log.Fatalf("Fatal: %v", err)
+	}
+}
+
+func Run() error {
+	app, addr, err := PrepareServer()
+	if err != nil {
+		return err
 	}
 
-	// Initialize Database
-	repository.ConnectDB()
+	log.Printf("Starting Wapbolt Backend on %s", addr)
+	if LicensePublicKey != "" {
+		log.Println("Security: Ed25519 License Verification is ACTIVE")
+	}
+
+	return app.Listen(addr)
+}
+
+func PrepareServer() (*fiber.App, string, error) {
+	if os.Getenv("GO_ENV") != "test" {
+		// Load environment variables
+		if err := godotenv.Load(); err != nil {
+			log.Println("Warning: No .env file found")
+		}
+
+		// Initialize Database
+		if err := repository.ConnectDB(); err != nil {
+			return nil, "", err
+		}
+	}
 
 	// Sync User Integrity Signatures
 	api.SyncUserSignatures()
 
+	app := SetupApp()
+
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8000"
+	}
+
+	return app, ":" + port, nil
+}
+
+func SetupApp() *fiber.App {
 	app := fiber.New(fiber.Config{
 		AppName: "Wapbolt API Server",
 	})
@@ -67,17 +102,5 @@ func main() {
 		})
 	})
 
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8000"
-	}
-
-	log.Printf("Starting Wapbolt Backend on port %s", port)
-	if LicensePublicKey != "" {
-		log.Println("Security: Ed25519 License Verification is ACTIVE")
-	}
-
-	if err := app.Listen(":" + port); err != nil {
-		log.Fatalf("Failed to start server: %v", err)
-	}
+	return app
 }

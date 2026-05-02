@@ -1,6 +1,6 @@
 # Wapbolt — Development Plan
 
-**Terakhir Diperbarui:** 24 April 2026
+**Terakhir Diperbarui:** 02 Mei 2026
 **Status Saat Ini:** ✅ Fase 0-6 Selesai → 🟡 Fase 7 In Progress
 
 ---
@@ -251,6 +251,10 @@ Beberapa fitur yang direncanakan di Fase 6 telah disesuaikan prioritasnya dan un
 - [ ] Shared environment lintas workspace
 - [ ] Thread diskusi pada komentar (reply)
 - [ ] Mention anggota (`@nama`) di komentar
+
+### Quality Assurance
+- [x] **Massive Unit Testing expansion**: Mencapai >95% coverage global untuk backend (API, Middleware, Repository, Command CLI).
+- [x] **Backend Infrastructure Refactor**: Thread-safe websocket dan testable entry points.
 
 ---
 

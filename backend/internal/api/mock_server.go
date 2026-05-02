@@ -506,6 +506,10 @@ func compareValues(reqVal interface{}, op string, targetVal interface{}) bool {
 	case "regex":
 		match, _ := regexp.MatchString(sTarget, sReq)
 		return match
+	case "gt":
+		return sReq > sTarget
+	case "lt":
+		return sReq < sTarget
 	}
 	return false
 }
