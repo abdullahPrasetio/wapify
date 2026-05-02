@@ -6,7 +6,7 @@ Wapbolt adalah API Testing, Orchestration & Collaboration platform yang dirancan
 
 ---
 
-## 📥 Download Terbaru (v1.4.1)
+## 📥 Download Terbaru (v1.4.3)
 
 Silakan unduh installer sesuai dengan Sistem Operasi Anda melalui link di bawah ini:
 
@@ -20,10 +20,11 @@ Silakan unduh installer sesuai dengan Sistem Operasi Anda melalui link di bawah 
 
 ---
 
-## ✨ Highlight v1.4.1
-- **Dynamic Connectivity**: Menghapus hardcode localhost, mendukung URL server kustom dan Cloudflare secara penuh.
-- **WebSocket Sync Fix**: Deteksi otomatis protokol SSL (WSS) untuk kolaborasi tim yang lebih stabil.
-- **Team Management**: Perbaikan daftar anggota workspace yang sebelumnya tidak muncul.
+## ✨ Highlight v1.4.3
+- **Massive Test Coverage (97%+)**: Seluruh logika kritis backend (Mock Engine, Documentation, Request CRUD) kini dilindungi oleh unit test yang sangat komprehensif.
+- **Improved System Reliability**: Perbaikan bug *concurrent write* pada WebSocket dan refaktorisasi entry point aplikasi untuk ketahanan sistem yang lebih baik.
+- **Go 1.24 Infrastructure**: Penyesuaian ke versi Go terbaru untuk stabilitas build dan sinkronisasi dependensi.
+- **Rebranding Finalization**: Penyelesaian transisi identitas visual "Wapbolt" di seluruh ekosistem produk.
 
 ---
 
