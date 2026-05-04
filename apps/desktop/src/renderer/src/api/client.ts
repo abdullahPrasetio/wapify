@@ -7,8 +7,13 @@ export const getBaseUrl = (): string => {
 }
 
 export const setBaseUrl = (url: string): void => {
-  // Ensure no trailing slash
-  const cleanUrl = url.replace(/\/$/, '')
+  let cleanUrl = url.trim().replace(/\/$/, '')
+  
+  // Jika tidak ada skema (http:// atau https://), tambahkan https:// secara default
+  if (!/^https?:\/\//i.test(cleanUrl)) {
+    cleanUrl = `https://${cleanUrl}`
+  }
+  
   localStorage.setItem('wapbolt_server_url', cleanUrl)
 }
 

@@ -117,7 +117,8 @@ export const MockServerPanel: React.FC<MockServerPanelProps> = ({
 
   const copyAsCurl = async (ep: MockEndpoint) => {
     const url = `${mockBaseUrl}${ep.path}`
-    const curl = `curl -X ${ep.method} "${url}" \\
+    const isInsecure = url.startsWith('https')
+    const curl = `curl ${isInsecure ? '-k ' : ''}-X ${ep.method} "${url}" \\
      -H "Content-Type: application/json"`
     await navigator.clipboard.writeText(curl)
     toast.success('cURL command copied to clipboard')

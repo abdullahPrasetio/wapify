@@ -310,7 +310,7 @@ export const ScenariosPanel: React.FC<ScenariosPanelProps> = ({
       bodyPart = ` \\\n     -d '{}'`
     }
 
-    const curl = `curl -X ${endpoint.method} "${url}${qs}" \\\n     ${headerLines.join(' \\\n     ')}${bodyPart}`
+    const curl = `curl -k -X ${endpoint.method} "${url}${qs}" \\\n     ${headerLines.join(' \\\n     ')}${bodyPart}`
     
     navigator.clipboard.writeText(curl)
     toast.success(`cURL for "${s.name}" copied with required data!`)
