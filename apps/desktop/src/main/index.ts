@@ -1,5 +1,10 @@
 import { app, shell, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'path'
+
+// SEGERA matikan validasi SSL sebelum modul lain (seperti axios) diinisialisasi
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'
+app.commandLine.appendSwitch('ignore-certificate-errors')
+
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { autoUpdater } from 'electron-updater'
 import log from 'electron-log'
@@ -7,11 +12,24 @@ import icon from '../../resources/icon.png?asset'
 import keytar from 'keytar'
 import axios from 'axios'
 import FormData from 'form-data'
+import https from 'https'
+
+// Set default axios agent secara global
+axios.defaults.httpsAgent = new https.Agent({
+  rejectUnauthorized: false
+})
 
 // Konfigurasi logger
 autoUpdater.logger = log
 log.transports.file.level = 'info'
 log.info('App starting...')
+
+// Handle SSL/TLS certificate errors (for self-signed certs in OCP/Internal environments)
+app.on('certificate-error', (event, _webContents, _url, _error, _certificate, callback) => {
+  // Prevent default behavior and trust the certificate
+  event.preventDefault()
+  callback(true)
+})
 
 const KEYTAR_SERVICE = 'io.wapbolt.desktop'
 const KEYTAR_ACCOUNT = 'refresh_token'
@@ -86,7 +104,10 @@ ipcMain.handle('wapbolt:request', async (_event, config: IpcRequestConfig): Prom
       data: requestData,
       headers: finalHeaders,
       timeout: 30000,
-      validateStatus: () => true // Don't throw on 4xx/500
+      validateStatus: () => true, // Don't throw on 4xx/500
+      httpsAgent: new https.Agent({
+        rejectUnauthorized: false
+      })
     })
 
     console.log(`\n[Main Process] >>> SENDING REQUEST: ${config.method} ${config.url}`)
