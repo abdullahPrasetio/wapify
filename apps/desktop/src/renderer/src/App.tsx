@@ -5,6 +5,9 @@ import { LoginPage } from './components/auth/LoginPage'
 import { Toaster, toast } from 'sonner'
 import { initWebSocketIntegration } from './api/websocket'
 import { Key, AlertCircle, RefreshCw } from 'lucide-react'
+import { DonationModal } from './components/modals/DonationModal'
+import { apiClient } from './api/client'
+import { useAppStore } from './store/useAppStore'
 
 // Initialize WebSocket sync logic
 initWebSocketIntegration()
@@ -56,6 +59,24 @@ function App(): React.JSX.Element {
       window.removeEventListener('wapbolt:access-denied', handleAccessDenied)
     }
   }, [logout])
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      const checkDonation = async () => {
+        try {
+          const res = await apiClient.get<{ show: boolean; message: string }>('/api/v1/donations/check')
+          if (res.status === 200 && res.data.show) {
+            const appStore = useAppStore.getState()
+            appStore.setDonationMessage(res.data.message)
+            appStore.setDonationModalOpen(true)
+          }
+        } catch (e) {
+          console.error('Failed to check donation status:', e)
+        }
+      }
+      checkDonation()
+    }
+  }, [isAuthenticated])
 
   if (licenseError) {
     return (
@@ -129,6 +150,7 @@ function App(): React.JSX.Element {
     <>
       <Toaster position="bottom-right" theme="dark" richColors />
       <AppLayout />
+      <DonationModal />
     </>
   )
 }

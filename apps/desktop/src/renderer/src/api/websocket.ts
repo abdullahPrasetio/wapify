@@ -1,6 +1,7 @@
 // websocket.ts
 import { useAuthStore } from '../store/useAuthStore'
 import { useDataStore } from '../store/useDataStore'
+import { useAppStore } from '../store/useAppStore'
 import { getBaseUrl } from './client'
 
 const getWsBaseUrl = () => {
@@ -133,6 +134,13 @@ export class WebSocketClient {
         window.dispatchEvent(
           new CustomEvent('wapbolt:entity-updated', { detail: message.payload })
         )
+        break
+      case 'DONATION_PROMPT':
+        {
+          const appStore = useAppStore.getState()
+          appStore.setDonationMessage(message.payload?.message || '')
+          appStore.setDonationModalOpen(true)
+        }
         break
     }
   }

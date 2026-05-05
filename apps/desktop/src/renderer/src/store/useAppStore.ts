@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 
-export type AppView = 'request-builder' | 'admin-users' | 'admin-teams' | 'admin-licenses' | 'history-detail'
+export type AppView = 'request-builder' | 'admin-users' | 'admin-teams' | 'admin-licenses' | 'admin-donations' | 'history-detail'
 
 interface AppState {
   // Navigation
@@ -43,6 +43,12 @@ interface AppState {
   // UI Settings
   fontSize: number
   setFontSize: (size: number) => void
+
+  // Donation Modal
+  isDonationModalOpen: boolean
+  setDonationModalOpen: (open: boolean) => void
+  donationMessage: string
+  setDonationMessage: (message: string) => void
 }
 
 export const useAppStore = create<AppState>()(
@@ -61,7 +67,12 @@ export const useAppStore = create<AppState>()(
       setIsLoading: (loading) => set({ isLoading: loading }),
 
       fontSize: 13,
-      setFontSize: (size) => set({ fontSize: size })
+      setFontSize: (size) => set({ fontSize: size }),
+
+      isDonationModalOpen: false,
+      setDonationModalOpen: (open) => set({ isDonationModalOpen: open }),
+      donationMessage: '',
+      setDonationMessage: (msg) => set({ donationMessage: msg })
     }),
     {
       name: 'wapbolt-app-settings',

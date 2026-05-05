@@ -24,6 +24,7 @@ const (
 	EventPresenceUpdate WSEventType = "PRESENCE_UPDATE"
 	EventLockUpdate   WSEventType = "LOCK_UPDATE"
 	EventEntityUpdated WSEventType = "ENTITY_UPDATED"
+	EventDonationPrompt WSEventType = "DONATION_PROMPT"
 )
 
 // WSEvent represents the structure of messages exchanged via websocket
@@ -396,4 +397,26 @@ func LogActivity(db *gorm.DB, teamID uint, userID uint, action string, entityTyp
 		Details:    detailsJSON,
 	}
 	db.Create(&log)
+}
+
+// BroadcastDonationPrompt sends a donation prompt to all connected users or a specific user
+func (h *Hub) BroadcastDonationPrompt(userID uint, message string) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	event := WSEvent{
+		Type: EventDonationPrompt,
+		Payload: map[string]interface{}{
+			"message": message,
+		},
+	}
+	msg, _ := json.Marshal(event)
+
+	for _, teamClients := range h.Clients {
+		for c := range teamClients {
+			if userID == 0 || c.UserID == userID {
+				c.WriteMessage(websocket.TextMessage, msg)
+			}
+		}
+	}
 }

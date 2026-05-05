@@ -1,5 +1,35 @@
 # Wapify — Development Log
 
+## [2026-05-05] — Implementation of End-to-End Donation System
+**Fase:** Fase 7 — Kolaborasi Lanjutan
+**Dikerjakan oleh:** Antigravity
+**Status:** ✅ Selesai
+
+### Yang Dikerjakan
+- **Full-stack Donation System**: Implementasi sistem donasi QRIS untuk mendukung pengembangan proyek.
+- **Backend & Database**:
+    - Penambahan tabel `system_settings` untuk konfigurasi global (key-value).
+    - Penambahan kolom `last_donation_prompt_at` di tabel `users`.
+    - API Endpoints: `GET /api/v1/donations/check`, `POST /api/v1/donations/mark-seen`, dan Admin CRUD untuk konfigurasi.
+- **WebSocket Integration**: Implementasi event `DONATION_PROMPT` untuk memicu pop-up real-time ke user tertentu atau broadcast ke semua user.
+- **Frontend UI/UX**:
+    - `DonationModal.tsx`: Desain premium dengan integrasi gambar QRIS, mendukung transisi halus dan feedback toast.
+    - **Admin Panel**: Menu baru "Donation Settings" untuk mengelola pesan, cooldown, dan tombol broadcast instan dengan pilihan target user.
+- **Fixes**: Perbaikan bug sintaksis di `websocket.ts` dan sinkronisasi cooldown untuk semua aksi penutupan modal.
+
+### Perubahan File
+- `backend/migrations/000016_add_system_settings.*`
+- `backend/internal/api/donation.go`
+- `apps/desktop/src/renderer/src/components/modals/DonationModal.tsx`
+- `apps/desktop/src/renderer/src/components/admin/DonationSettings.tsx`
+- `apps/desktop/package.json` (Versi 1.4.7)
+
+### Keputusan & Catatan
+- Memutuskan untuk menggunakan tabel `system_settings` agar konfigurasi aplikasi bisa diubah secara dinamis tanpa restart server.
+- Menggunakan `mark-seen` pada semua aksi penutupan modal (X, Nanti, Donasi) untuk memastikan user tidak merasa terganggu oleh pop-up yang muncul terus-menerus.
+
+---
+
 ## [2026-05-02] — Massive Unit Testing Expansion (97%+ Coverage) & Backend Refactoring
 **Fase:** Fase 7 — Kolaborasi Lanjutan & Mock Pro
 **Dikerjakan oleh:** Gemini

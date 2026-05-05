@@ -252,6 +252,9 @@ Beberapa fitur yang direncanakan di Fase 6 telah disesuaikan prioritasnya dan un
 - [ ] Thread diskusi pada komentar (reply)
 - [ ] Mention anggota (`@nama`) di komentar
 
+### Fitur Pendukung & Monetisasi
+- [x] **Donation System (QRIS)**: Implementasi modal donasi, admin panel configuration, dan real-time WebSocket trigger.
+
 ### Quality Assurance
 - [x] **Massive Unit Testing expansion**: Mencapai >95% coverage global untuk backend (API, Middleware, Repository, Command CLI).
 - [x] **Backend Infrastructure Refactor**: Thread-safe websocket dan testable entry points.

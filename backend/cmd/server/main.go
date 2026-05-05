@@ -93,6 +93,7 @@ func SetupApp() *fiber.App {
 	api.SetupDocumentationRoutes(app)
 	api.SetupMockServerRoutes(app)
 	api.SetupExampleRoutes(app)
+	api.SetupDonationRoutes(app)
 
 	// Default Route
 	app.Get("/", func(c *fiber.Ctx) error {

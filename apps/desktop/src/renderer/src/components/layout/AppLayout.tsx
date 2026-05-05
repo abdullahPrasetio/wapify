@@ -5,6 +5,7 @@ import { useAppStore } from '../../store/useAppStore'
 import { useDataStore } from '../../store/useDataStore'
 import { UserManagement } from '../admin/UserManagement'
 import { TeamManagement } from '../admin/TeamManagement'
+import { DonationSettings } from '../admin/DonationSettings'
 
 export const AppLayout = (): React.JSX.Element => {
   const { activeView } = useAppStore()
@@ -47,6 +48,8 @@ export const AppLayout = (): React.JSX.Element => {
         return <UserManagement />
       case 'admin-teams':
         return <TeamManagement />
+      case 'admin-donations':
+        return <DonationSettings />
       case 'request-builder':
       default:
         return (

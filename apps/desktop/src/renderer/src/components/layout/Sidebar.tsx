@@ -23,7 +23,7 @@ import {
   Download,
   Copy,
   GripVertical, Key, DatabaseZap,
-  Zap
+  Zap, Heart
 } from 'lucide-react'
 import { useState, useEffect, useLayoutEffect, useMemo } from 'react'
 import {
@@ -864,6 +864,9 @@ export const Sidebar = (): React.JSX.Element => {
                   </div>
                   <div onClick={() => setActiveView('admin-teams')} className={`flex items-center gap-2 px-2 py-1.5 rounded text-xs cursor-pointer ${activeView === 'admin-teams' ? 'bg-primary/10 text-primary' : 'text-text hover:bg-background'}`}>
                     <Building2 size={12} /> Workspace Management
+                  </div>
+                  <div onClick={() => setActiveView('admin-donations')} className={`flex items-center gap-2 px-2 py-1.5 rounded text-xs cursor-pointer ${activeView === 'admin-donations' ? 'bg-primary/10 text-primary' : 'text-text hover:bg-background'}`}>
+                    <Heart size={12} /> Donation Settings
                   </div>
                 </div>
               )}
