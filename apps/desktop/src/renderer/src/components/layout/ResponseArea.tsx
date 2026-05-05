@@ -1,4 +1,5 @@
 import { useDataStore, LogEntry } from '../../store/useDataStore'
+import { useAppStore } from '../../store/useAppStore'
 import Editor, { loader } from '@monaco-editor/react'
 import * as monaco from 'monaco-editor'
 
@@ -11,6 +12,7 @@ import { PromptModal } from '../modals/PromptModal'
 
 export const ResponseArea = (): React.JSX.Element => {
   const { tabs, activeTabId, logs, clearLogs, saveExample } = useDataStore()
+  const { fontSize } = useAppStore()
   const [activeTab, setActiveTab] = useState<'Body' | 'Headers' | 'Tests' | 'Console'>('Body')
   const [isPromptOpen, setIsPromptOpen] = useState(false)
 
@@ -176,7 +178,7 @@ export const ResponseArea = (): React.JSX.Element => {
                     options={{
                       readOnly: true,
                       minimap: { enabled: false },
-                      fontSize: 12,
+                      fontSize: fontSize,
                       lineNumbers: 'on',
                       scrollBeyondLastLine: false,
                       automaticLayout: true,

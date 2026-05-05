@@ -188,8 +188,27 @@ app.whenReady().then(() => {
   createWindow()
   autoUpdater.checkForUpdatesAndNotify()
 
+  // Aktifkan shortcut DevTools (Ctrl+Shift+I / Cmd+Option+I) di build production untuk debugging
+  app.on('browser-window-focus', () => {
+    const { globalShortcut } = require('electron')
+    globalShortcut.register('CommandOrControl+Shift+I', () => {
+      const win = BrowserWindow.getFocusedWindow()
+      if (win) win.webContents.toggleDevTools()
+    })
+  })
+
+  app.on('browser-window-blur', () => {
+    const { globalShortcut } = require('electron')
+    globalShortcut.unregister('CommandOrControl+Shift+I')
+  })
+
   ipcMain.handle('wapbolt:get-version', () => {
     return app.getVersion()
+  })
+
+  ipcMain.on('wapbolt:reload', () => {
+    const win = BrowserWindow.getFocusedWindow()
+    if (win) win.webContents.reloadIgnoringCache()
   })
 
   app.on('activate', function () {

@@ -837,9 +837,16 @@ export const Sidebar = (): React.JSX.Element => {
             </div>
             <span className="text-sm font-black tracking-tight">WAPBOLT</span>
           </div>
-          <button onClick={() => fetchTeams()} title="Refresh" className="text-muted hover:text-text transition-colors">
+          {/* <button 
+            onClick={() => {
+              if (window.api) window.api.reloadApp();
+              else fetchTeams();
+            }} 
+            title="Reload Application" 
+            className="text-muted hover:text-text transition-colors"
+          >
             <RefreshCw size={14} className={teamsLoading ? 'animate-spin' : ''} />
-          </button>
+          </button> */}
         </div>
 
         <div className="flex-1 overflow-y-auto min-h-0 flex flex-col">
@@ -860,7 +867,7 @@ export const Sidebar = (): React.JSX.Element => {
                   <div onClick={() => setActiveView('admin-teams')} className={`flex items-center gap-2 px-2 py-1.5 rounded text-xs cursor-pointer ${activeView === 'admin-teams' ? 'bg-primary/10 text-primary' : 'text-text hover:bg-background'}`}>
                     <Building2 size={12} /> Workspace Management
                   </div>
-                  </div>
+                </div>
               )}
             </div>
           )}
@@ -963,10 +970,10 @@ export const Sidebar = (): React.JSX.Element => {
         {showServerSettings && <ServerSettingsModal onClose={() => setShowServerSettings(false)} />}
         {showChangePassword && <ChangePasswordModal isOpen={showChangePassword} onClose={() => setShowChangePassword(false)} />}
         {showStandaloneMock && activeTeam && (
-          <StandaloneMockPanel 
-            teamId={activeTeam.id} 
-            workspaceName={activeTeam.name} 
-            onClose={() => setShowStandaloneMock(false)} 
+          <StandaloneMockPanel
+            teamId={activeTeam.id}
+            workspaceName={activeTeam.name}
+            onClose={() => setShowStandaloneMock(false)}
           />
         )}
 

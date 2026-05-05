@@ -39,6 +39,9 @@ const api = {
   getAppVersion: (): Promise<string> => {
     return ipcRenderer.invoke('wapbolt:get-version')
   },
+  reloadApp: (): void => {
+    ipcRenderer.send('wapbolt:reload')
+  },
   parseCurl: (curlCommand: string): Promise<any> => {
     return ipcRenderer.invoke('wapbolt:parse-curl', curlCommand)
   }

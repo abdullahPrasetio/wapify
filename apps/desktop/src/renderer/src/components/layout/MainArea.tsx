@@ -4,7 +4,7 @@ import { useAuthStore } from '../../store/useAuthStore'
 import { KeyValueEditor } from '../ui/KeyValueEditor'
 import { VariableOverlayInput } from '../ui/VariableOverlayInput'
 import { SetVarModal } from '../modals/SetVarModal'
-import { Shield, Eye, EyeOff, X, RefreshCw, Save, Lock, Users, ChevronDown, FileCode2, Terminal as TerminalIcon, Code, Box, Globe, Link as LinkIcon, BookOpen, Zap } from 'lucide-react'
+import { Shield, Eye, EyeOff, X, RefreshCw, Save, Lock, Users, ChevronDown, FileCode2, Terminal as TerminalIcon, Code, Box, Globe, Link as LinkIcon, BookOpen, Zap, Settings } from 'lucide-react'
 import { ResponseArea } from './ResponseArea'
 import { HistoryDetailView } from './HistoryDetailView'
 import { CollaborationPanel } from './CollaborationPanel'
@@ -125,7 +125,7 @@ const EditorArea = ({
   isLocked,
   onUpdate
 }: EditorAreaProps): React.JSX.Element => {
-
+  const { fontSize, setFontSize } = useAppStore()
   const [showPassword, setShowPassword] = useState(false)
   const [isHeaderBulk, setIsHeaderBulk] = useState(false)
   const [headerBulkLocal, setHeaderBulkLocal] = useState('')
@@ -232,6 +232,39 @@ const EditorArea = ({
               </DropdownMenu.Portal>
             </DropdownMenu.Root>
           )}
+
+          {workingRequest.body_type === 'raw-json' && (
+            <div className="flex items-center gap-2 ml-4 border-l border-border pl-4">
+              <button
+                onClick={() => {
+                  try {
+                    const json = JSON.parse(workingRequest.body as string)
+                    onUpdate({ body: JSON.stringify(json, null, 2) })
+                    toast.success('JSON Beautified')
+                  } catch (e) {
+                    toast.error('Invalid JSON: Cannot beautify')
+                  }
+                }}
+                className="text-[9px] font-black uppercase tracking-widest text-muted hover:text-primary transition-colors"
+              >
+                Beautify
+              </button>
+              <button
+                onClick={() => {
+                  try {
+                    const json = JSON.parse(workingRequest.body as string)
+                    onUpdate({ body: JSON.stringify(json) })
+                    toast.success('JSON Minified')
+                  } catch (e) {
+                    toast.error('Invalid JSON: Cannot minify')
+                  }
+                }}
+                className="text-[9px] font-black uppercase tracking-widest text-muted hover:text-primary transition-colors"
+              >
+                Unbeautify
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="flex-1 relative">
@@ -251,7 +284,7 @@ const EditorArea = ({
               onChange={(val) => onUpdate({ body: val || '' })}
               options={{
                 minimap: { enabled: false },
-                fontSize: 13,
+                fontSize: fontSize,
                 automaticLayout: true,
                 padding: { top: 10 },
                 readOnly: isLocked
@@ -316,7 +349,7 @@ const EditorArea = ({
               onChange={(val) => setHeaderBulkLocal(val || '')}
               options={{
                 minimap: { enabled: false },
-                fontSize: 12,
+                fontSize: fontSize,
                 lineNumbers: 'off',
                 scrollBeyondLastLine: false,
                 padding: { top: 10 },
@@ -363,7 +396,7 @@ const EditorArea = ({
             onChange={(val) => onUpdate({ pre_request_script: val || '' })}
             options={{
               minimap: { enabled: false },
-              fontSize: 13,
+              fontSize: fontSize,
               scrollBeyondLastLine: false,
               padding: { top: 10 },
               readOnly: isLocked
@@ -388,12 +421,61 @@ const EditorArea = ({
             onChange={(val) => onUpdate({ post_request_script: val || '' })}
             options={{
               minimap: { enabled: false },
-              fontSize: 13,
+              fontSize: fontSize,
               scrollBeyondLastLine: false,
               padding: { top: 10 },
               readOnly: isLocked
             }}
           />
+        </div>
+      </div>
+
+      {/* --- SETTINGS TAB --- */}
+      <div className={`p-6 h-full overflow-auto ${activeTab === 'Settings' ? 'block' : 'hidden'}`}>
+        <div className="max-w-xl">
+          <h3 className="text-sm font-bold text-text uppercase tracking-tight mb-6 flex items-center gap-2">
+            <Settings size={16} className="text-primary" /> Editor Settings
+          </h3>
+          
+          <div className="space-y-6">
+            <div className="bg-surface/30 p-4 rounded-xl border border-border/50">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h4 className="text-xs font-bold text-text uppercase">Font Size</h4>
+                  <p className="text-[10px] text-muted mt-0.5">Adjust the text size in code editors</p>
+                </div>
+                <div className="text-lg font-black text-primary">{fontSize}px</div>
+              </div>
+              
+              <div className="flex items-center gap-4">
+                <button 
+                  onClick={() => setFontSize(Math.max(10, fontSize - 1))}
+                  className="w-8 h-8 rounded-lg bg-surface border border-border flex items-center justify-center text-muted hover:text-text hover:border-primary transition-all"
+                >
+                  -
+                </button>
+                <input 
+                  type="range"
+                  min="10"
+                  max="24"
+                  step="1"
+                  value={fontSize}
+                  onChange={(e) => setFontSize(parseInt(e.target.value))}
+                  className="flex-1 accent-primary"
+                />
+                <button 
+                  onClick={() => setFontSize(Math.min(24, fontSize + 1))}
+                  className="w-8 h-8 rounded-lg bg-surface border border-border flex items-center justify-center text-muted hover:text-text hover:border-primary transition-all"
+                >
+                  +
+                </button>
+              </div>
+              
+              <div className="mt-6 p-3 bg-black/40 rounded border border-white/5 font-mono text-muted" style={{ fontSize: `${fontSize}px` }}>
+                {"// Preview: The quick brown fox jumps over the lazy dog"}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -881,35 +963,48 @@ export const MainArea = (): React.JSX.Element => {
 
               {/* Presence & Locking Status */}
               {(currentPresence.length > 0 || currentLock) && (
-                <div className="flex items-center gap-3">
-                  <div className="flex -space-x-1.5">
-                    {currentPresence.map((p) => (
-                      <div
-                        key={p.user_id}
-                        title={p.user_name}
-                        className={`w-5 h-5 rounded-full border border-background flex items-center justify-center font-bold text-[8px] text-white shadow-sm cursor-help ${[
-                            'bg-blue-500',
-                            'bg-purple-500',
-                            'bg-pink-500',
-                            'bg-indigo-500',
-                            'bg-orange-500',
-                            'bg-cyan-500'
-                          ][p.user_id % 6]
-                          }`}
-                      >
-                        {p.user_name.charAt(0).toUpperCase()}
-                      </div>
-                    ))}
+                <div className="flex items-center gap-3 bg-surface/30 px-2 py-1 rounded-full border border-border/30">
+                  <div className="flex items-center gap-1.5">
+                    <div className="flex -space-x-1.5 mr-1">
+                      {currentPresence.map((p) => (
+                        <div
+                          key={p.user_id}
+                          title={`${p.user_name} is viewing this request`}
+                          className={`w-5 h-5 rounded-full border border-background flex items-center justify-center font-bold text-[8px] text-white shadow-sm cursor-pointer ${[
+                              'bg-blue-500',
+                              'bg-purple-500',
+                              'bg-pink-500',
+                              'bg-indigo-500',
+                              'bg-orange-500',
+                              'bg-cyan-500'
+                            ][p.user_id % 6]
+                            }`}
+                        >
+                          {p.user_name.charAt(0).toUpperCase()}
+                        </div>
+                      ))}
+                    </div>
+                    {currentPresence.length === 1 && (
+                      <span className="text-[10px] text-muted font-medium pr-1">
+                        {currentPresence[0].user_id === user?.id ? 'You' : currentPresence[0].user_name} is viewing
+                      </span>
+                    )}
+                    {currentPresence.length > 1 && (
+                      <span className="text-[10px] text-muted font-medium pr-1">
+                        {currentPresence.length} users viewing
+                      </span>
+                    )}
                   </div>
                   {currentLock && (
                     <div
-                      className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full border text-[8px] font-bold uppercase tracking-wider ${isLockedByOthers
-                          ? 'bg-warning/10 border-warning/30 text-warning'
-                          : 'bg-success/10 border-success/30 text-success'
+                      title={isLockedByOthers ? `${currentLock.user_name} is currently editing` : 'You have the edit lock'}
+                      className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-[8px] font-black uppercase tracking-wider ${isLockedByOthers
+                          ? 'bg-warning/20 border-warning/40 text-warning shadow-[0_0_8px_rgba(245,158,11,0.2)]'
+                          : 'bg-success/20 border-success/40 text-success shadow-[0_0_8px_rgba(34,197,94,0.2)]'
                         }`}
                     >
                       <Lock size={8} className={isLockedByOthers ? 'animate-pulse' : ''} />
-                      {isLockedByOthers ? currentLock.user_name : 'You'}
+                      {isLockedByOthers ? `Locked by ${currentLock.user_name}` : 'Editing'}
                     </div>
                   )}
                 </div>
@@ -954,14 +1049,6 @@ export const MainArea = (): React.JSX.Element => {
                   )}
                 </div>
               ))}
-
-              <div
-                className={`px-3 py-2 text-xs font-medium cursor-pointer border-b-2 transition-colors flex items-center gap-1.5 ${activeTab === 'Settings' ? 'border-primary text-primary' : 'border-transparent text-muted hover:text-text'
-                  }`}
-                onClick={() => setActiveTab('Settings')}
-              >
-                Settings
-              </div>
             </div>
 
             <div className="flex items-center gap-4 pr-2">

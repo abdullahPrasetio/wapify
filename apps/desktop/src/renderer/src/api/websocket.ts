@@ -107,13 +107,32 @@ export class WebSocketClient {
       case 'ENTITY_UPDATED':
         // Jika entity yang diupdate adalah request yang sedang kita buka, fetch ulang
         if (message.payload?.entity_type === 'REQUEST') {
-
-          // Optionally, we could show a toast or auto-fetch
-          // store.fetchCollectionContents(...)
-          window.dispatchEvent(
-            new CustomEvent('wapbolt:entity-updated', { detail: message.payload })
-          )
+          const reqId = message.payload.entity_id
+          const collectionId = store.requests.find(r => r.id === reqId)?.collection_id
+          if (collectionId) {
+            store.fetchCollectionContents(collectionId)
+          }
+        } else if (message.payload?.entity_type === 'FOLDER') {
+          // Find collection id for this folder
+          const colId = Object.entries(store.foldersByCollection).find(([_, folders]) => 
+            folders.some(f => f.id === message.payload.entity_id)
+          )?.[0]
+          if (colId) {
+            store.fetchCollectionContents(Number(colId))
+          }
+        } else if (message.payload?.entity_type === 'COLLECTION') {
+          store.fetchCollectionContents(message.payload.entity_id)
+        } else if (message.payload?.entity_type === 'TEAM') {
+          if (store.activeTeamId) {
+            store.fetchCollections(store.activeTeamId)
+          }
+        } else if (message.payload?.entity_type === 'HISTORY') {
+          store.fetchHistory()
         }
+
+        window.dispatchEvent(
+          new CustomEvent('wapbolt:entity-updated', { detail: message.payload })
+        )
         break
     }
   }
