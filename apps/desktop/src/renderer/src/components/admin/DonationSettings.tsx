@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Heart, Save, Send, Clock, ToggleLeft, ToggleRight, Loader2, User, Users } from 'lucide-react'
+import { Heart, Save, Send, Clock, ToggleLeft, ToggleRight, Loader2, User } from 'lucide-react'
 import { apiClient } from '../../api/client'
 import { toast } from 'sonner'
 import type { User as UserType } from '../../types'

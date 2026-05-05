@@ -1,3 +1,4 @@
+/// <reference types="vite/client" />
 import { ElectronAPI } from '@electron-toolkit/preload'
 
 interface RequestConfig {
