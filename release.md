@@ -1,18 +1,22 @@
-# Release Notes — Wapbolt v1.4.7
+# Release Notes — Wapbolt v1.4.8
 
 ## What's New 🚀
-Kami menghadirkan sistem donasi terintegrasi untuk mendukung keberlanjutan pengembangan Wapbolt.
+Rilis ini membawa perubahan besar pada sisi visual dan kenyamanan penggunaan, dengan fokus utama pada dukungan Tema Terang (Light Mode) dan perbaikan pengalaman navigasi.
 
-### 💖 Donation System
-- **Pop-up QRIS**: User akan sesekali mendapatkan ajakan donasi melalui QRIS dengan desain yang bersih dan premium.
-- **Admin Control**: Waluyo dapat mengaktifkan/menonaktifkan fitur ini, mengubah pesan, dan mengatur masa cooldown (default 7 hari).
-- **Instant Trigger**: Admin dapat memicu pop-up donasi secara real-time ke user tertentu atau seluruh tim melalui WebSocket broadcast.
-- **Smart Cooldown**: Sistem secara otomatis mencatat kapan terakhir kali user merespon pop-up (tutup, nanti, atau donasi) untuk memastikan pengalaman pengguna tetap nyaman.
+### 🎨 Dynamic Theme System
+- **Light & Dark Mode**: Wapbolt sekarang mendukung tema terang yang bersih dan profesional. Pengguna dapat memilih tema secara manual atau mengikuti pengaturan sistem operasi (System).
+- **Editor Sync**: Monaco Editor sekarang secara otomatis berganti tema antara `vs` dan `vs-dark` mengikuti tema aplikasi yang aktif.
+- **Global UI Cleanup**: Pembersihan besar-besaran pada seluruh komponen (Documentation, Mock Server, History) untuk menghilangkan warna *hardcoded* gelap, memastikan konsistensi visual di semua mode.
+
+### 📂 Sidebar & Navigation Improvements
+- **Collapse All**: Menambahkan tombol baru di sidebar untuk menutup semua koleksi dan folder yang terbuka dalam satu klik, membantu menjaga area kerja tetap rapi.
+- **Persistence Fix**: Memperbaiki masalah di mana sidebar selalu tertutup saat aplikasi di-refresh (Cmd+R). Sekarang Wapbolt akan mengingat status ekspansi koleksi Anda.
 
 ### 🔧 Fixes & Improvements
-- Perbaikan bug sinkronisasi pada WebSocket client yang menyebabkan kegagalan rendering.
-- Peningkatan stabilitas database dengan penambahan skema `system_settings`.
-- Update metadata aplikasi ke versi **1.4.7**.
+- **Variable Overlay Cleanup**: Menghapus border hitam yang mengganggu pada tabel Body dan Headers saat menggunakan tema terang.
+- **Smart Caret**: Warna kursor saat mengetik sekarang otomatis menyesuaikan dengan latar belakang tema agar tetap terlihat jelas.
+- **Font Settings Restore**: Mengembalikan kotak "Preview Text" pada pengaturan ukuran font yang sempat hilang.
+- **Toaster Sync**: Notifikasi aplikasi (Toast) sekarang juga mengikuti skema warna tema yang aktif.
 
 ---
-*Dibuat oleh Antigravity pada 05 Mei 2026*
+*Dibuat oleh Agent pada 07 Mei 2026*
