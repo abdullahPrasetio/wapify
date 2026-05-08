@@ -6,9 +6,10 @@ import { useDataStore } from '../../store/useDataStore'
 import { UserManagement } from '../admin/UserManagement'
 import { TeamManagement } from '../admin/TeamManagement'
 import { DonationSettings } from '../admin/DonationSettings'
+import { GlobalSearchModal } from '../modals/GlobalSearchModal'
 
 export const AppLayout = (): React.JSX.Element => {
-  const { activeView } = useAppStore()
+  const { activeView, isSearchModalOpen, setSearchModalOpen } = useAppStore()
   const {
     activeTeamId,
     fetchTeams,
@@ -18,6 +19,19 @@ export const AppLayout = (): React.JSX.Element => {
     expandedItems,
     fetchCollectionContents
   } = useDataStore()
+
+  // Global Keyboard Shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault()
+        setSearchModalOpen(!isSearchModalOpen)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isSearchModalOpen, setSearchModalOpen])
 
   // Re-fetch data for active team on mount (for Cmd+R persistence)
   useEffect(() => {
@@ -72,6 +86,7 @@ export const AppLayout = (): React.JSX.Element => {
     <div className="flex h-screen w-screen bg-background text-text overflow-hidden font-sans">
       <Sidebar />
       {renderContent()}
+      <GlobalSearchModal />
     </div>
   )
 }

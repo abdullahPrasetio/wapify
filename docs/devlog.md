@@ -1,5 +1,34 @@
 # Wapify — Development Log
 
+## [2026-05-07] — Global Search (Omnibar), Menu Navigation & v1.4.9
+**Fase:** Fase 7 — Kolaborasi Lanjutan
+**Dikerjakan oleh:** Agent
+**Status:** ✅ Selesai
+
+### Yang Dikerjakan
+- **Global Search (Omnibar)**: Implementasi fitur pencarian cepat bergaya Spotlight/Raycast yang dapat diakses via `Cmd+K` (Mac) atau `Ctrl+K` (Windows).
+- **Intelligent Filtering**: Mendukung pencarian **Requests** (berdasarkan nama & URL), **Collections**, dan **Menu Navigasi**.
+- **Role-Based Search Results**: Menu administratif seperti "User Management" dan "Workspace Management" hanya muncul di hasil pencarian jika user adalah Super Admin.
+- **Quick Navigation**: Integrasi dengan `useDataStore` dan `useAppStore` untuk langsung berpindah antar view atau mengekspansi koleksi dari hasil pencarian.
+- **Custom Event System**: Menghubungkan Omnibar dengan komponen Sidebar untuk membuka modal Settings dan Standalone Mocks secara programatik.
+- **Version Bump**: Menaikkan versi aplikasi ke **1.4.9**.
+
+### Perubahan File
+- `apps/desktop/src/renderer/src/components/modals/GlobalSearchModal.tsx` — Komponen UI Omnibar.
+- `apps/desktop/src/renderer/src/components/layout/AppLayout.tsx` — Keyboard listener & mounting modal.
+- `apps/desktop/src/renderer/src/store/useAppStore.ts` — State modal pencarian.
+- `apps/desktop/src/renderer/src/components/layout/Sidebar.tsx` — Listener untuk navigasi modal dari search.
+- `apps/desktop/package.json` — Bump version to 1.4.9.
+
+### Keputusan & Catatan
+- Memisahkan logika pencarian sepenuhnya di frontend untuk performa instan (*sub-millisecond search*).
+- Menggunakan `lucide-react` untuk ikon kategori agar user cepat membedakan tipe hasil pencarian (Request, Folder, Menu).
+
+### Langkah Selanjutnya
+- Audit fitur-fitur baru dan persiapan untuk rilis stabil v1.5.
+
+---
+
 ## [2026-05-07] — Implementasi Sistem Tema Dinamis (Light/Dark/System) & Pembersihan UI
 **Fase:** Fase 6 — UX & Power Features
 **Dikerjakan oleh:** Agent

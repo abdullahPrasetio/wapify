@@ -51,6 +51,10 @@ interface AppState {
   setDonationModalOpen: (open: boolean) => void
   donationMessage: string
   setDonationMessage: (message: string) => void
+
+  // Global Search Modal
+  isSearchModalOpen: boolean
+  setSearchModalOpen: (open: boolean) => void
 }
 
 export const useAppStore = create<AppState>()(
@@ -77,7 +81,10 @@ export const useAppStore = create<AppState>()(
       isDonationModalOpen: false,
       setDonationModalOpen: (open) => set({ isDonationModalOpen: open }),
       donationMessage: '',
-      setDonationMessage: (msg) => set({ donationMessage: msg })
+      setDonationMessage: (msg) => set({ donationMessage: msg }),
+
+      isSearchModalOpen: false,
+      setSearchModalOpen: (open) => set({ isSearchModalOpen: open })
     }),
     {
       name: 'wapbolt-app-settings',

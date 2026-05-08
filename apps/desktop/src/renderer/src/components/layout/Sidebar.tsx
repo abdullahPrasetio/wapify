@@ -690,6 +690,19 @@ export const Sidebar = (): React.JSX.Element => {
 
   useEffect(() => { fetchTeams() }, [fetchTeams])
 
+  useEffect(() => {
+    const handleOpenSettings = () => setShowServerSettings(true)
+    const handleOpenMock = () => setShowStandaloneMock(true)
+
+    window.addEventListener('wapbolt:open-settings', handleOpenSettings)
+    window.addEventListener('wapbolt:open-standalone-mock', handleOpenMock)
+
+    return () => {
+      window.removeEventListener('wapbolt:open-settings', handleOpenSettings)
+      window.removeEventListener('wapbolt:open-standalone-mock', handleOpenMock)
+    }
+  }, [])
+
   const activeTeam = teams.find((t) => t.id === activeTeamId)
   const filteredCollections = collections.filter((c) => c.name.toLowerCase().includes(searchQuery.toLowerCase()))
 
