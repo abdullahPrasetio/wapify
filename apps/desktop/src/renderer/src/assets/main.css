@@ -1,14 +1,14 @@
 @import "tailwindcss";
 
 @theme {
-  --color-background: #1a1a2e;
-  --color-surface: #252540;
+  --color-background: var(--background);
+  --color-surface: var(--surface);
   --color-primary: #7c3aed;
   --color-primary-hover: #6d28d9;
   --color-secondary: #5856d6;
-  --color-text: #e2e8f0;
-  --color-muted: #94a3b8;
-  --color-border: #33334d;
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
   --color-success: #10b981;
   --color-danger: #ef4444;
   --color-warning: #f59e0b;
@@ -19,6 +19,22 @@
 }
 
 @layer base {
+  :root {
+    --background: #1a1a2e;
+    --surface: #252540;
+    --text: #e2e8f0;
+    --muted: #94a3b8;
+    --border: #33334d;
+  }
+
+  .light {
+    --background: #ffffff;
+    --surface: #f8fafc;
+    --text: #0f172a;
+    --muted: #64748b;
+    --border: #e2e8f0;
+  }
+
   body {
     @apply bg-background text-text font-sans antialiased overflow-hidden selection:bg-primary/30;
   }

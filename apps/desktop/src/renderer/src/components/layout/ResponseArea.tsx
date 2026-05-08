@@ -12,7 +12,10 @@ import { PromptModal } from '../modals/PromptModal'
 
 export const ResponseArea = (): React.JSX.Element => {
   const { tabs, activeTabId, logs, clearLogs, saveExample } = useDataStore()
-  const { fontSize } = useAppStore()
+  const { fontSize, theme } = useAppStore()
+  const monacoTheme = theme === 'system'
+    ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'vs-dark' : 'vs')
+    : (theme === 'dark' ? 'vs-dark' : 'vs')
   const [activeTab, setActiveTab] = useState<'Body' | 'Headers' | 'Tests' | 'Console'>('Body')
   const [isPromptOpen, setIsPromptOpen] = useState(false)
 
@@ -162,7 +165,7 @@ export const ResponseArea = (): React.JSX.Element => {
         ) : (
           <>
             {activeTab === 'Body' && (
-              <div className="h-full w-full bg-[#1e1e1e]">
+              <div className="h-full w-full bg-background">
                 {isPdf ? (
                    <iframe
                      src={`data:application/pdf;base64,${data}`}
@@ -173,7 +176,7 @@ export const ResponseArea = (): React.JSX.Element => {
                   <Editor
                     height="100%"
                     defaultLanguage="json"
-                    theme="vs-dark"
+                    theme={monacoTheme}
                     value={formattedData}
                     options={{
                       readOnly: true,
@@ -255,8 +258,8 @@ export const ResponseArea = (): React.JSX.Element => {
             )}
 
             {activeTab === 'Console' && (
-              <div className="h-full flex flex-col overflow-hidden bg-[#0d0d0d]">
-                <div className="px-4 py-2 border-b border-white/5 flex items-center justify-between bg-white/5">
+              <div className="h-full flex flex-col overflow-hidden bg-background">
+                <div className="px-4 py-2 border-b border-border flex items-center justify-between bg-surface/30">
                   <span className="text-[10px] font-bold text-muted uppercase tracking-widest">
                     Console Output
                   </span>
@@ -293,7 +296,7 @@ const LogItem = ({ log }: { log: LogEntry }): React.JSX.Element => {
   if (log.level === 'network' && log.details) {
     const { request, response } = log.details
     return (
-      <div className="border-l-2 border-primary/30 hover:bg-white/5 transition-all">
+      <div className="border-l-2 border-primary/30 hover:bg-surface/50 transition-all">
         <div
           onClick={() => setIsOpen(!isOpen)}
           className="flex items-center gap-2 px-2 py-1.5 cursor-pointer group"
@@ -316,7 +319,7 @@ const LogItem = ({ log }: { log: LogEntry }): React.JSX.Element => {
               <div className="text-[9px] font-black text-muted uppercase tracking-[0.2em] mb-1.5 flex items-center gap-2">
                 <div className="w-1 h-1 rounded-full bg-primary" /> Request Headers
               </div>
-              <div className="bg-black/30 rounded-lg p-3 text-[10px] space-y-1 border border-white/5">
+              <div className="bg-surface/30 rounded-lg p-3 text-[10px] space-y-1 border border-border/50">
                 {Object.entries(request.headers || {}).map(([k, v]) => (
                   <div key={k} className="flex gap-2">
                     <span className="text-primary font-bold w-40 shrink-0 opacity-80">{k}:</span>
@@ -335,7 +338,7 @@ const LogItem = ({ log }: { log: LogEntry }): React.JSX.Element => {
                   </div>
                   <span className="text-[8px] opacity-50 font-mono">Format: {request.body_type || 'raw'}</span>
                 </div>
-                <pre className="bg-black/30 rounded-lg p-3 text-[10px] text-text/70 whitespace-pre-wrap break-all border border-white/5 max-h-60 overflow-auto font-mono">
+                <pre className="bg-black/30 rounded-lg p-3 text-[10px] text-text/70 whitespace-pre-wrap break-all border border-border/50 max-h-60 overflow-auto font-mono">
                   {(() => {
                     if ((request.body_type === 'x-www-form-urlencoded' || request.body_type === 'form-data') && Array.isArray(request.body)) {
                       const params = new URLSearchParams()
@@ -355,7 +358,7 @@ const LogItem = ({ log }: { log: LogEntry }): React.JSX.Element => {
               <div className="text-[9px] font-black text-muted uppercase tracking-[0.2em] mb-1.5 flex items-center gap-2">
                 <div className="w-1 h-1 rounded-full bg-success" /> Response Headers
               </div>
-              <div className="bg-black/30 rounded-lg p-3 text-[10px] space-y-1 border border-white/5">
+              <div className="bg-surface/30 rounded-lg p-3 text-[10px] space-y-1 border border-border/50">
                 {Object.entries(response.headers || {}).map(([k, v]) => (
                   <div key={k} className="flex gap-2">
                     <span className="text-success font-bold w-40 shrink-0 opacity-80">{k}:</span>
@@ -370,7 +373,7 @@ const LogItem = ({ log }: { log: LogEntry }): React.JSX.Element => {
               <div className="text-[9px] font-black text-muted uppercase tracking-[0.2em] mb-1.5 flex items-center gap-2">
                 <div className="w-1 h-1 rounded-full bg-success" /> Response Body
               </div>
-              <pre className="bg-black/30 rounded-lg p-3 text-[10px] text-text/70 whitespace-pre-wrap break-all border border-white/5 max-h-80 overflow-auto">
+              <pre className="bg-black/30 rounded-lg p-3 text-[10px] text-text/70 whitespace-pre-wrap break-all border border-border/50 max-h-80 overflow-auto">
                 {typeof response.data === 'object' ? JSON.stringify(response.data, null, 2) : String(response.data)}
               </pre>
             </div>

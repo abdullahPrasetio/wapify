@@ -43,6 +43,8 @@ interface AppState {
   // UI Settings
   fontSize: number
   setFontSize: (size: number) => void
+  theme: 'light' | 'dark' | 'system'
+  setTheme: (theme: 'light' | 'dark' | 'system') => void
 
   // Donation Modal
   isDonationModalOpen: boolean
@@ -69,6 +71,9 @@ export const useAppStore = create<AppState>()(
       fontSize: 13,
       setFontSize: (size) => set({ fontSize: size }),
 
+      theme: 'dark',
+      setTheme: (theme) => set({ theme }),
+
       isDonationModalOpen: false,
       setDonationModalOpen: (open) => set({ isDonationModalOpen: open }),
       donationMessage: '',
@@ -78,7 +83,8 @@ export const useAppStore = create<AppState>()(
       name: 'wapbolt-app-settings',
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
-        fontSize: state.fontSize
+        fontSize: state.fontSize,
+        theme: state.theme
       })
     }
   )

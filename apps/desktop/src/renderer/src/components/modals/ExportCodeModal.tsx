@@ -3,6 +3,7 @@ import { useState, useMemo } from 'react'
 import { X, Code, Copy, Check, Terminal, Globe, Cpu } from 'lucide-react'
 import Editor from '@monaco-editor/react'
 import { toast } from 'sonner'
+import { useAppStore } from '../../store/useAppStore'
 
 interface ExportCodeModalProps {
   isOpen: boolean
@@ -55,6 +56,11 @@ export const ExportCodeModal = ({
   onClose,
   requestData
 }: ExportCodeModalProps): React.JSX.Element => {
+  const { theme } = useAppStore()
+  const monacoTheme = theme === 'system'
+    ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'vs-dark' : 'vs')
+    : (theme === 'dark' ? 'vs-dark' : 'vs')
+    
   const [selectedLang, setSelectedLang] = useState<LanguageId>('curl')
   const [copied, setCopied] = useState(false)
 
@@ -214,7 +220,7 @@ export const ExportCodeModal = ({
               <Editor
                 height="100%"
                 language={selectedLang.startsWith('js') ? 'javascript' : selectedLang === 'go-native' ? 'go' : selectedLang === 'python-requests' ? 'python' : 'shell'}
-                theme="vs-dark"
+                theme={monacoTheme}
                 value={codeSnippet}
                 options={{ readOnly: true, minimap: { enabled: false }, fontSize: 13, automaticLayout: true, padding: { top: 20 }, scrollBeyondLastLine: false, wordWrap: 'on' }}
               />

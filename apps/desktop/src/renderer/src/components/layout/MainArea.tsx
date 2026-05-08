@@ -4,7 +4,7 @@ import { useAuthStore } from '../../store/useAuthStore'
 import { KeyValueEditor } from '../ui/KeyValueEditor'
 import { VariableOverlayInput } from '../ui/VariableOverlayInput'
 import { SetVarModal } from '../modals/SetVarModal'
-import { Shield, Eye, EyeOff, X, RefreshCw, Save, Lock, Users, ChevronDown, FileCode2, Terminal as TerminalIcon, Code, Box, Globe, Link as LinkIcon, BookOpen, Zap, Settings } from 'lucide-react'
+import { Shield, Eye, EyeOff, X, RefreshCw, Save, Lock, Users, ChevronDown, FileCode2, Terminal as TerminalIcon, Code, Box, Globe, Link as LinkIcon, BookOpen, Zap } from 'lucide-react'
 import { ResponseArea } from './ResponseArea'
 import { HistoryDetailView } from './HistoryDetailView'
 import { CollaborationPanel } from './CollaborationPanel'
@@ -125,7 +125,10 @@ const EditorArea = ({
   isLocked,
   onUpdate
 }: EditorAreaProps): React.JSX.Element => {
-  const { fontSize, setFontSize } = useAppStore()
+  const { fontSize, theme } = useAppStore()
+  const monacoTheme = theme === 'system'
+    ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'vs-dark' : 'vs')
+    : (theme === 'dark' ? 'vs-dark' : 'vs')
   const [showPassword, setShowPassword] = useState(false)
   const [isHeaderBulk, setIsHeaderBulk] = useState(false)
   const [headerBulkLocal, setHeaderBulkLocal] = useState('')
@@ -197,8 +200,8 @@ const EditorArea = ({
                 key={t.id}
                 onClick={() => handleBodyTypeChange(t.id === 'raw-json' ? 'raw-json' : t.id)}
                 className={`px-2 py-1 text-[10px] font-bold uppercase rounded transition-colors ${(workingRequest.body_type === t.id || (t.id === 'raw-json' && workingRequest.body_type?.startsWith('raw-')))
-                    ? 'bg-primary/20 text-primary'
-                    : 'text-muted hover:text-text'
+                  ? 'bg-primary/20 text-primary'
+                  : 'text-muted hover:text-text'
                   }`}
               >
                 {t.label}
@@ -279,7 +282,7 @@ const EditorArea = ({
             <Editor
               height="100%"
               language={getMonacoLang(workingRequest.body_type)}
-              theme="vs-dark"
+              theme={monacoTheme}
               value={typeof workingRequest.body === 'string' ? workingRequest.body : JSON.stringify(workingRequest.body, null, 2)}
               onChange={(val) => onUpdate({ body: val || '' })}
               options={{
@@ -344,7 +347,7 @@ const EditorArea = ({
             <Editor
               height="100%"
               defaultLanguage="text"
-              theme="vs-dark"
+              theme={monacoTheme}
               value={headerBulkLocal}
               onChange={(val) => setHeaderBulkLocal(val || '')}
               options={{
@@ -391,7 +394,7 @@ const EditorArea = ({
           <Editor
             height="100%"
             defaultLanguage="javascript"
-            theme="vs-dark"
+            theme={monacoTheme}
             value={workingRequest.pre_request_script || ''}
             onChange={(val) => onUpdate({ pre_request_script: val || '' })}
             options={{
@@ -416,7 +419,7 @@ const EditorArea = ({
           <Editor
             height="100%"
             defaultLanguage="javascript"
-            theme="vs-dark"
+            theme={monacoTheme}
             value={workingRequest.post_request_script || ''}
             onChange={(val) => onUpdate({ post_request_script: val || '' })}
             options={{
@@ -427,55 +430,6 @@ const EditorArea = ({
               readOnly: isLocked
             }}
           />
-        </div>
-      </div>
-
-      {/* --- SETTINGS TAB --- */}
-      <div className={`p-6 h-full overflow-auto ${activeTab === 'Settings' ? 'block' : 'hidden'}`}>
-        <div className="max-w-xl">
-          <h3 className="text-sm font-bold text-text uppercase tracking-tight mb-6 flex items-center gap-2">
-            <Settings size={16} className="text-primary" /> Editor Settings
-          </h3>
-          
-          <div className="space-y-6">
-            <div className="bg-surface/30 p-4 rounded-xl border border-border/50">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h4 className="text-xs font-bold text-text uppercase">Font Size</h4>
-                  <p className="text-[10px] text-muted mt-0.5">Adjust the text size in code editors</p>
-                </div>
-                <div className="text-lg font-black text-primary">{fontSize}px</div>
-              </div>
-              
-              <div className="flex items-center gap-4">
-                <button 
-                  onClick={() => setFontSize(Math.max(10, fontSize - 1))}
-                  className="w-8 h-8 rounded-lg bg-surface border border-border flex items-center justify-center text-muted hover:text-text hover:border-primary transition-all"
-                >
-                  -
-                </button>
-                <input 
-                  type="range"
-                  min="10"
-                  max="24"
-                  step="1"
-                  value={fontSize}
-                  onChange={(e) => setFontSize(parseInt(e.target.value))}
-                  className="flex-1 accent-primary"
-                />
-                <button 
-                  onClick={() => setFontSize(Math.min(24, fontSize + 1))}
-                  className="w-8 h-8 rounded-lg bg-surface border border-border flex items-center justify-center text-muted hover:text-text hover:border-primary transition-all"
-                >
-                  +
-                </button>
-              </div>
-              
-              <div className="mt-6 p-3 bg-black/40 rounded border border-white/5 font-mono text-muted" style={{ fontSize: `${fontSize}px` }}>
-                {"// Preview: The quick brown fox jumps over the lazy dog"}
-              </div>
-            </div>
-          </div>
         </div>
       </div>
 
@@ -635,8 +589,8 @@ const RequestTabs = (): React.JSX.Element => {
           key={tab.requestId}
           onClick={(): void => setActiveTab(tab.requestId)}
           className={`group flex items-center h-10 px-3 border-r border-border cursor-pointer transition-all min-w-[120px] max-w-[200px] relative ${activeTabId === tab.requestId
-              ? 'bg-surface border-t-2 border-t-primary'
-              : 'hover:bg-surface/50'
+            ? 'bg-surface border-t-2 border-t-primary'
+            : 'hover:bg-surface/50'
             }`}
         >
           <span
@@ -701,12 +655,12 @@ export const MainArea = (): React.JSX.Element => {
     const handleMouseMove = (e: MouseEvent) => {
       if (!isResizing) return
       const height = (e.clientY / window.innerHeight) * 100
-      
+
       // Batasi agar bagian bawah (Response Area) minimal punya tinggi 80px 
       // agar tab (Body, Headers, dll) tetap terlihat
       const minBottomHeightPx = 80
       const maxTopHeightPct = ((window.innerHeight - minBottomHeightPx) / window.innerHeight) * 100
-      
+
       if (height > 15 && height < maxTopHeightPct) {
         setBuilderHeight(height)
       }
@@ -971,13 +925,13 @@ export const MainArea = (): React.JSX.Element => {
                           key={p.user_id}
                           title={`${p.user_name} is viewing this request`}
                           className={`w-5 h-5 rounded-full border border-background flex items-center justify-center font-bold text-[8px] text-white shadow-sm cursor-pointer ${[
-                              'bg-blue-500',
-                              'bg-purple-500',
-                              'bg-pink-500',
-                              'bg-indigo-500',
-                              'bg-orange-500',
-                              'bg-cyan-500'
-                            ][p.user_id % 6]
+                            'bg-blue-500',
+                            'bg-purple-500',
+                            'bg-pink-500',
+                            'bg-indigo-500',
+                            'bg-orange-500',
+                            'bg-cyan-500'
+                          ][p.user_id % 6]
                             }`}
                         >
                           {p.user_name.charAt(0).toUpperCase()}
@@ -999,8 +953,8 @@ export const MainArea = (): React.JSX.Element => {
                     <div
                       title={isLockedByOthers ? `${currentLock.user_name} is currently editing` : 'You have the edit lock'}
                       className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-[8px] font-black uppercase tracking-wider ${isLockedByOthers
-                          ? 'bg-warning/20 border-warning/40 text-warning shadow-[0_0_8px_rgba(245,158,11,0.2)]'
-                          : 'bg-success/20 border-success/40 text-success shadow-[0_0_8px_rgba(34,197,94,0.2)]'
+                        ? 'bg-warning/20 border-warning/40 text-warning shadow-[0_0_8px_rgba(245,158,11,0.2)]'
+                        : 'bg-success/20 border-success/40 text-success shadow-[0_0_8px_rgba(34,197,94,0.2)]'
                         }`}
                     >
                       <Lock size={8} className={isLockedByOthers ? 'animate-pulse' : ''} />
@@ -1029,8 +983,8 @@ export const MainArea = (): React.JSX.Element => {
                   key={tab}
                   onClick={(): void => setActiveTab(tab)}
                   className={`px-3 py-2 text-xs font-medium cursor-pointer border-b-2 transition-colors flex items-center gap-1.5 ${activeTab === tab
-                      ? 'border-primary text-primary'
-                      : 'border-transparent text-muted hover:text-text'
+                    ? 'border-primary text-primary'
+                    : 'border-transparent text-muted hover:text-text'
                     }`}
                 >
                   {tab}

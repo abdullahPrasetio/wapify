@@ -14,11 +14,40 @@ initWebSocketIntegration()
 
 function App(): React.JSX.Element {
   const { isAuthenticated, logout, rehydrateAuth, isLoading } = useAuthStore()
+  const { theme } = useAppStore()
   const [licenseError, setLicenseError] = useState<{ message: string; code: string } | null>(null)
 
   useEffect(() => {
     rehydrateAuth()
   }, [])
+
+  // Theme Management
+  useEffect(() => {
+    const root = window.document.documentElement
+
+    const applyTheme = (t: 'light' | 'dark' | 'system') => {
+      root.classList.remove('light', 'dark')
+
+      if (t === 'system') {
+        const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+        root.classList.add(systemTheme)
+      } else {
+        root.classList.add(t)
+      }
+    }
+
+    applyTheme(theme)
+
+    // Listen for system theme changes if theme is 'system'
+    if (theme === 'system') {
+      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
+      const handleChange = () => applyTheme('system')
+      mediaQuery.addEventListener('change', handleChange)
+      return () => mediaQuery.removeEventListener('change', handleChange)
+    }
+
+    return undefined
+  }, [theme])
 
   useEffect(() => {
     const handleAuthExpired = () => {
@@ -89,7 +118,7 @@ function App(): React.JSX.Element {
           <div className="w-16 h-16 bg-danger/10 rounded-2xl flex items-center justify-center mb-6 mx-auto">
             <Key size={32} className="text-danger" />
           </div>
-          
+
           <h1 className="text-2xl font-bold text-center mb-2">License Required</h1>
           <p className="text-muted text-center text-sm mb-8 leading-relaxed">
             {licenseError.message}
@@ -103,16 +132,16 @@ function App(): React.JSX.Element {
           </div>
 
           <div className="flex flex-col gap-3">
-            <button 
+            <button
               onClick={() => window.location.reload()}
               className="w-full py-3 bg-primary hover:bg-primary-hover text-white rounded-lg font-bold transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary/20"
             >
               <RefreshCw size={16} />
               Check Again
             </button>
-            <a 
-              href="https://wapbolt.temancode.my.id" 
-              target="_blank" 
+            <a
+              href="https://wapbolt.temancode.my.id"
+              target="_blank"
               rel="noreferrer"
               className="w-full py-3 bg-white/5 hover:bg-white/10 text-white rounded-lg font-bold transition-all flex items-center justify-center gap-2 border border-white/10"
             >
@@ -140,7 +169,7 @@ function App(): React.JSX.Element {
   if (!isAuthenticated) {
     return (
       <>
-        <Toaster position="bottom-right" theme="dark" richColors />
+        <Toaster position="bottom-right" theme={theme} richColors />
         <LoginPage />
       </>
     )
@@ -148,7 +177,7 @@ function App(): React.JSX.Element {
 
   return (
     <>
-      <Toaster position="bottom-right" theme="dark" richColors />
+      <Toaster position="bottom-right" theme={theme} richColors />
       <AppLayout />
       <DonationModal />
     </>
