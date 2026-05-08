@@ -87,6 +87,7 @@ func SetupApp() *fiber.App {
 	api.SetupFolderRoutes(app)
 	api.SetupRequestRoutes(app)
 	api.SetupHistoryRoutes(app)
+	api.SetupSearchRoutes(app)
 	api.SetupEnvironmentRoutes(app)
 	api.SetupWebSocketRoutes(app)
 	api.SetupCollaborationRoutes(app)

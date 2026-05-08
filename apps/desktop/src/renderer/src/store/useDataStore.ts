@@ -198,6 +198,12 @@ interface DataState {
   restoreVersion: (requestId: number, versionId: number) => Promise<void>
   fetchActivities: (teamId: number) => Promise<void>
 
+  // Searchable Data (Cross-team)
+  searchableRequests: { id: number; name: string; url: string; method: string; team_id: number; collection_id: number }[]
+  searchableCollections: { id: number; name: string; team_id: number }[]
+
+  fetchSearchableData: () => Promise<void>
+  
   // Actions
   fetchTeams: () => Promise<void>
   setActiveTeam: (teamId: number) => Promise<void>
@@ -343,6 +349,28 @@ export const useDataStore = create<DataState>()(
         requestVersions: {},
         requestComments: {},
         activities: [],
+
+        searchableRequests: [],
+        searchableCollections: [],
+
+        fetchSearchableData: async () => {
+          try {
+            // Get data from all accessible teams for global search
+            const res = await apiClient.get<{ 
+              requests: { id: number; name: string; url: string; method: string; team_id: number; collection_id: number }[],
+              collections: { id: number; name: string; team_id: number }[]
+            }>('/api/v1/search/summary')
+            
+            if (res.status === 200) {
+              set({ 
+                searchableRequests: res.data.requests,
+                searchableCollections: res.data.collections
+              })
+            }
+          } catch {
+            // silent fail
+          }
+        },
 
         setPresence: (requestId, presence) => {
           set((state) => ({

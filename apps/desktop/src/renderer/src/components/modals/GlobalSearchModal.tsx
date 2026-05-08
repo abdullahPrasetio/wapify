@@ -34,10 +34,15 @@ export const GlobalSearchModal = (): React.JSX.Element | null => {
   const { user } = useAuthStore()
   const { 
     collections, 
-    requests, 
+    requests,
+    searchableRequests,
+    searchableCollections,
+    activeTeamId,
+    setActiveTeam,
     openRequestInTab, 
     toggleExpand,
-    expandedItems
+    expandedItems,
+    fetchSearchableData
   } = useDataStore()
 
   const [query, setQuery] = useState('')
@@ -45,9 +50,10 @@ export const GlobalSearchModal = (): React.JSX.Element | null => {
   const inputRef = useRef<HTMLInputElement>(null)
   const resultsContainerRef = useRef<HTMLDivElement>(null)
 
-  // Reset when opened
+  // Fetch searchable data when opened
   useEffect(() => {
     if (isSearchModalOpen) {
+      fetchSearchableData()
       setQuery('')
       setSelectedIndex(0)
       setTimeout(() => inputRef.current?.focus(), 50)
@@ -55,9 +61,8 @@ export const GlobalSearchModal = (): React.JSX.Element | null => {
   }, [isSearchModalOpen])
 
   const results = useMemo(() => {
-    if (!query.trim() && query.length === 0) {
-      // Default suggestions / Recent items could go here
-      // For now, show navigation menus
+    // 1. Base suggestions if no query
+    if (!query.trim()) {
       const navs: SearchResult[] = [
         { id: 'nav-dashboard', type: 'navigation', title: 'Go to Dashboard', icon: LayoutDashboard, action: () => setActiveView('request-builder') },
         { id: 'nav-settings', type: 'navigation', title: 'Open Settings', icon: Settings, action: () => {
@@ -83,44 +88,59 @@ export const GlobalSearchModal = (): React.JSX.Element | null => {
     const q = query.toLowerCase()
     const filtered: SearchResult[] = []
 
-    // 1. Filter Requests
-    requests.forEach(req => {
+    // 2. Filter Cross-Team Requests
+    searchableRequests.forEach(req => {
       if (req.name.toLowerCase().includes(q) || req.url.toLowerCase().includes(q)) {
+        const isCurrentTeam = req.team_id === activeTeamId
         filtered.push({
           id: `req-${req.id}`,
           type: 'request',
           title: req.name,
-          subtitle: req.url,
+          subtitle: `${isCurrentTeam ? '' : '[External Workspace] '}${req.url}`,
           method: req.method,
           icon: Zap,
-          action: () => {
-            openRequestInTab(req)
+          action: async () => {
+            if (!isCurrentTeam) {
+              await setActiveTeam(req.team_id)
+            }
+            // Need to find the full request object from state or wait for reload
+            // For now, use a trick: wait for reload or pass partial
+            setTimeout(() => {
+              const fullReq = useDataStore.getState().requests.find(r => r.id === req.id)
+              if (fullReq) {
+                openRequestInTab(fullReq)
+              }
+            }, isCurrentTeam ? 0 : 500)
             setActiveView('request-builder')
           }
         })
       }
     })
 
-    // 2. Filter Collections
-    collections.forEach(col => {
+    // 3. Filter Cross-Team Collections
+    searchableCollections.forEach(col => {
       if (col.name.toLowerCase().includes(q)) {
+        const isCurrentTeam = col.team_id === activeTeamId
         filtered.push({
           id: `col-${col.id}`,
           type: 'collection',
           title: col.name,
-          subtitle: 'Collection',
+          subtitle: isCurrentTeam ? 'Collection' : '[External Workspace] Collection',
           icon: FolderIcon,
-          action: () => {
-            if (!expandedItems[`collection-${col.id}`]) {
-              toggleExpand(`collection-${col.id}`)
+          action: async () => {
+            if (!isCurrentTeam) {
+              await setActiveTeam(col.team_id)
             }
+            setTimeout(() => {
+              useDataStore.getState().toggleExpand(`collection-${col.id}`)
+            }, isCurrentTeam ? 0 : 500)
             setActiveView('request-builder')
           }
         })
       }
     })
 
-    // 3. Filter Navigations
+    // 4. Filter Navigations
     const allNavs: SearchResult[] = [
       { id: 'nav-dashboard', type: 'navigation', title: 'Dashboard', icon: LayoutDashboard, action: () => setActiveView('request-builder') },
       { id: 'nav-settings', type: 'navigation', title: 'Settings', icon: Settings, action: () => {
@@ -147,8 +167,8 @@ export const GlobalSearchModal = (): React.JSX.Element | null => {
       }
     })
 
-    return filtered.slice(0, 10) // Limit results
-  }, [query, requests, collections, user, setActiveView, openRequestInTab, toggleExpand, expandedItems])
+    return filtered.slice(0, 10)
+  }, [query, searchableRequests, searchableCollections, activeTeamId, user, setActiveView, openRequestInTab, toggleExpand, setActiveTeam])
 
   // Handle Keyboard
   useEffect(() => {
