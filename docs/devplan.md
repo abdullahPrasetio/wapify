@@ -237,6 +237,17 @@ Beberapa fitur yang direncanakan di Fase 6 telah disesuaikan prioritasnya dan un
 
 ---
 
+### 6.8 — Global Search (Omnibar)
+**Status:** ✅ Selesai
+
+- [x] **Omnibar UI**: Modal Spotlight-style via `Cmd+K`.
+- [x] **Intelligent Filtering**: Cari request, koleksi, dan menu.
+- [x] **Cross-Team Search**: Cari data di seluruh workspace yang diakses.
+- [x] **Role-Based**: Hanya tampilkan menu admin untuk Super Admin.
+- [x] **Seamless Navigation**: Pindah workspace otomatis saat hasil diklik.
+
+---
+
 ## Fase 7 — Kolaborasi Lanjutan & Mock Pro
 **Status:** 🟡 Dalam Proses
 **Estimasi:** 2-3 minggu

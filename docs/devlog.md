@@ -1,5 +1,24 @@
 # Wapify — Development Log
 
+## [2026-05-08] — Cross-Team Global Search & v1.4.9 Final
+**Fase:** Fase 6 — UX & Power Features
+**Dikerjakan oleh:** Antigravity
+**Status:** ✅ Selesai
+
+### Yang Dikerjakan
+- **Cross-Team Global Search**: Peningkatan fitur Omnibar untuk mendukung pencarian di seluruh Workspace yang dimiliki pengguna.
+- **Backend Search API**: Implementasi `/api/v1/search/summary` dengan logic Join table untuk akses data lintas tim secara efisien.
+- **Robust Navigation**: Perbaikan logika perpindahan workspace yang memastikan data request di-fetch secara asinkron sebelum dibuka, menjamin stabilitas navigasi.
+- **Middleware Fixes**: Penambahan helper `JWTProtected` dan `GetUserFromCtx` pada middleware auth untuk standarisasi akses data user di backend.
+- **Null Safety**: Penanganan defensif pada frontend untuk mencegah crash saat data pencarian kosong.
+
+### Perubahan File
+- `backend/internal/api/search.go` — Backend Join logic & access control.
+- `backend/internal/middleware/auth.go` — Middleware helpers.
+- `apps/desktop/src/renderer/src/components/modals/GlobalSearchModal.tsx` — Async navigation & safety checks.
+
+---
+
 ## [2026-05-07] — Global Search (Omnibar), Menu Navigation & v1.4.9
 **Fase:** Fase 7 — Kolaborasi Lanjutan
 **Dikerjakan oleh:** Agent
