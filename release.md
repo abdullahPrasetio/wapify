@@ -21,4 +21,4 @@ Rilis ini memperkenalkan fitur **Global Search (Omnibar)** untuk navigasi super 
 - **Font Preview**: Restorasi kotak "Preview Text" pada pengaturan ukuran font.
 
 ---
-*Dibuat oleh Agent pada 07 Mei 2026*
+*Dibuat oleh Agent pada 08 Mei 2026*

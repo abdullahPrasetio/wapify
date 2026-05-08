@@ -61,16 +61,17 @@ func getSearchSummary(c *fiber.Ctx) error {
 		})
 	}
 
-	var collections []CollectionMinimal
+	collections := []CollectionMinimal{}
 	repository.DB.Table("collections").
 		Select("id, name, team_id").
 		Where("team_id IN ?", teamIDs).
 		Scan(&collections)
 
-	var requests []RequestMinimal
+	requests := []RequestMinimal{}
 	repository.DB.Table("requests").
-		Select("id, name, url, method, team_id, collection_id").
-		Where("team_id IN ?", teamIDs).
+		Select("requests.id, requests.name, requests.url, requests.method, collections.team_id, requests.collection_id").
+		Joins("JOIN collections ON collections.id = requests.collection_id").
+		Where("collections.team_id IN ?", teamIDs).
 		Scan(&requests)
 
 	return c.JSON(SearchSummary{

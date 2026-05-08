@@ -1,23 +1,20 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react'
-import { 
-  Search, 
-  FileCode2, 
-  Folder as FolderIcon, 
-  Zap, 
-  Settings, 
-  Command, 
+import {
+  Search,
+  Folder as FolderIcon,
+  Zap,
+  Settings,
+  Command,
   ChevronRight,
   DatabaseZap,
   LayoutDashboard,
   UserCog,
   Building2,
-  Heart,
-  Globe
+  Heart
 } from 'lucide-react'
 import { useDataStore } from '../../store/useDataStore'
 import { useAppStore } from '../../store/useAppStore'
 import { useAuthStore } from '../../store/useAuthStore'
-import type { ApiRequest, Collection } from '../../types'
 
 interface SearchResult {
   id: string
@@ -30,18 +27,15 @@ interface SearchResult {
 }
 
 export const GlobalSearchModal = (): React.JSX.Element | null => {
-  const { isSearchModalOpen, setSearchModalOpen, setActiveView, theme } = useAppStore()
+  const { isSearchModalOpen, setSearchModalOpen, setActiveView } = useAppStore()
   const { user } = useAuthStore()
-  const { 
-    collections, 
-    requests,
+  const {
     searchableRequests,
     searchableCollections,
     activeTeamId,
     setActiveTeam,
-    openRequestInTab, 
+    openRequestInTab,
     toggleExpand,
-    expandedItems,
     fetchSearchableData
   } = useDataStore()
 
@@ -65,14 +59,18 @@ export const GlobalSearchModal = (): React.JSX.Element | null => {
     if (!query.trim()) {
       const navs: SearchResult[] = [
         { id: 'nav-dashboard', type: 'navigation', title: 'Go to Dashboard', icon: LayoutDashboard, action: () => setActiveView('request-builder') },
-        { id: 'nav-settings', type: 'navigation', title: 'Open Settings', icon: Settings, action: () => {
-           setActiveView('request-builder')
-           window.dispatchEvent(new CustomEvent('wapbolt:open-settings'))
-        }},
-        { id: 'nav-mock', type: 'navigation', title: 'Workspace Mock Server', icon: DatabaseZap, action: () => {
-           setActiveView('request-builder')
-           window.dispatchEvent(new CustomEvent('wapbolt:open-standalone-mock'))
-        }},
+        {
+          id: 'nav-settings', type: 'navigation', title: 'Open Settings', icon: Settings, action: () => {
+            setActiveView('request-builder')
+            window.dispatchEvent(new CustomEvent('wapbolt:open-settings'))
+          }
+        },
+        {
+          id: 'nav-mock', type: 'navigation', title: 'Workspace Mock Server', icon: DatabaseZap, action: () => {
+            setActiveView('request-builder')
+            window.dispatchEvent(new CustomEvent('wapbolt:open-standalone-mock'))
+          }
+        },
       ]
 
       if (user?.is_super_admin) {
@@ -88,69 +86,73 @@ export const GlobalSearchModal = (): React.JSX.Element | null => {
     const q = query.toLowerCase()
     const filtered: SearchResult[] = []
 
-    // 2. Filter Cross-Team Requests
-    searchableRequests.forEach(req => {
-      if (req.name.toLowerCase().includes(q) || req.url.toLowerCase().includes(q)) {
-        const isCurrentTeam = req.team_id === activeTeamId
-        filtered.push({
-          id: `req-${req.id}`,
-          type: 'request',
-          title: req.name,
-          subtitle: `${isCurrentTeam ? '' : '[External Workspace] '}${req.url}`,
-          method: req.method,
-          icon: Zap,
-          action: async () => {
-            if (!isCurrentTeam) {
-              await setActiveTeam(req.team_id)
-            }
-            // Need to find the full request object from state or wait for reload
-            // For now, use a trick: wait for reload or pass partial
-            setTimeout(() => {
+      // 2. Filter Cross-Team Requests
+      ; (searchableRequests || []).forEach(req => {
+        if (req.name.toLowerCase().includes(q) || req.url.toLowerCase().includes(q)) {
+          const isCurrentTeam = req.team_id === activeTeamId
+          filtered.push({
+            id: `req-${req.id}`,
+            type: 'request',
+            title: req.name,
+            subtitle: `${isCurrentTeam ? '' : '[External Workspace] '}${req.url}`,
+            method: req.method,
+            icon: Zap,
+            action: async () => {
+              if (!isCurrentTeam) {
+                await setActiveTeam(req.team_id)
+              }
+
+              // Ensure collection content is loaded so the request exists in state
+              await useDataStore.getState().fetchCollectionContents(req.collection_id)
+
               const fullReq = useDataStore.getState().requests.find(r => r.id === req.id)
               if (fullReq) {
                 openRequestInTab(fullReq)
               }
-            }, isCurrentTeam ? 0 : 500)
-            setActiveView('request-builder')
-          }
-        })
-      }
-    })
-
-    // 3. Filter Cross-Team Collections
-    searchableCollections.forEach(col => {
-      if (col.name.toLowerCase().includes(q)) {
-        const isCurrentTeam = col.team_id === activeTeamId
-        filtered.push({
-          id: `col-${col.id}`,
-          type: 'collection',
-          title: col.name,
-          subtitle: isCurrentTeam ? 'Collection' : '[External Workspace] Collection',
-          icon: FolderIcon,
-          action: async () => {
-            if (!isCurrentTeam) {
-              await setActiveTeam(col.team_id)
+              setActiveView('request-builder')
             }
-            setTimeout(() => {
+          })
+        }
+      })
+
+      // 3. Filter Cross-Team Collections
+      ; (searchableCollections || []).forEach(col => {
+        if (col.name.toLowerCase().includes(q)) {
+          const isCurrentTeam = col.team_id === activeTeamId
+          filtered.push({
+            id: `col-${col.id}`,
+            type: 'collection',
+            title: col.name,
+            subtitle: isCurrentTeam ? 'Collection' : '[External Workspace] Collection',
+            icon: FolderIcon,
+            action: async () => {
+              if (!isCurrentTeam) {
+                await setActiveTeam(col.team_id)
+              }
+
               useDataStore.getState().toggleExpand(`collection-${col.id}`)
-            }, isCurrentTeam ? 0 : 500)
-            setActiveView('request-builder')
-          }
-        })
-      }
-    })
+              useDataStore.getState().fetchCollectionContents(col.id)
+              setActiveView('request-builder')
+            }
+          })
+        }
+      })
 
     // 4. Filter Navigations
     const allNavs: SearchResult[] = [
       { id: 'nav-dashboard', type: 'navigation', title: 'Dashboard', icon: LayoutDashboard, action: () => setActiveView('request-builder') },
-      { id: 'nav-settings', type: 'navigation', title: 'Settings', icon: Settings, action: () => {
-         setActiveView('request-builder')
-         window.dispatchEvent(new CustomEvent('wapbolt:open-settings'))
-      }},
-      { id: 'nav-mock', type: 'navigation', title: 'Workspace Mock Server', icon: DatabaseZap, action: () => {
-         setActiveView('request-builder')
-         window.dispatchEvent(new CustomEvent('wapbolt:open-standalone-mock'))
-      }},
+      {
+        id: 'nav-settings', type: 'navigation', title: 'Settings', icon: Settings, action: () => {
+          setActiveView('request-builder')
+          window.dispatchEvent(new CustomEvent('wapbolt:open-settings'))
+        }
+      },
+      {
+        id: 'nav-mock', type: 'navigation', title: 'Workspace Mock Server', icon: DatabaseZap, action: () => {
+          setActiveView('request-builder')
+          window.dispatchEvent(new CustomEvent('wapbolt:open-standalone-mock'))
+        }
+      },
     ]
 
     if (user?.is_super_admin) {
@@ -208,7 +210,7 @@ export const GlobalSearchModal = (): React.JSX.Element | null => {
 
   return (
     <div className="fixed inset-0 z-[500] flex items-start justify-center pt-[15vh] px-4 bg-black/40 backdrop-blur-[2px] animate-in fade-in duration-200">
-      <div 
+      <div
         className="w-full max-w-2xl bg-surface border border-border shadow-2xl rounded-2xl overflow-hidden flex flex-col animate-in slide-in-from-top-4 duration-300"
         onClick={(e) => e.stopPropagation()}
       >
@@ -229,7 +231,7 @@ export const GlobalSearchModal = (): React.JSX.Element | null => {
         </div>
 
         {/* Results */}
-        <div 
+        <div
           ref={resultsContainerRef}
           className="flex-1 max-h-[400px] overflow-y-auto p-2"
         >
@@ -243,25 +245,22 @@ export const GlobalSearchModal = (): React.JSX.Element | null => {
                     setSearchModalOpen(false)
                   }}
                   onMouseEnter={() => setSelectedIndex(index)}
-                  className={`w-full flex items-center gap-4 px-4 py-3 rounded-xl text-left transition-all duration-200 ${
-                    index === selectedIndex 
-                      ? 'bg-primary/10 border border-primary/20 shadow-lg shadow-primary/5' 
-                      : 'hover:bg-background/50 border border-transparent'
-                  }`}
+                  className={`w-full flex items-center gap-4 px-4 py-3 rounded-xl text-left transition-all duration-200 ${index === selectedIndex
+                    ? 'bg-primary/10 border border-primary/20 shadow-lg shadow-primary/5'
+                    : 'hover:bg-background/50 border border-transparent'
+                    }`}
                 >
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
-                    index === selectedIndex ? 'bg-primary text-white shadow-lg shadow-primary/20 scale-110' : 'bg-background text-muted'
-                  } transition-all duration-300`}>
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${index === selectedIndex ? 'bg-primary text-white shadow-lg shadow-primary/20 scale-110' : 'bg-background text-muted'
+                    } transition-all duration-300`}>
                     <result.icon size={20} />
                   </div>
-                  
+
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       {result.method && (
-                        <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded border border-current opacity-70 ${
-                          result.method === 'GET' ? 'text-success' : 
+                        <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded border border-current opacity-70 ${result.method === 'GET' ? 'text-success' :
                           result.method === 'POST' ? 'text-warning' : 'text-info'
-                        }`}>
+                          }`}>
                           {result.method}
                         </span>
                       )}
@@ -304,17 +303,17 @@ export const GlobalSearchModal = (): React.JSX.Element | null => {
               <span>Select</span>
             </div>
           </div>
-          
+
           <div className="flex items-center gap-2 text-[10px] font-black text-primary/60 uppercase tracking-[0.2em]">
             <Command size={12} /> Global Search
           </div>
         </div>
       </div>
-      
+
       {/* Click outside listener */}
-      <div 
-        className="absolute inset-0 z-[-1]" 
-        onClick={() => setSearchModalOpen(false)} 
+      <div
+        className="absolute inset-0 z-[-1]"
+        onClick={() => setSearchModalOpen(false)}
       />
     </div>
   )

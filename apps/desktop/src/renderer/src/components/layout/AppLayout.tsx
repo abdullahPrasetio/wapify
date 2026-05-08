@@ -10,15 +10,7 @@ import { GlobalSearchModal } from '../modals/GlobalSearchModal'
 
 export const AppLayout = (): React.JSX.Element => {
   const { activeView, isSearchModalOpen, setSearchModalOpen } = useAppStore()
-  const {
-    activeTeamId,
-    fetchTeams,
-    fetchCollections,
-    fetchEnvironments,
-    fetchHistory,
-    expandedItems,
-    fetchCollectionContents
-  } = useDataStore()
+
 
   // Global Keyboard Shortcuts
   useEffect(() => {
@@ -39,11 +31,11 @@ export const AppLayout = (): React.JSX.Element => {
       // Use getState to ensure we work with the most recent rehydrated values
       const state = useDataStore.getState()
       await state.fetchTeams()
-      
+
       const currentActiveTeamId = useDataStore.getState().activeTeamId
       if (currentActiveTeamId) {
         console.log(`[AppLayout] Rehydrating data for team ${currentActiveTeamId}`)
-        
+
         // Explicitly re-fetch basic data
         const fetchedCollections = await state.fetchCollections(currentActiveTeamId)
         state.fetchEnvironments(currentActiveTeamId)

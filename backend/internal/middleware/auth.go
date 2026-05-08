@@ -61,3 +61,42 @@ func RequireSuperAdmin(c *fiber.Ctx) error {
 	}
 	return c.Next()
 }
+
+// JWTProtected is an alias for RequireAuth to match common naming conventions
+func JWTProtected() fiber.Handler {
+	return RequireAuth
+}
+
+// UserInfo represents the data stored in the JWT claims
+type UserInfo struct {
+	ID           uint
+	Email        string
+	IsSuperAdmin bool
+}
+
+// GetUserFromCtx retrieves the authenticated user's information from the Fiber context locals
+func GetUserFromCtx(c *fiber.Ctx) *UserInfo {
+	userIDRaw := c.Locals("user_id")
+	if userIDRaw == nil {
+		return nil
+	}
+
+	var userID uint
+	switch v := userIDRaw.(type) {
+	case float64:
+		userID = uint(v)
+	case uint:
+		userID = v
+	default:
+		return nil
+	}
+
+	email, _ := c.Locals("email").(string)
+	isSuperAdmin, _ := c.Locals("is_super_admin").(bool)
+
+	return &UserInfo{
+		ID:           userID,
+		Email:        email,
+		IsSuperAdmin: isSuperAdmin,
+	}
+}
