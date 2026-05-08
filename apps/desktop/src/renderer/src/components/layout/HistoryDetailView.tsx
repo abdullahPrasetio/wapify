@@ -6,7 +6,10 @@ import { useState } from 'react'
 
 export const HistoryDetailView = (): React.JSX.Element => {
   const { history } = useDataStore()
-  const { activeHistoryId, setActiveHistoryId } = useAppStore()
+  const { activeHistoryId, setActiveHistoryId, theme } = useAppStore()
+  const monacoTheme = theme === 'system'
+    ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'vs-dark' : 'vs')
+    : (theme === 'dark' ? 'vs-dark' : 'vs')
   const [activeTab, setActiveTab] = useState<'Request' | 'Response'>('Response')
   const [subTab, setSubTab] = useState<'Body' | 'Headers'>('Body')
 
@@ -111,7 +114,7 @@ export const HistoryDetailView = (): React.JSX.Element => {
           <Editor
             height="100%"
             defaultLanguage="json"
-            theme="vs-dark"
+            theme={monacoTheme}
             value={item.response_body || ''}
             options={{
               readOnly: true,
@@ -125,7 +128,7 @@ export const HistoryDetailView = (): React.JSX.Element => {
           <Editor
             height="100%"
             defaultLanguage="json"
-            theme="vs-dark"
+            theme={monacoTheme}
             value={item.request_body || ''}
             options={{
               readOnly: true,

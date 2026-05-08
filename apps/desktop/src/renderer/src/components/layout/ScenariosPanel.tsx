@@ -30,6 +30,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { apiClient, getBaseUrl } from '../../api/client'
 import type { MockEndpoint, MockScenario, MockCondition } from '../../types'
 import { toast } from 'sonner'
+import { useAppStore } from '../../store/useAppStore'
 import Editor from '@monaco-editor/react'
 
 interface ScenariosPanelProps {
@@ -139,6 +140,11 @@ export const ScenariosPanel: React.FC<ScenariosPanelProps> = ({
   onBack,
   onUpdateEndpoint
 }) => {
+  const { theme } = useAppStore()
+  const monacoTheme = theme === 'system'
+    ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'vs-dark' : 'vs')
+    : (theme === 'dark' ? 'vs-dark' : 'vs')
+    
   const [scenarios, setScenarios] = useState<MockScenario[]>([])
   const [activeScenarioId, setActiveScenarioId] = useState<number | null>(null)
   const [editingScenario, setEditingScenario] = useState<MockScenario | null>(null)
@@ -591,11 +597,11 @@ export const ScenariosPanel: React.FC<ScenariosPanelProps> = ({
                        )}
                     </div>
                  ) : (
-                    <div className="flex-1 border border-white/10 rounded-xl overflow-hidden bg-[#1e1e1e]">
+                    <div className="flex-1 border border-border rounded-xl overflow-hidden bg-background">
                       <Editor 
                         height="300px"
                         defaultLanguage="json"
-                        theme="vs-dark"
+                        theme={monacoTheme}
                         value={editingScenario.response_body}
                         onChange={val => setEditingScenario({ ...editingScenario, response_body: val || '' })}
                         options={{ minimap: { enabled: false }, fontSize: 13, automaticLayout: true }}

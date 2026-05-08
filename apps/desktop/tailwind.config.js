@@ -4,15 +4,14 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        // Insomnia-like Dark Theme with Purple Accents
-        background: '#1a1a2e',
-        surface: '#252540',
-        primary: '#7c3aed', // Purple accent
+        background: 'var(--background)',
+        surface: 'var(--surface)',
+        primary: '#7c3aed',
         'primary-hover': '#6d28d9',
         secondary: '#5856d6',
-        text: '#f1f5f9', // Lebih terang (Slate 100)
-        muted: '#cbd5e1', // Lebih terang (Slate 300)
-        border: '#33334d',
+        text: 'var(--text)',
+        muted: 'var(--muted)',
+        border: 'var(--border)',
         success: '#10b981',
         danger: '#ef4444',
         warning: '#f59e0b',

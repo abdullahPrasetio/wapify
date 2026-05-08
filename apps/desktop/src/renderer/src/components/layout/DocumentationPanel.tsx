@@ -122,8 +122,8 @@ const VarToken: React.FC<VarTokenProps> = ({ varName, value, isSet, onSetVar }) 
   }, [])
 
   const colorClass = isSet
-    ? 'text-emerald-400 bg-emerald-400/5 border-b border-emerald-400/30'
-    : 'text-amber-400 bg-amber-400/10 border rounded px-1 py-0.5 border-amber-400/30'
+    ? 'text-success bg-emerald-400/5 border-b border-emerald-400/30'
+    : 'text-warning bg-amber-400/10 border rounded px-1 py-0.5 border-amber-400/30'
 
   return (
     <span className="relative inline-block" ref={ref}>
@@ -165,20 +165,20 @@ import { SetVarModal } from '../modals/SetVarModal'
 const VarPopup: React.FC<VarPopupProps> = ({ varName, value, isSet, onSetVar }) => {
   return (
     <div
-      className="absolute bottom-full left-0 mb-2 z-50 w-64 rounded-xl bg-[#0d1117] border border-white/10 shadow-2xl p-4 backdrop-blur-xl animate-in fade-in zoom-in duration-100"
+      className="absolute bottom-full left-0 mb-2 z-50 w-64 rounded-xl bg-surface border border-border/50 shadow-2xl p-4 backdrop-blur-xl animate-in fade-in zoom-in duration-100"
       style={{ minWidth: '220px' }}
     >
       {/* Arrow */}
-      <div className="absolute -bottom-1.5 left-4 w-3 h-3 bg-[#0d1117] border-r border-b border-white/10 rotate-45" />
+      <div className="absolute -bottom-1.5 left-4 w-3 h-3 bg-surface border-r border-b border-border/50 rotate-45" />
 
       <div className="flex items-center gap-2 mb-3">
         {isSet ? (
-          <Check size={12} className="text-emerald-400 flex-shrink-0" />
+          <Check size={12} className="text-success flex-shrink-0" />
         ) : (
-          <AlertCircle size={12} className="text-amber-400 flex-shrink-0" />
+          <AlertCircle size={12} className="text-warning flex-shrink-0" />
         )}
         <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded ${
-          isSet ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'
+          isSet ? 'bg-emerald-500/10 text-success' : 'bg-amber-500/10 text-warning'
         }`}>
           {`{{${varName}}}`}
         </span>
@@ -188,14 +188,14 @@ const VarPopup: React.FC<VarPopupProps> = ({ varName, value, isSet, onSetVar }) 
         {isSet && (
           <div>
             <p className="text-[10px] text-muted mb-1">Current value:</p>
-            <div className="bg-black/40 border border-white/10 rounded px-2.5 py-1.5">
+            <div className="bg-background/80 shadow-inner border border-border rounded px-2.5 py-1.5">
               <code className="text-xs text-emerald-300 font-mono break-all leading-relaxed">{value}</code>
             </div>
           </div>
         )}
         
         {!isSet && (
-          <p className="text-[10px] text-amber-400/80 leading-relaxed">
+          <p className="text-[10px] text-warning/80 leading-relaxed">
             This variable is not set in the active environment.
           </p>
         )}
@@ -204,8 +204,8 @@ const VarPopup: React.FC<VarPopupProps> = ({ varName, value, isSet, onSetVar }) 
           onClick={() => onSetVar(varName)}
           className={`w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium border transition-all ${
             isSet 
-              ? 'bg-white/5 text-muted hover:bg-white/10 border-white/10' 
-              : 'bg-amber-500/10 text-amber-400 border-amber-500/20 hover:bg-amber-500/20'
+              ? 'bg-white/5 text-muted hover:bg-white/10 border-border' 
+              : 'bg-amber-500/10 text-warning border-amber-500/20 hover:bg-amber-500/20'
           }`}
         >
           {isSet ? <PlusCircle size={12} /> : <AlertCircle size={12} />}
@@ -327,27 +327,27 @@ export const DocumentationPanel: React.FC<DocumentationPanelProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="bg-surface border border-white/10 rounded-xl shadow-2xl w-[90vw] max-w-6xl h-[85vh] flex flex-col overflow-hidden">
+      <div className="bg-surface border border-border rounded-xl shadow-2xl w-[90vw] max-w-6xl h-[85vh] flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-surface/80 backdrop-blur-sm flex-shrink-0">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-surface/80 backdrop-blur-sm flex-shrink-0">
           <div className="flex items-center gap-3">
             <div className="p-2 rounded-lg bg-primary/10 border border-primary/20">
               <BookOpen size={18} className="text-primary" />
             </div>
             <div>
-              <h2 className="text-sm font-semibold text-foreground">{collectionName}</h2>
+              <h2 className="text-sm font-semibold text-text">{collectionName}</h2>
               <div className="flex items-center gap-2">
                 <p className="text-xs text-muted">
                   {totalEndpoints} endpoint{totalEndpoints !== 1 ? 's' : ''}
                 </p>
                 {unresolvedVars.length > 0 && (
-                  <span className="flex items-center gap-1 text-[10px] text-amber-400 bg-amber-400/10 border border-amber-400/20 rounded px-1.5 py-0.5">
+                  <span className="flex items-center gap-1 text-[10px] text-warning bg-warning/10 border-warning/20 rounded px-1.5 py-0.5">
                     <AlertCircle size={9} />
                     {unresolvedVars.length} unresolved var{unresolvedVars.length > 1 ? 's' : ''}
                   </span>
                 )}
                 {activeEnv && (
-                  <span className="text-[10px] text-emerald-400 bg-emerald-400/10 border border-emerald-400/20 rounded px-1.5 py-0.5">
+                  <span className="text-[10px] text-success bg-success/10 border-success/20 rounded px-1.5 py-0.5">
                     {activeEnv.name}
                   </span>
                 )}
@@ -357,7 +357,7 @@ export const DocumentationPanel: React.FC<DocumentationPanelProps> = ({
           <div className="flex items-center gap-2">
             <button
               onClick={handleExportMarkdown}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-muted hover:text-foreground border border-white/10 hover:border-white/20 hover:bg-white/5 transition-all"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-muted hover:text-text border border-border hover:border-white/20 hover:bg-white/5 transition-all"
             >
               <Download size={13} />
               Markdown
@@ -371,7 +371,7 @@ export const DocumentationPanel: React.FC<DocumentationPanelProps> = ({
             </button>
             <button
               onClick={onClose}
-              className="p-1.5 rounded-lg text-muted hover:text-foreground hover:bg-white/5 transition-colors"
+              className="p-1.5 rounded-lg text-muted hover:text-text hover:bg-white/5 transition-colors"
             >
               <X size={16} />
             </button>
@@ -380,7 +380,7 @@ export const DocumentationPanel: React.FC<DocumentationPanelProps> = ({
 
         <div className="flex flex-1 overflow-hidden">
           {/* Sidebar */}
-          <div className="w-64 flex-shrink-0 border-r border-white/10 overflow-y-auto py-3 px-2 bg-black/20">
+          <div className="w-64 flex-shrink-0 border-r border-border overflow-y-auto py-3 px-2 bg-background/50">
             {loading ? (
               <div className="flex items-center justify-center h-full">
                 <div className="w-5 h-5 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
@@ -399,17 +399,17 @@ export const DocumentationPanel: React.FC<DocumentationPanelProps> = ({
                   <div key={folder.id} className="mb-1">
                     <button
                       onClick={() => toggleFolder(folder.id)}
-                      className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs text-muted hover:text-foreground hover:bg-white/5 transition-colors"
+                      className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs text-muted hover:text-text hover:bg-white/5 transition-colors"
                     >
                       {expandedFolders.has(folder.id) ? (
                         <>
                           <ChevronDown size={12} className="flex-shrink-0" />
-                          <FolderOpen size={13} className="flex-shrink-0 text-amber-400" />
+                          <FolderOpen size={13} className="flex-shrink-0 text-warning" />
                         </>
                       ) : (
                         <>
                           <ChevronRight size={12} className="flex-shrink-0" />
-                          <FolderIcon size={13} className="flex-shrink-0 text-amber-400/60" />
+                          <FolderIcon size={13} className="flex-shrink-0 text-warning/60" />
                         </>
                       )}
                       <span className="truncate font-medium">{folder.name}</span>
@@ -505,8 +505,8 @@ const SidebarRequestItem: React.FC<{
     onClick={onClick}
     className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs transition-all ${
       isSelected
-        ? 'bg-primary/15 text-foreground'
-        : 'text-muted hover:text-foreground hover:bg-white/5'
+        ? 'bg-primary/15 text-text'
+        : 'text-muted hover:text-text hover:bg-white/5'
     }`}
   >
     <MethodBadge method={request.method} size="sm" />
@@ -559,18 +559,18 @@ const RequestDetail: React.FC<{
       <div className="mb-6">
         <div className="flex items-center gap-3 mb-3">
           <MethodBadge method={request.method} size="md" />
-          <h1 className="text-xl font-semibold text-foreground">{request.name}</h1>
+          <h1 className="text-xl font-semibold text-text">{request.name}</h1>
         </div>
-        <div className="flex items-center gap-2 bg-black/30 border border-white/10 rounded-lg px-4 py-2.5">
-          <code className="flex-1 text-sm text-foreground/90 font-mono break-all leading-relaxed">
+        <div className="flex items-center gap-2 bg-background/30 border border-border rounded-lg px-4 py-2.5">
+          <code className="flex-1 text-sm text-text/90 font-mono break-all leading-relaxed">
             <VarHighlight text={request.url} envVars={envVars} onSetVar={onSetVar} />
           </code>
           <button
             onClick={() => onCopy(resolveText(request.url), 'url')}
-            className="flex-shrink-0 p-1 rounded text-muted hover:text-foreground transition-colors"
+            className="flex-shrink-0 p-1 rounded text-muted hover:text-text transition-colors"
           >
             {copiedField === 'url' ? (
-              <Check size={14} className="text-emerald-400" />
+              <Check size={14} className="text-success" />
             ) : (
               <Copy size={14} />
             )}
@@ -584,7 +584,7 @@ const RequestDetail: React.FC<{
           <h3 className="text-xs font-semibold text-muted uppercase tracking-widest mb-2">
             Description
           </h3>
-          <p className="text-sm text-foreground/80 leading-relaxed">{request.description}</p>
+          <p className="text-sm text-text/80 leading-relaxed">{request.description}</p>
         </div>
       )}
 
@@ -594,10 +594,10 @@ const RequestDetail: React.FC<{
           <h3 className="text-xs font-semibold text-muted uppercase tracking-widest mb-3">
             Headers
           </h3>
-          <div className="border border-white/10 rounded-lg overflow-hidden">
+          <div className="border border-border rounded-lg overflow-hidden">
             <table className="w-full text-xs">
               <thead>
-                <tr className="bg-white/5 border-b border-white/10">
+                <tr className="bg-white/5 border-b border-border">
                   <th className="text-left px-4 py-2.5 font-medium text-muted">Key</th>
                   <th className="text-left px-4 py-2.5 font-medium text-muted">Value</th>
                 </tr>
@@ -605,7 +605,7 @@ const RequestDetail: React.FC<{
               <tbody>
                 {Object.entries(request.headers).map(([k, v]) => (
                   <tr key={k} className="border-b border-white/5 last:border-0">
-                    <td className="px-4 py-2.5 font-mono text-foreground/90">{k}</td>
+                    <td className="px-4 py-2.5 font-mono text-text/90">{k}</td>
                     <td className="px-4 py-2.5 font-mono">
                       <VarHighlight
                         text={String(v)}
@@ -630,12 +630,12 @@ const RequestDetail: React.FC<{
             </h3>
             <button
               onClick={() => onCopy(JSON.stringify(request.body, null, 2), 'body')}
-              className="flex items-center gap-1 px-2 py-1 rounded text-xs text-muted hover:text-foreground border border-white/10 hover:border-white/20 transition-all"
+              className="flex items-center gap-1 px-2 py-1 rounded text-xs text-muted hover:text-text border border-border hover:border-white/20 transition-all"
             >
               {copiedField === 'body' ? (
                 <>
-                  <Check size={11} className="text-emerald-400" />
-                  <span className="text-emerald-400">Copied</span>
+                  <Check size={11} className="text-success" />
+                  <span className="text-success">Copied</span>
                 </>
               ) : (
                 <>
@@ -645,8 +645,8 @@ const RequestDetail: React.FC<{
               )}
             </button>
           </div>
-          <div className="bg-black/40 border border-white/10 rounded-lg p-4 overflow-x-auto">
-            <pre className="text-xs text-foreground/90 font-mono whitespace-pre-wrap leading-relaxed">
+          <div className="bg-background/80 shadow-inner border border-border rounded-lg p-4 overflow-x-auto">
+            <pre className="text-xs text-text/90 font-mono whitespace-pre-wrap leading-relaxed">
               <VarHighlight
                 text={JSON.stringify(request.body, null, 2)}
                 envVars={envVars}
@@ -666,11 +666,11 @@ const RequestDetail: React.FC<{
         {request.examples && request.examples.length > 0 ? (
           <div className="space-y-4">
             {request.examples.map((ex) => (
-              <div key={ex.id} className="border border-white/10 rounded-lg overflow-hidden">
+              <div key={ex.id} className="border border-border rounded-lg overflow-hidden">
                 <div className="flex items-center justify-between px-4 py-3 bg-white/5 border-b border-white/5">
                   <div className="flex items-center gap-3">
-                    <span className={`text-xs font-mono font-bold ${ex.response_status >= 200 && ex.response_status < 300 ? 'text-emerald-400' : 'text-amber-400'}`}>{ex.response_status}</span>
-                    <span className="text-xs text-foreground font-medium">{ex.name}</span>
+                    <span className={`text-xs font-mono font-bold ${ex.response_status >= 200 && ex.response_status < 300 ? 'text-success' : 'text-warning'}`}>{ex.response_status}</span>
+                    <span className="text-xs text-text font-medium">{ex.name}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <button
@@ -679,19 +679,19 @@ const RequestDetail: React.FC<{
                         setActiveView('request-builder')
                         onClose()
                       }}
-                      className="flex items-center gap-1 px-2 py-1 rounded text-xs text-emerald-400 hover:text-emerald-300 border border-emerald-500/20 hover:bg-emerald-500/10 transition-all"
+                      className="flex items-center gap-1 px-2 py-1 rounded text-xs text-success hover:text-emerald-300 border border-emerald-500/20 hover:bg-emerald-500/10 transition-all"
                     >
                       <Play size={11} fill="currentColor" />
                       Try
                     </button>
                     <button
                       onClick={() => onCopy(JSON.stringify(ex.response_body, null, 2), `example-${ex.id}`)}
-                      className="flex items-center gap-1 px-2 py-1 rounded text-xs text-muted hover:text-foreground border border-white/10 hover:border-white/20 transition-all"
+                      className="flex items-center gap-1 px-2 py-1 rounded text-xs text-muted hover:text-text border border-border hover:border-white/20 transition-all"
                     >
                       {copiedField === `example-${ex.id}` ? (
                         <>
-                          <Check size={11} className="text-emerald-400" />
-                          <span className="text-emerald-400">Copied</span>
+                          <Check size={11} className="text-success" />
+                          <span className="text-success">Copied</span>
                         </>
                       ) : (
                         <>
@@ -714,8 +714,8 @@ const RequestDetail: React.FC<{
                   </div>
                 </div>
                 {Boolean(ex.response_body) && (
-                  <div className="bg-black/40 p-4 overflow-x-auto">
-                    <pre className="text-[11px] text-foreground/80 font-mono whitespace-pre-wrap leading-relaxed">
+                  <div className="bg-background/80 shadow-inner p-4 overflow-x-auto">
+                    <pre className="text-[11px] text-text/80 font-mono whitespace-pre-wrap leading-relaxed">
                       {(() => {
                         try {
                            return JSON.stringify(JSON.parse(ex.response_body), null, 2)
@@ -730,12 +730,12 @@ const RequestDetail: React.FC<{
             ))}
           </div>
         ) : (
-          <div className="border border-white/10 rounded-lg overflow-hidden">
+          <div className="border border-border rounded-lg overflow-hidden">
             <div className="flex items-center gap-3 px-4 py-3 bg-emerald-500/5 border-b border-white/5">
-              <span className="text-xs font-mono font-bold text-emerald-400">200</span>
+              <span className="text-xs font-mono font-bold text-success">200</span>
               <span className="text-xs text-muted">Success (Default Placeholder)</span>
             </div>
-            <div className="p-4 text-xs text-muted italic bg-black/20">
+            <div className="p-4 text-xs text-muted italic bg-background/50">
               No saved examples available for this request.
             </div>
           </div>

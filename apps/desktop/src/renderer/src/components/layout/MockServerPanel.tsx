@@ -129,7 +129,7 @@ export const MockServerPanel: React.FC<MockServerPanelProps> = ({
   if (managingScenariosEndpoint) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-        <div className="bg-surface border border-white/10 rounded-xl shadow-2xl w-[95vw] max-w-6xl h-[90vh] flex flex-col overflow-hidden">
+        <div className="bg-surface border border-border rounded-xl shadow-2xl w-[95vw] max-w-6xl h-[90vh] flex flex-col overflow-hidden">
           <ScenariosPanel 
             endpoint={managingScenariosEndpoint} 
             onBack={() => setManagingScenariosEndpoint(null)}
@@ -145,15 +145,15 @@ export const MockServerPanel: React.FC<MockServerPanelProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="bg-surface border border-white/10 rounded-xl shadow-2xl w-[90vw] max-w-5xl h-[85vh] flex flex-col overflow-hidden">
+      <div className="bg-surface border border-border rounded-xl shadow-2xl w-[90vw] max-w-5xl h-[85vh] flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-surface/80 backdrop-blur-sm flex-shrink-0">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-surface/80 backdrop-blur-sm flex-shrink-0">
           <div className="flex items-center gap-3">
             <div className="p-2 rounded-lg bg-violet-500/10 border border-violet-500/20">
               <Server size={18} className="text-violet-400" />
             </div>
             <div>
-              <h2 className="text-sm font-semibold text-foreground">Mock Server</h2>
+              <h2 className="text-sm font-semibold text-text">Mock Server</h2>
               <p className="text-xs text-muted">
                 {collectionName} •{' '}
                 <span className="text-violet-400">{activeCount} active</span> /{' '}
@@ -179,7 +179,7 @@ export const MockServerPanel: React.FC<MockServerPanelProps> = ({
               <Zap size={13} />
               Auto-Generate
             </button>
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono bg-black/30 border border-white/10 text-muted">
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono bg-black/30 border border-border text-muted">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
               {mockBaseUrl}
             </div>
@@ -192,7 +192,7 @@ export const MockServerPanel: React.FC<MockServerPanelProps> = ({
             </button>
             <button
               onClick={onClose}
-              className="p-1.5 rounded-lg text-muted hover:text-foreground hover:bg-white/5 transition-colors"
+              className="p-1.5 rounded-lg text-muted hover:text-text hover:bg-white/5 transition-colors"
             >
               <X size={16} />
             </button>
@@ -201,7 +201,7 @@ export const MockServerPanel: React.FC<MockServerPanelProps> = ({
 
         <div className="flex flex-1 overflow-hidden">
           {/* Quick Mock from Requests */}
-          <div className="w-60 flex-shrink-0 border-r border-white/10 overflow-y-auto py-3 px-2 bg-black/20">
+          <div className="w-60 flex-shrink-0 border-r border-border overflow-y-auto py-3 px-2 bg-background/20 shadow-inner">
             <p className="text-[10px] font-semibold text-muted uppercase tracking-widest px-2 mb-2">
               Quick Mock from Request
             </p>
@@ -212,7 +212,7 @@ export const MockServerPanel: React.FC<MockServerPanelProps> = ({
                 <button
                   key={req.id}
                   onClick={() => handleQuickMock(req)}
-                  className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs text-muted hover:text-foreground hover:bg-white/5 transition-colors"
+                  className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs text-muted hover:text-text hover:bg-white/5 transition-colors"
                   title={`Create mock from ${req.name}`}
                 >
                   <MethodBadge method={req.method} size="sm" />
@@ -312,13 +312,13 @@ const MockEndpointCard: React.FC<{
   return (
     <div
       className={`border rounded-xl overflow-hidden transition-all ${
-        endpoint.is_active ? 'border-white/10' : 'border-white/5 opacity-60'
+        endpoint.is_active ? 'border-border' : 'border-white/5 opacity-60'
       }`}
     >
       {/* Card header */}
       <div className="flex items-center gap-3 px-4 py-3 bg-white/[0.02]">
         <MethodBadge method={endpoint.method} size="sm" />
-        <code className="flex-1 text-xs font-mono text-foreground/90 truncate">
+        <code className="flex-1 text-xs font-mono text-text/90 truncate">
           {mockBaseUrl}
           <span className="text-violet-400">{endpoint.path}</span>
         </code>
@@ -353,7 +353,7 @@ const MockEndpointCard: React.FC<{
           {/* Copy URL */}
           <button
             onClick={onCopy}
-            className="p-1 rounded text-muted hover:text-foreground transition-colors"
+            className="p-1 rounded text-muted hover:text-text transition-colors"
             title="Copy mock URL"
           >
             {copiedId === endpoint.id ? (
@@ -366,7 +366,7 @@ const MockEndpointCard: React.FC<{
           {/* Copy as cURL */}
           <button
             onClick={onCopyAsCurl}
-            className="p-1 rounded text-muted hover:text-foreground transition-colors flex items-center gap-1 border border-white/5 px-1.5"
+            className="p-1 rounded text-muted hover:text-text transition-colors flex items-center gap-1 border border-white/5 px-1.5"
             title="Copy as cURL command"
           >
             <Code size={12} className="text-violet-400" />
@@ -376,7 +376,7 @@ const MockEndpointCard: React.FC<{
           {/* Expand body */}
           <button
             onClick={() => setExpanded((v) => !v)}
-            className="p-1 rounded text-muted hover:text-foreground transition-colors"
+            className="p-1 rounded text-muted hover:text-text transition-colors"
             title="View response body"
           >
             <Code size={12} />
@@ -388,7 +388,7 @@ const MockEndpointCard: React.FC<{
             className={`p-1 rounded transition-colors ${
               endpoint.is_active
                 ? 'text-emerald-400 hover:text-emerald-300'
-                : 'text-muted hover:text-foreground'
+                : 'text-muted hover:text-text'
             }`}
             title={endpoint.is_active ? 'Disable' : 'Enable'}
           >
@@ -398,7 +398,7 @@ const MockEndpointCard: React.FC<{
           {/* Edit */}
           <button
             onClick={onEdit}
-            className="p-1 rounded text-muted hover:text-foreground transition-colors text-[10px] font-medium border border-white/10 px-2"
+            className="p-1 rounded text-muted hover:text-text transition-colors text-[10px] font-medium border border-border px-2"
           >
             Edit
           </button>
@@ -424,9 +424,9 @@ const MockEndpointCard: React.FC<{
 
       {/* Expandable body */}
       {expanded && (
-        <div className="border-t border-white/5 bg-black/30 p-3">
+        <div className="border-t border-white/5 bg-background/30 shadow-inner rounded-lg p-3">
           <p className="text-[10px] text-muted uppercase tracking-wider mb-1.5">Response Body</p>
-          <pre className="text-xs font-mono text-foreground/80 whitespace-pre-wrap overflow-x-auto">
+          <pre className="text-xs font-mono text-text/80 whitespace-pre-wrap overflow-x-auto">
             {endpoint.response_body || '(empty)'}
           </pre>
         </div>
@@ -496,7 +496,7 @@ const MockEndpointForm: React.FC<MockEndpointFormProps> = ({
           <select
             value={method}
             onChange={(e) => setMethod(e.target.value)}
-            className="appearance-none bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-xs font-mono text-foreground focus:outline-none focus:border-violet-500/50 pr-7"
+            className="appearance-none bg-background border border-border rounded-lg px-3 py-2 text-xs font-mono text-text focus:outline-none focus:border-violet-500/50 pr-7"
           >
             {HTTP_METHODS.map((m) => (
               <option key={m} value={m}>
@@ -511,7 +511,7 @@ const MockEndpointForm: React.FC<MockEndpointFormProps> = ({
           value={path}
           onChange={(e) => setPath(e.target.value)}
           placeholder="/path/to/endpoint"
-          className="flex-1 bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-xs font-mono text-foreground placeholder-muted focus:outline-none focus:border-violet-500/50"
+          className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-xs font-mono text-text placeholder-muted focus:outline-none focus:border-violet-500/50"
         />
       </div>
 
@@ -523,7 +523,7 @@ const MockEndpointForm: React.FC<MockEndpointFormProps> = ({
             type="number"
             value={statusCode}
             onChange={(e) => setStatusCode(Number(e.target.value))}
-            className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-xs font-mono text-foreground focus:outline-none focus:border-violet-500/50"
+            className="w-full bg-background border border-border rounded-lg px-3 py-2 text-xs font-mono text-text focus:outline-none focus:border-violet-500/50"
           />
         </div>
         <div className="flex-1">
@@ -534,7 +534,7 @@ const MockEndpointForm: React.FC<MockEndpointFormProps> = ({
             min={0}
             max={10000}
             onChange={(e) => setDelayMs(Number(e.target.value))}
-            className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-xs font-mono text-foreground focus:outline-none focus:border-violet-500/50"
+            className="w-full bg-background border border-border rounded-lg px-3 py-2 text-xs font-mono text-text focus:outline-none focus:border-violet-500/50"
           />
         </div>
       </div>
@@ -547,7 +547,7 @@ const MockEndpointForm: React.FC<MockEndpointFormProps> = ({
           onChange={(e) => setResponseBody(e.target.value)}
           rows={5}
           placeholder='{"key": "value"}'
-          className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-xs font-mono text-foreground placeholder-muted focus:outline-none focus:border-violet-500/50 resize-none"
+          className="w-full bg-background border border-border rounded-lg px-3 py-2 text-xs font-mono text-text placeholder-muted focus:outline-none focus:border-violet-500/50 resize-none"
         />
       </div>
 
@@ -555,7 +555,7 @@ const MockEndpointForm: React.FC<MockEndpointFormProps> = ({
       <div className="flex gap-2">
         <button
           onClick={onCancel}
-          className="flex-1 py-2 rounded-lg text-xs text-muted border border-white/10 hover:bg-white/5 transition-colors"
+          className="flex-1 py-2 rounded-lg text-xs text-muted border border-border hover:bg-white/5 transition-colors"
         >
           Cancel
         </button>

@@ -144,8 +144,7 @@ export const VariableOverlayInput: React.FC<VariableOverlayInputProps> = ({
     lineHeight: '1.5',
     fontSize: '0.875rem', // text-sm
     fontFamily: 'Menlo, Monaco, Consolas, monospace', // font-mono
-    boxSizing: 'border-box',
-    border: '1px solid transparent'
+    boxSizing: 'border-box'
   }
 
   return (
@@ -170,8 +169,8 @@ export const VariableOverlayInput: React.FC<VariableOverlayInputProps> = ({
           onFocus={handleFocus}
           onBlur={handleBlur}
           rows={1}
-          className={`w-full bg-transparent border border-white/10 rounded-lg text-sm font-mono text-transparent caret-white focus:outline-none focus:border-primary/50 transition-all z-10 resize-none ${isFocused ? 'whitespace-pre-wrap break-all' : 'whitespace-nowrap overflow-hidden'} ${className || ''}`}
-          style={{ ...sharedStyles, border: '1px solid #33334d' }}
+          className={`w-full bg-transparent text-sm font-mono text-transparent caret-primary focus:outline-none transition-all z-10 resize-none ${isFocused ? 'whitespace-pre-wrap break-all' : 'whitespace-nowrap overflow-hidden'} ${className || ''}`}
+          style={sharedStyles}
           {...props as any}
         />
       ) : (
@@ -181,8 +180,8 @@ export const VariableOverlayInput: React.FC<VariableOverlayInputProps> = ({
           onChange={onChange as any}
           onFocus={handleFocus}
           onBlur={handleBlur}
-          className={`w-full bg-transparent border border-white/10 rounded-lg text-sm font-mono text-transparent caret-white focus:outline-none focus:border-primary/50 transition-colors z-10 ${className || ''}`}
-          style={{ ...sharedStyles, border: '1px solid #33334d' }}
+          className={`w-full bg-transparent text-sm font-mono text-transparent caret-primary focus:outline-none transition-colors z-10 ${className || ''}`}
+          style={sharedStyles}
           {...props as any}
         />
       )}
@@ -197,17 +196,15 @@ export const VariableOverlayInput: React.FC<VariableOverlayInputProps> = ({
         </div>
       </div>
 
-      {/* Popup remains the same... */}
-
       {/* Popup */}
       {isOpen && activeVar && (
-        <div className="fixed z-[1000] w-64 rounded-xl bg-[#0d1117] border border-white/10 shadow-2xl p-4 backdrop-blur-xl animate-in fade-in zoom-in duration-100"
+        <div className="fixed z-[1000] w-64 rounded-xl bg-surface border border-border/50 shadow-2xl p-4 backdrop-blur-xl animate-in fade-in zoom-in duration-100"
           style={{ 
             left: containerRef.current?.getBoundingClientRect().left,
             top: (containerRef.current?.getBoundingClientRect().top || 0) - 130
           }}
         >
-          <div className="absolute -bottom-1.5 left-4 w-3 h-3 bg-[#0d1117] border-r border-b border-white/10 rotate-45" />
+          <div className="absolute -bottom-1.5 left-4 w-3 h-3 bg-surface border-r border-b border-border/50 rotate-45" />
           
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
@@ -217,7 +214,7 @@ export const VariableOverlayInput: React.FC<VariableOverlayInputProps> = ({
                 {`{{${activeVar}}}`}
               </span>
             </div>
-            <button onClick={() => setIsOpen(false)} className="text-muted hover:text-foreground">
+            <button onClick={() => setIsOpen(false)} className="text-muted hover:text-text">
               <X size={14} />
             </button>
           </div>
@@ -230,7 +227,7 @@ export const VariableOverlayInput: React.FC<VariableOverlayInputProps> = ({
             <div className="space-y-3">
               <div>
                 <p className="text-[10px] text-muted mb-1.5">
-                  {envVars[activeVar] ? 'Update value in' : 'Set value in'} <span className="text-foreground font-medium">{activeEnv.name}</span>:
+                  {envVars[activeVar] ? 'Update value in' : 'Set value in'} <span className="text-text font-medium">{activeEnv.name}</span>:
                 </p>
                 <input
                   autoFocus
@@ -239,13 +236,13 @@ export const VariableOverlayInput: React.FC<VariableOverlayInputProps> = ({
                   onChange={(e) => setNewValue(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleSaveVar()}
                   placeholder={envVars[activeVar] || "Enter value..."}
-                  className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:border-primary/40"
+                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-xs text-text focus:outline-none focus:border-primary/40"
                 />
               </div>
               <button
                 onClick={handleSaveVar}
                 disabled={!newValue.trim()}
-                className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-primary/80 hover:bg-primary text-white transition-all disabled:opacity-40"
+                className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-primary hover:bg-primary-hover text-white transition-all disabled:opacity-40 shadow-lg shadow-primary/20"
               >
                 <Check size={12} />
                 Save Variable

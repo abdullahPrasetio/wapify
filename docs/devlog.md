@@ -1,6 +1,39 @@
 # Wapify — Development Log
 
-## [2026-05-05] — Implementation of End-to-End Donation System
+## [2026-05-07] — Implementasi Sistem Tema Dinamis (Light/Dark/System) & Pembersihan UI
+**Fase:** Fase 6 — UX & Power Features
+**Dikerjakan oleh:** Agent
+**Status:** ✅ Selesai
+
+### Yang Dikerjakan
+- **Dynamic Theme System**: Implementasi dukungan penuh untuk tema **Light**, **Dark**, dan **System** (mengikuti OS) pada aplikasi desktop.
+- **CSS Variable Refactoring**: Mengonversi seluruh skema warna aplikasi menggunakan variabel CSS (`--background`, `--surface`, dll) di `main.css` untuk memungkinkan transisi tema instan tanpa *reload*.
+- **Tailwind Integration**: Sinkronisasi `tailwind.config.js` agar menggunakan variabel CSS tersebut, memudahkan pengembangan komponen baru yang mendukung tema.
+- **State Persistence**: Menyimpan pilihan tema pengguna di `useAppStore` yang tersinkronisasi dengan `localStorage`.
+- **Monaco Editor Dynamic Theme**: Automasi perpindahan tema editor kode antara `vs` (light) dan `vs-dark` berdasarkan tema aplikasi yang aktif.
+- **Light Mode UI Fixes**: 
+    - Menghapus border *hardcoded* pada `VariableOverlayInput` yang menyebabkan tampilan "kotak-kotak" pada tabel di tema terang.
+    - Mengatur ulang warna kursor (*caret*) agar selalu kontras dengan latar belakang.
+- **Global Style Cleanup**: Melakukan pembersihan pada file `DocumentationPanel.tsx`, `MockServerPanel.tsx`, `StandaloneMockPanel.tsx`, dan `ResponseArea.tsx` untuk mengganti ratusan warna *hardcoded* gelap menjadi variabel tema yang dinamis.
+- **Restorasi Fitur**: Mengembalikan bagian "Preview Text" pada pengaturan ukuran font yang sempat hilang saat pemindahan UI.
+
+### Perubahan File
+- `apps/desktop/src/renderer/src/assets/main.css` — Definisi variabel CSS tema.
+- `apps/desktop/tailwind.config.js` — Mapping warna ke variabel CSS.
+- `apps/desktop/src/renderer/src/store/useAppStore.ts` — State management tema.
+- `apps/desktop/src/renderer/src/App.tsx` — Logika aplikasi tema dan integrasi Toaster.
+- `apps/desktop/src/renderer/src/components/modals/ServerSettingsModal.tsx` — UI Pengaturan tema baru.
+- `apps/desktop/src/renderer/src/components/ui/VariableOverlayInput.tsx` — Perbaikan border dan caret.
+- Seluruh komponen UI utama (MainArea, ResponseArea, HistoryDetailView, DocumentationPanel, MockServerPanel, StandaloneMockPanel) — Migrasi ke variabel tema.
+
+### Keputusan & Catatan
+- Menggunakan variabel CSS murni alih-alih class-based theme Tailwind (`dark:`) untuk fleksibilitas lebih tinggi dalam menangani komponen pihak ketiga seperti Monaco Editor.
+- Memindahkan pengaturan tema ke dalam modal "App Settings" utama agar sejajar dengan konfigurasi sistem lainnya (URL & Font Size).
+
+### Langkah Selanjutnya
+- Audit konsistensi visual pada komponen-komponen Admin Panel di tema terang.
+
+---
 **Fase:** Fase 7 — Kolaborasi Lanjutan
 **Dikerjakan oleh:** Antigravity
 **Status:** ✅ Selesai
