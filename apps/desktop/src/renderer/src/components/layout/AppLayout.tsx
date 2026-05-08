@@ -22,18 +22,26 @@ export const AppLayout = (): React.JSX.Element => {
   // Re-fetch data for active team on mount (for Cmd+R persistence)
   useEffect(() => {
     const initData = async () => {
-      await fetchTeams()
-      if (activeTeamId) {
-        console.log(`[AppLayout] Rehydrating data for team ${activeTeamId}`)
-        const fetchedCollections = await fetchCollections(activeTeamId)
-        fetchEnvironments(activeTeamId)
-        fetchHistory()
+      // Use getState to ensure we work with the most recent rehydrated values
+      const state = useDataStore.getState()
+      await state.fetchTeams()
+      
+      const currentActiveTeamId = useDataStore.getState().activeTeamId
+      if (currentActiveTeamId) {
+        console.log(`[AppLayout] Rehydrating data for team ${currentActiveTeamId}`)
+        
+        // Explicitly re-fetch basic data
+        const fetchedCollections = await state.fetchCollections(currentActiveTeamId)
+        state.fetchEnvironments(currentActiveTeamId)
+        state.fetchHistory()
+
+        const expanded = useDataStore.getState().expandedItems
 
         // Fetch contents for already expanded collections
         if (fetchedCollections) {
           fetchedCollections.forEach((col) => {
-            if (expandedItems[`collection-${col.id}`]) {
-              fetchCollectionContents(col.id)
+            if (expanded[`collection-${col.id}`]) {
+              state.fetchCollectionContents(col.id)
             }
           })
         }

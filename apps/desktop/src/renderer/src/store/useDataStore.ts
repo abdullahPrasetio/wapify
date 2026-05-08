@@ -241,6 +241,7 @@ interface DataState {
   // Expansion State
   expandedItems: Record<string, boolean>
   toggleExpand: (id: string) => void
+  collapseAll: () => void
 
   // Execution Actions
   executeActiveRequest: () => Promise<void>
@@ -434,6 +435,10 @@ export const useDataStore = create<DataState>()(
               [id]: !state.expandedItems[id]
             }
           }))
+        },
+
+        collapseAll: () => {
+          set({ expandedItems: {} })
         },
 
         fetchTeams: async () => {

@@ -23,7 +23,7 @@ import {
   Download,
   Copy,
   GripVertical, Key, DatabaseZap,
-  Zap, Heart
+  Zap, Heart, ListTree
 } from 'lucide-react'
 import { useState, useEffect, useLayoutEffect, useMemo } from 'react'
 import {
@@ -666,7 +666,8 @@ export const Sidebar = (): React.JSX.Element => {
     setActiveEnvironment,
     createCollection,
     history,
-    clearHistory
+    clearHistory,
+    collapseAll
   } = useDataStore()
 
   const { activeView, setActiveView } = useAppStore()
@@ -894,9 +895,21 @@ export const Sidebar = (): React.JSX.Element => {
             )}
           </div>
 
-          <div className="flex px-3 pt-3 gap-4 border-b border-border">
-            <div onClick={() => setSidebarTab('collections')} className={`pb-2 text-xs font-bold uppercase tracking-wider cursor-pointer border-b-2 transition-all ${sidebarTab === 'collections' ? 'border-primary text-primary' : 'border-transparent text-muted hover:text-text'}`}>Collections</div>
-            <div onClick={() => setSidebarTab('history')} className={`pb-2 text-xs font-bold uppercase tracking-wider cursor-pointer border-b-2 transition-all ${sidebarTab === 'history' ? 'border-primary text-primary' : 'border-transparent text-muted hover:text-text'}`}>History</div>
+          <div className="flex px-3 pt-3 gap-2 border-b border-border items-center">
+            <div className="flex flex-1 gap-4">
+              <div onClick={() => setSidebarTab('collections')} className={`pb-2 text-xs font-bold uppercase tracking-wider cursor-pointer border-b-2 transition-all ${sidebarTab === 'collections' ? 'border-primary text-primary' : 'border-transparent text-muted hover:text-text'}`}>Collections</div>
+              <div onClick={() => setSidebarTab('history')} className={`pb-2 text-xs font-bold uppercase tracking-wider cursor-pointer border-b-2 transition-all ${sidebarTab === 'history' ? 'border-primary text-primary' : 'border-transparent text-muted hover:text-text'}`}>History</div>
+            </div>
+            
+            {sidebarTab === 'collections' && (
+              <button 
+                onClick={collapseAll}
+                title="Collapse All"
+                className="mb-2 p-1 rounded hover:bg-background text-muted hover:text-text transition-colors"
+              >
+                <ListTree size={14} />
+              </button>
+            )}
           </div>
 
           <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0">

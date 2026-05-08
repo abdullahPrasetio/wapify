@@ -14,8 +14,9 @@
 - **Light Mode UI Fixes**: 
     - Menghapus border *hardcoded* pada `VariableOverlayInput` yang menyebabkan tampilan "kotak-kotak" pada tabel di tema terang.
     - Mengatur ulang warna kursor (*caret*) agar selalu kontras dengan latar belakang.
-- **Global Style Cleanup**: Melakukan pembersihan pada file `DocumentationPanel.tsx`, `MockServerPanel.tsx`, `StandaloneMockPanel.tsx`, dan `ResponseArea.tsx` untuk mengganti ratusan warna *hardcoded* gelap menjadi variabel tema yang dinamis.
+- **Global Style Cleanup**: Melakukan pembersihan pada file `DocumentationPanel.tsx`, `MockServerPanel.tsx`, dan `StandaloneMockPanel.tsx` untuk mengganti ratusan warna *hardcoded* gelap menjadi variabel tema yang dinamis.
 - **Restorasi Fitur**: Mengembalikan bagian "Preview Text" pada pengaturan ukuran font yang sempat hilang saat pemindahan UI.
+- **Sidebar Persistence Fix**: Memperbaiki bug di mana sidebar (koleksi/folder) ter-collapse atau terlihat kosong saat aplikasi di-refresh. Sekarang aplikasi secara otomatis mengambil konten untuk semua item yang sebelumnya sudah diekspansi.
 
 ### Perubahan File
 - `apps/desktop/src/renderer/src/assets/main.css` — Definisi variabel CSS tema.
