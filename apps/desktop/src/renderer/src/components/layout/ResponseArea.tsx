@@ -1,16 +1,18 @@
-import { useDataStore } from '../../store/useDataStore'
+import { useDataStore, LogEntry } from '../../store/useDataStore'
+import { useAppStore } from '../../store/useAppStore'
 import Editor, { loader } from '@monaco-editor/react'
 import * as monaco from 'monaco-editor'
 
 // Configure Monaco to use the bundled version (OFFLINE)
 loader.config({ monaco })
-import { Clock, Database, Globe } from 'lucide-react'
+import { Clock, Database, Globe, ChevronDown, ChevronRight } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { PromptModal } from '../modals/PromptModal'
 
 export const ResponseArea = (): React.JSX.Element => {
   const { tabs, activeTabId, logs, clearLogs, saveExample } = useDataStore()
+  const { fontSize } = useAppStore()
   const [activeTab, setActiveTab] = useState<'Body' | 'Headers' | 'Tests' | 'Console'>('Body')
   const [isPromptOpen, setIsPromptOpen] = useState(false)
 
@@ -176,7 +178,7 @@ export const ResponseArea = (): React.JSX.Element => {
                     options={{
                       readOnly: true,
                       minimap: { enabled: false },
-                      fontSize: 12,
+                      fontSize: fontSize,
                       lineNumbers: 'on',
                       scrollBeyondLastLine: false,
                       automaticLayout: true,
@@ -192,19 +194,25 @@ export const ResponseArea = (): React.JSX.Element => {
                 <table className="w-full text-xs text-left">
                   <thead>
                     <tr className="text-muted uppercase tracking-wider font-bold border-b border-border">
-                      <th className="py-2 w-1/3">Key</th>
+                      <th className="py-2 w-48 shrink-0 pr-4">Key</th>
                       <th className="py-2">Value</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {Object.entries(headers).map(([key, values]) => (
-                      <tr key={key} className="border-b border-border/50 hover:bg-surface/30">
-                        <td className="py-2 text-primary font-medium">{key}</td>
-                        <td className="py-2 text-text">
-                          {Array.isArray(values) ? values.join(', ') : values}
-                        </td>
-                      </tr>
-                    ))}
+                    {Object.entries(headers).map(([key, values]) => {
+                      // Pretty format key: content-type -> Content-Type
+                      const prettyKey = key.split('-').map(part => part.charAt(0).toUpperCase() + part.slice(1)).join('-')
+                      const displayKey = key.trim() === '' ? 'Set-Cookie' : prettyKey // Fallback for empty keys (often seen with multiple Set-Cookie)
+
+                      return (
+                        <tr key={key} className="border-b border-border/50 hover:bg-surface/30 group">
+                          <td className="py-2 text-primary font-bold pr-4 break-all align-top">{displayKey}:</td>
+                          <td className="py-2 text-text break-all align-top">
+                            {Array.isArray(values) ? values.join(', ') : values}
+                          </td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -262,28 +270,7 @@ export const ResponseArea = (): React.JSX.Element => {
                 <div className="flex-1 overflow-auto p-2 font-mono text-[11px] space-y-1">
                   {filteredLogs.length > 0 ? (
                     filteredLogs.map((log) => (
-                      <div
-                        key={log.id}
-                        className="flex gap-3 px-2 py-1.5 rounded hover:bg-white/5 border-l-2 border-transparent transition-all group"
-                      >
-                        <span className="text-muted shrink-0 w-16 opacity-50">{log.timestamp}</span>
-                        <span
-                          className={`shrink-0 w-12 font-black uppercase text-[9px] ${
-                            log.level === 'error'
-                              ? 'text-danger'
-                              : log.level === 'warn'
-                                ? 'text-warning'
-                                : log.level === 'info'
-                                  ? 'text-info'
-                                  : 'text-muted'
-                          }`}
-                        >
-                          {log.level}
-                        </span>
-                        <span className="text-text/90 break-all whitespace-pre-wrap">
-                          {log.message}
-                        </span>
-                      </div>
+                      <LogItem key={log.id} log={log} />
                     ))
                   ) : (
                     <div className="h-full flex flex-col items-center justify-center text-muted opacity-30 italic py-20">
@@ -296,6 +283,130 @@ export const ResponseArea = (): React.JSX.Element => {
           </>
         )}
       </div>
+    </div>
+  )
+}
+
+const LogItem = ({ log }: { log: LogEntry }): React.JSX.Element => {
+  const [isOpen, setIsOpen] = useState(false)
+
+  if (log.level === 'network' && log.details) {
+    const { request, response } = log.details
+    return (
+      <div className="border-l-2 border-primary/30 hover:bg-white/5 transition-all">
+        <div
+          onClick={() => setIsOpen(!isOpen)}
+          className="flex items-center gap-2 px-2 py-1.5 cursor-pointer group"
+        >
+          {isOpen ? <ChevronDown size={12} className="text-muted" /> : <ChevronRight size={12} className="text-muted" />}
+          <span className="text-muted shrink-0 w-16 opacity-50 text-[10px]">{log.timestamp}</span>
+          <span className="text-success font-black text-[10px] uppercase w-10 shrink-0">{request.method}</span>
+          <span className="text-text/90 truncate flex-1 font-sans">{request.url}</span>
+          <div className="flex items-center gap-3 shrink-0 ml-2">
+            <span className={`text-[10px] font-black ${response.status < 300 ? 'text-success' : 'text-danger'}`}>
+              {response.status}
+            </span>
+            <span className="text-[10px] text-muted font-bold">{response.timing}ms</span>
+          </div>
+        </div>
+        {isOpen && (
+          <div className="pl-8 pr-4 pb-4 space-y-4 animate-in fade-in slide-in-from-top-1 duration-200">
+            {/* Request Headers */}
+            <div>
+              <div className="text-[9px] font-black text-muted uppercase tracking-[0.2em] mb-1.5 flex items-center gap-2">
+                <div className="w-1 h-1 rounded-full bg-primary" /> Request Headers
+              </div>
+              <div className="bg-black/30 rounded-lg p-3 text-[10px] space-y-1 border border-white/5">
+                {Object.entries(request.headers || {}).map(([k, v]) => (
+                  <div key={k} className="flex gap-2">
+                    <span className="text-primary font-bold w-40 shrink-0 opacity-80">{k}:</span>
+                    <span className="text-text/70 break-all">{String(v)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Request Body */}
+            {request.body && (
+              <div>
+                <div className="text-[9px] font-black text-muted uppercase tracking-[0.2em] mb-1.5 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-1 h-1 rounded-full bg-primary" /> Request Body
+                  </div>
+                  <span className="text-[8px] opacity-50 font-mono">Format: {request.body_type || 'raw'}</span>
+                </div>
+                <pre className="bg-black/30 rounded-lg p-3 text-[10px] text-text/70 whitespace-pre-wrap break-all border border-white/5 max-h-60 overflow-auto font-mono">
+                  {(() => {
+                    if ((request.body_type === 'x-www-form-urlencoded' || request.body_type === 'form-data') && Array.isArray(request.body)) {
+                      const params = new URLSearchParams()
+                      request.body.forEach((item: any) => {
+                        if (item.enabled && item.key) params.append(item.key, item.value || '')
+                      })
+                      return params.toString()
+                    }
+                    return typeof request.body === 'string' ? request.body : JSON.stringify(request.body, null, 2)
+                  })()}
+                </pre>
+              </div>
+            )}
+
+            {/* Response Headers */}
+            <div>
+              <div className="text-[9px] font-black text-muted uppercase tracking-[0.2em] mb-1.5 flex items-center gap-2">
+                <div className="w-1 h-1 rounded-full bg-success" /> Response Headers
+              </div>
+              <div className="bg-black/30 rounded-lg p-3 text-[10px] space-y-1 border border-white/5">
+                {Object.entries(response.headers || {}).map(([k, v]) => (
+                  <div key={k} className="flex gap-2">
+                    <span className="text-success font-bold w-40 shrink-0 opacity-80">{k}:</span>
+                    <span className="text-text/70 break-all">{Array.isArray(v) ? v.join(', ') : String(v)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Response Body */}
+            <div>
+              <div className="text-[9px] font-black text-muted uppercase tracking-[0.2em] mb-1.5 flex items-center gap-2">
+                <div className="w-1 h-1 rounded-full bg-success" /> Response Body
+              </div>
+              <pre className="bg-black/30 rounded-lg p-3 text-[10px] text-text/70 whitespace-pre-wrap break-all border border-white/5 max-h-80 overflow-auto">
+                {typeof response.data === 'object' ? JSON.stringify(response.data, null, 2) : String(response.data)}
+              </pre>
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <div
+      className={`flex gap-3 px-2 py-1.5 rounded hover:bg-white/5 border-l-2 ${
+        log.level === 'error'
+          ? 'border-danger bg-danger/5'
+          : log.level === 'warn'
+            ? 'border-warning bg-warning/5'
+            : log.level === 'info'
+              ? 'border-info bg-info/5'
+              : 'border-transparent'
+      } transition-all group`}
+    >
+      <span className="text-muted shrink-0 w-16 opacity-50 text-[10px]">{log.timestamp}</span>
+      <span
+        className={`shrink-0 w-12 font-black uppercase text-[9px] ${
+          log.level === 'error'
+            ? 'text-danger'
+            : log.level === 'warn'
+              ? 'text-warning'
+              : log.level === 'info'
+                ? 'text-info'
+                : 'text-muted'
+        }`}
+      >
+        {log.level}
+      </span>
+      <span className="text-text/90 break-all whitespace-pre-wrap">{log.message}</span>
     </div>
   )
 }

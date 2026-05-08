@@ -7,8 +7,8 @@ import (
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/waluyo/wapify-backend/internal/middleware"
-	"github.com/waluyo/wapify-backend/internal/repository"
+	"github.com/waluyo/wapbolt-backend/internal/middleware"
+	"github.com/waluyo/wapbolt-backend/internal/repository"
 )
 
 // SetupDocumentationRoutes registers documentation endpoints

@@ -46,14 +46,15 @@ func (j *JSONBArray) Scan(value interface{}) error {
 }
 
 type User struct {
-	ID            uint      `gorm:"primaryKey" json:"id"`
-	Email         string    `gorm:"uniqueIndex;not null" json:"email"`
-	PasswordHash  string    `gorm:"not null" json:"-"`
-	Name          string    `gorm:"not null" json:"name"`
-	IsSuperAdmin  bool      `gorm:"default:false" json:"is_super_admin"`
-	RoleSignature string    `json:"-"`
-	CreatedAt     time.Time `json:"created_at"`
-	UpdatedAt     time.Time `json:"updated_at"`
+	ID                    uint       `gorm:"primaryKey" json:"id"`
+	Email                 string     `gorm:"uniqueIndex;not null" json:"email"`
+	PasswordHash          string     `gorm:"not null" json:"-"`
+	Name                  string     `gorm:"not null" json:"name"`
+	IsSuperAdmin          bool       `gorm:"default:false" json:"is_super_admin"`
+	RoleSignature         string     `json:"-"`
+	LastDonationPromptAt *time.Time `json:"last_donation_prompt_at"`
+	CreatedAt             time.Time  `json:"created_at"`
+	UpdatedAt             time.Time  `json:"updated_at"`
 }
 
 type Team struct {
@@ -219,7 +220,8 @@ type ActivityLog struct {
 
 type MockEndpoint struct {
 	ID               uint      `gorm:"primaryKey" json:"id"`
-	CollectionID     uint      `gorm:"not null;column:collection_id" json:"collection_id"`
+	CollectionID     *uint     `gorm:"column:collection_id" json:"collection_id"`
+	TeamID           *uint     `gorm:"column:team_id" json:"team_id"`
 	RequestID        *uint     `gorm:"column:request_id" json:"request_id"`
 	Method           string    `gorm:"not null" json:"method"`
 	Path             string    `gorm:"not null" json:"path"`
@@ -234,6 +236,7 @@ type MockEndpoint struct {
 	UpdatedAt        time.Time `json:"updated_at"`
 
 	Collection     *Collection    `gorm:"foreignKey:CollectionID" json:"-"`
+	Team           *Team          `gorm:"foreignKey:TeamID" json:"-"`
 	Request        *Request       `gorm:"foreignKey:RequestID" json:"-"`
 	Scenarios      []MockScenario `gorm:"foreignKey:MockEndpointID" json:"scenarios,omitempty"`
 	ActiveScenario *MockScenario  `gorm:"foreignKey:ActiveScenarioID" json:"active_scenario,omitempty"`
@@ -254,5 +257,11 @@ type MockScenario struct {
 	OrderIndex      float64        `gorm:"not null;default:0;column:order_index" json:"order_index"`
 	CreatedAt       time.Time      `json:"created_at"`
 	UpdatedAt       time.Time      `json:"updated_at"`
+}
+
+type SystemSetting struct {
+	Key       string    `gorm:"primaryKey" json:"key"`
+	Value     string    `gorm:"not null" json:"value"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 

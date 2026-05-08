@@ -14,28 +14,40 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/rs/zerolog/log"
-	"github.com/waluyo/wapify-backend/internal/repository"
+	"github.com/waluyo/wapbolt-backend/internal/repository"
 )
 
 // SetupMockServerRoutes registers mock server endpoints
 func SetupMockServerRoutes(app *fiber.App) {
-	// Management API (protected via JWT)
-	mock := app.Group("/api/v1/collections/:id/mock", mockAuthMiddleware)
-	mock.Get("/endpoints", listMockEndpoints)
-	mock.Post("/endpoints", createMockEndpoint)
-	mock.Put("/endpoints/:endpointId", updateMockEndpoint)
-	mock.Delete("/endpoints/:endpointId", deleteMockEndpoint)
-	mock.Post("/endpoints/:endpointId/from-request/:requestId", createMockFromRequest)
-	mock.Patch("/endpoints/:endpointId/mode", updateMockMode)
+	// 1. Management API for Collections (protected via JWT)
+	colMock := app.Group("/api/v1/collections/:id/mock", mockAuthMiddleware)
+	colMock.Get("/endpoints", listMockEndpoints)
+	colMock.Post("/endpoints", createMockEndpoint)
+	colMock.Put("/endpoints/:endpointId", updateMockEndpoint)
+	colMock.Delete("/endpoints/:endpointId", deleteMockEndpoint)
+	colMock.Post("/endpoints/:endpointId/from-request/:requestId", createMockFromRequest)
+	colMock.Patch("/endpoints/:endpointId/mode", updateMockMode)
+	colMock.Post("/generate-from-collection", generateMocksFromCollection)
 
-	// Scenario CRUD
-	mock.Get("/endpoints/:endpointId/scenarios", listMockScenarios)
-	mock.Post("/endpoints/:endpointId/scenarios", createMockScenario)
-	mock.Put("/endpoints/:endpointId/scenarios/:scenarioId", updateMockScenario)
-	mock.Delete("/endpoints/:endpointId/scenarios/:scenarioId", deleteMockScenario)
-	mock.Patch("/endpoints/:endpointId/scenarios/reorder", reorderScenarios)
+	// 2. Management API for Standalone/Workspace (protected via JWT)
+	teamMock := app.Group("/api/v1/workspaces/:teamId/mock", mockAuthMiddleware)
+	teamMock.Get("/endpoints", listStandaloneEndpoints)
+	teamMock.Post("/endpoints", createStandaloneEndpoint)
+	teamMock.Put("/endpoints/:endpointId", updateMockEndpoint)    // reusing same handler
+	teamMock.Delete("/endpoints/:endpointId", deleteMockEndpoint) // reusing same handler
+	teamMock.Patch("/endpoints/:endpointId/mode", updateMockMode)
 
-	// The actual mock server — public, no auth needed
+	// 3. Scenario CRUD (Universal)
+	app.Get("/api/v1/mock-endpoints/:endpointId/scenarios", mockAuthMiddleware, listMockScenarios)
+	app.Post("/api/v1/mock-endpoints/:endpointId/scenarios", mockAuthMiddleware, createMockScenario)
+	app.Put("/api/v1/mock-endpoints/:endpointId/scenarios/:scenarioId", mockAuthMiddleware, updateMockScenario)
+	app.Delete("/api/v1/mock-endpoints/:endpointId/scenarios/:scenarioId", mockAuthMiddleware, deleteMockScenario)
+	app.Patch("/api/v1/mock-endpoints/:endpointId/scenarios/reorder", mockAuthMiddleware, reorderScenarios)
+	app.Patch("/api/v1/mock-endpoints/:endpointId/mode", mockAuthMiddleware, updateMockMode)
+
+	// 4. The actual mock engine
+	// Matches: /mock/w/:team_id/*
+	app.All("/mock/w/:team_id/*", handleStandaloneMockRequest)
 	// Matches: /mock/:collection_id/*
 	app.All("/mock/:collection_id/*", handleMockRequest)
 }
@@ -86,7 +98,7 @@ func listMockEndpoints(c *fiber.Ctx) error {
 
 type createMockEndpointInput struct {
 	Method          string                 `json:"method"`
-	Path             string                 `json:"path"`
+	Path            string                 `json:"path"`
 	StatusCode      int                    `json:"status_code"`
 	ResponseHeaders map[string]interface{} `json:"response_headers"`
 	ResponseBody    string                 `json:"response_body"`
@@ -118,7 +130,7 @@ func createMockEndpoint(c *fiber.Ctx) error {
 
 	colID := col.ID
 	endpoint := repository.MockEndpoint{
-		CollectionID:    colID,
+		CollectionID:    &colID,
 		Method:          strings.ToUpper(input.Method),
 		Path:            normalizePath(input.Path),
 		StatusCode:      input.StatusCode,
@@ -227,7 +239,7 @@ func createMockFromRequest(c *fiber.Ctx) error {
 	urlPath := extractURLPath(req.URL)
 
 	endpoint := repository.MockEndpoint{
-		CollectionID: colID,
+		CollectionID: &colID,
 		RequestID:    &reqID,
 		Method:       req.Method,
 		Path:         urlPath,
@@ -305,7 +317,7 @@ func createMockScenario(c *fiber.Ctx) error {
 	}
 
 	epID := uint(parseUint(endpointID))
-	
+
 	scenario := repository.MockScenario{
 		MockEndpointID:  epID,
 		Name:            input.Name,
@@ -342,7 +354,7 @@ func updateMockScenario(c *fiber.Ctx) error {
 	if scenarioID == "" || scenarioID == "undefined" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid scenario ID", "code": "INVALID_ID"})
 	}
-	
+
 	var input mockScenarioInput
 	if err := c.BodyParser(&input); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid body", "code": "INVALID_BODY"})
@@ -494,6 +506,10 @@ func compareValues(reqVal interface{}, op string, targetVal interface{}) bool {
 	case "regex":
 		match, _ := regexp.MatchString(sTarget, sReq)
 		return match
+	case "gt":
+		return sReq > sTarget
+	case "lt":
+		return sReq < sTarget
 	}
 	return false
 }
@@ -550,126 +566,8 @@ func handleMockRequest(c *fiber.Ctx) error {
 		})
 	}
 
-	var responseBody string
-	var statusCode int = 200
-	var responseHeaders map[string]interface{}
-	var binaryData []byte
-	found := false
-
-	// EVALUATION LOGIC
-	if matched.EvaluationMode == "manual" && matched.ActiveScenarioID != nil {
-		var scenario repository.MockScenario
-		if err := repository.DB.First(&scenario, *matched.ActiveScenarioID).Error; err == nil {
-			if scenario.ResponseType == "file" && scenario.FileBase64 != "" {
-				binaryData, _ = base64.StdEncoding.DecodeString(scenario.FileBase64)
-				c.Set("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", scenario.FileName))
-				ext := filepath.Ext(scenario.FileName)
-				if mimeType := mime.TypeByExtension(ext); mimeType != "" {
-					c.Set("Content-Type", mimeType)
-				} else if strings.ToLower(ext) == ".pdf" {
-					c.Set("Content-Type", "application/pdf")
-				} else {
-					c.Set("Content-Type", "application/octet-stream")
-				}
-			} else {
-				responseBody = scenario.ResponseBody
-			}
-			statusCode = scenario.StatusCode
-			bytes, _ := json.Marshal(scenario.ResponseHeaders)
-			json.Unmarshal(bytes, &responseHeaders)
-			found = true
-		}
-	}
-
-	// Dynamic evaluation or fallback
-	if !found {
-		var scenarios []repository.MockScenario
-		repository.DB.Where("mock_endpoint_id = ?", matched.ID).Order("order_index asc, id asc").Find(&scenarios)
-
-		var selected *repository.MockScenario
-		// 1. Try to match conditions
-		for i := range scenarios {
-			if evaluateScenario(c, &scenarios[i]) {
-				selected = &scenarios[i]
-				break
-			}
-		}
-
-		// 2. If no match, find default scenario
-		if selected == nil {
-			for i := range scenarios {
-				if scenarios[i].IsDefault {
-					selected = &scenarios[i]
-					break
-				}
-			}
-		}
-
-		if selected != nil {
-			if selected.ResponseType == "file" && selected.FileBase64 != "" {
-				binaryData, _ = base64.StdEncoding.DecodeString(selected.FileBase64)
-				c.Set("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", selected.FileName))
-				ext := filepath.Ext(selected.FileName)
-				if mimeType := mime.TypeByExtension(ext); mimeType != "" {
-					c.Set("Content-Type", mimeType)
-				} else if strings.ToLower(ext) == ".pdf" {
-					c.Set("Content-Type", "application/pdf")
-				} else {
-					c.Set("Content-Type", "application/octet-stream")
-				}
-			} else {
-				responseBody = selected.ResponseBody
-			}
-			statusCode = selected.StatusCode
-			bytes, _ := json.Marshal(selected.ResponseHeaders)
-			json.Unmarshal(bytes, &responseHeaders)
-			found = true
-		}
-	}
-
-	// Ultimate fallback to base endpoint fields if no scenario found/matched
-	if !found {
-		responseBody = matched.ResponseBody
-		statusCode = matched.StatusCode
-		bytes, _ := json.Marshal(matched.ResponseHeaders)
-		json.Unmarshal(bytes, &responseHeaders)
-	}
-
-	// Apply templating (only for text)
-	if binaryData == nil {
-		responseBody = renderMockTemplate(c, responseBody)
-	}
-
-	// Apply delay
-	if matched.DelayMs > 0 {
-		delay := matched.DelayMs
-		if delay > 10000 {
-			delay = 10000 // cap at 10s
-		}
-		time.Sleep(time.Duration(delay) * time.Millisecond)
-	}
-
-	// Set response headers
-	for k, v := range responseHeaders {
-		if sv, ok := v.(string); ok {
-			c.Set(k, sv)
-		}
-	}
-
-	// Set CORS headers for convenience
-	c.Set("X-Wapify-Mock", "true")
 	c.Set("X-Mock-Collection", collectionID)
-
-	if binaryData != nil {
-		return c.Status(statusCode).Send(binaryData)
-	}
-
-	// For Text/JSON, ensure Content-Type is set if not already present
-	if c.Get("Content-Type") == "" {
-		c.Set("Content-Type", "application/json")
-	}
-
-	return c.Status(statusCode).SendString(responseBody)
+	return serveMockEndpoint(c, matched)
 }
 
 // ─── Path matching ────────────────────────────────────────────────────────────
@@ -714,4 +612,234 @@ func normalizePath(path string) string {
 		path = "/" + path
 	}
 	return path
+}
+
+// ─── Standalone Mock Handlers ───────────────────────────────────────────────
+
+func listStandaloneEndpoints(c *fiber.Ctx) error {
+	teamID := c.Params("teamId")
+	if !canAccessTeam(c, uint(parseUint(teamID))) {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Forbidden", "code": "FORBIDDEN"})
+	}
+
+	var endpoints []repository.MockEndpoint
+	repository.DB.Where("team_id = ? AND collection_id IS NULL", teamID).Order("id asc").Find(&endpoints)
+	return c.JSON(endpoints)
+}
+
+func createStandaloneEndpoint(c *fiber.Ctx) error {
+	teamID := uint(parseUint(c.Params("teamId")))
+	if !canAccessTeam(c, teamID) {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Forbidden", "code": "FORBIDDEN"})
+	}
+
+	var input createMockEndpointInput
+	if err := c.BodyParser(&input); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid body", "code": "INVALID_BODY"})
+	}
+
+	if input.Method == "" || input.Path == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "method and path are required", "code": "VALIDATION_ERROR"})
+	}
+
+	endpoint := repository.MockEndpoint{
+		TeamID:          &teamID,
+		CollectionID:    nil,
+		Method:          strings.ToUpper(input.Method),
+		Path:            normalizePath(input.Path),
+		StatusCode:      input.StatusCode,
+		ResponseHeaders: repository.JSONB(input.ResponseHeaders),
+		ResponseBody:    input.ResponseBody,
+		DelayMs:         input.DelayMs,
+		IsActive:        true,
+	}
+
+	if err := repository.DB.Create(&endpoint).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to create endpoint", "code": "DB_ERROR"})
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(endpoint)
+}
+
+func handleStandaloneMockRequest(c *fiber.Ctx) error {
+	teamIDStr := c.Params("team_id")
+	teamID := parseUint(teamIDStr)
+	rawPath := c.Params("*")
+	if !strings.HasPrefix(rawPath, "/") {
+		rawPath = "/" + rawPath
+	}
+	method := strings.ToUpper(c.Method())
+
+	var endpoints []repository.MockEndpoint
+	repository.DB.Where(
+		"team_id = ? AND collection_id IS NULL AND is_active = true AND method = ?",
+		teamID, method,
+	).Find(&endpoints)
+
+	var matched *repository.MockEndpoint
+	for i := range endpoints {
+		ep := &endpoints[i]
+		if matchPath(ep.Path, rawPath) {
+			matched = ep
+			break
+		}
+	}
+
+	if matched == nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"error": "No active standalone mock endpoint found",
+			"code":  "MOCK_NOT_FOUND",
+		})
+	}
+
+	return serveMockEndpoint(c, matched)
+}
+
+// serveMockEndpoint is a shared helper for both collection and standalone mocks
+func serveMockEndpoint(c *fiber.Ctx, matched *repository.MockEndpoint) error {
+	var responseBody string
+	var statusCode int = 200
+	var responseHeaders map[string]interface{}
+	var binaryData []byte
+	found := false
+
+	// EVALUATION LOGIC (copied and refined from previous handleMockRequest)
+	if matched.EvaluationMode == "manual" && matched.ActiveScenarioID != nil {
+		var scenario repository.MockScenario
+		if err := repository.DB.First(&scenario, *matched.ActiveScenarioID).Error; err == nil {
+			if scenario.ResponseType == "file" && scenario.FileBase64 != "" {
+				binaryData, _ = base64.StdEncoding.DecodeString(scenario.FileBase64)
+				c.Set("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", scenario.FileName))
+				ext := filepath.Ext(scenario.FileName)
+				if mimeType := mime.TypeByExtension(ext); mimeType != "" {
+					c.Set("Content-Type", mimeType)
+				}
+			} else {
+				responseBody = scenario.ResponseBody
+			}
+			statusCode = scenario.StatusCode
+			bytes, _ := json.Marshal(scenario.ResponseHeaders)
+			json.Unmarshal(bytes, &responseHeaders)
+			found = true
+		}
+	}
+
+	if !found {
+		var scenarios []repository.MockScenario
+		repository.DB.Where("mock_endpoint_id = ?", matched.ID).Order("order_index asc, id asc").Find(&scenarios)
+		var selected *repository.MockScenario
+		for i := range scenarios {
+			if evaluateScenario(c, &scenarios[i]) {
+				selected = &scenarios[i]
+				break
+			}
+		}
+		if selected == nil {
+			for i := range scenarios {
+				if scenarios[i].IsDefault {
+					selected = &scenarios[i]
+					break
+				}
+			}
+		}
+		if selected != nil {
+			if selected.ResponseType == "file" && selected.FileBase64 != "" {
+				binaryData, _ = base64.StdEncoding.DecodeString(selected.FileBase64)
+				c.Set("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", selected.FileName))
+				ext := filepath.Ext(selected.FileName)
+				if mimeType := mime.TypeByExtension(ext); mimeType != "" {
+					c.Set("Content-Type", mimeType)
+				}
+			} else {
+				responseBody = selected.ResponseBody
+			}
+			statusCode = selected.StatusCode
+			bytes, _ := json.Marshal(selected.ResponseHeaders)
+			json.Unmarshal(bytes, &responseHeaders)
+			found = true
+		}
+	}
+
+	if !found {
+		responseBody = matched.ResponseBody
+		statusCode = matched.StatusCode
+		bytes, _ := json.Marshal(matched.ResponseHeaders)
+		json.Unmarshal(bytes, &responseHeaders)
+	}
+
+	if binaryData == nil {
+		responseBody = renderMockTemplate(c, responseBody)
+	}
+
+	if matched.DelayMs > 0 {
+		time.Sleep(time.Duration(matched.DelayMs) * time.Millisecond)
+	}
+
+	for k, v := range responseHeaders {
+		if sv, ok := v.(string); ok {
+			c.Set(k, sv)
+		}
+	}
+
+	c.Set("X-Wapbolt-Mock", "true")
+
+	if binaryData != nil {
+		return c.Status(statusCode).Send(binaryData)
+	}
+	if c.Get("Content-Type") == "" {
+		c.Set("Content-Type", "application/json")
+	}
+	return c.Status(statusCode).SendString(responseBody)
+}
+
+// ─── Generate Mocks From Collection ──────────────────────────────────────────
+
+func generateMocksFromCollection(c *fiber.Ctx) error {
+	collectionID := c.Params("id")
+	var col repository.Collection
+	if err := repository.DB.First(&col, collectionID).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Collection not found"})
+	}
+
+	var requests []repository.Request
+	repository.DB.Where("collection_id = ?", col.ID).Preload("Examples").Find(&requests)
+
+	count := 0
+	for _, req := range requests {
+		// Create or find endpoint
+		var endpoint repository.MockEndpoint
+		path := extractURLPath(req.URL)
+		err := repository.DB.Where("collection_id = ? AND method = ? AND path = ?", col.ID, req.Method, path).First(&endpoint).Error
+
+		if err != nil { // Not found, create new
+			endpoint = repository.MockEndpoint{
+				CollectionID:   &col.ID,
+				Method:         req.Method,
+				Path:           path,
+				StatusCode:     200,
+				IsActive:       true,
+				EvaluationMode: "auto",
+			}
+			repository.DB.Create(&endpoint)
+		}
+
+		// Create scenarios from examples
+		for _, ex := range req.Examples {
+			var scenario repository.MockScenario
+			err := repository.DB.Where("mock_endpoint_id = ? AND name = ?", endpoint.ID, ex.Name).First(&scenario).Error
+			if err != nil {
+				scenario = repository.MockScenario{
+					MockEndpointID:  endpoint.ID,
+					Name:            ex.Name,
+					StatusCode:      ex.ResponseStatus,
+					ResponseBody:    ex.ResponseBody,
+					ResponseHeaders: ex.ResponseHeaders,
+				}
+				repository.DB.Create(&scenario)
+				count++
+			}
+		}
+	}
+
+	return c.JSON(fiber.Map{"message": fmt.Sprintf("Generated %d mock scenarios", count), "count": count})
 }

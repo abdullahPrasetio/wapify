@@ -9,7 +9,7 @@ import (
 
 	"github.com/gofiber/contrib/websocket"
 	"github.com/gofiber/fiber/v2"
-	"github.com/waluyo/wapify-backend/internal/repository"
+	"github.com/waluyo/wapbolt-backend/internal/repository"
 	"gorm.io/gorm"
 )
 
@@ -24,6 +24,7 @@ const (
 	EventPresenceUpdate WSEventType = "PRESENCE_UPDATE"
 	EventLockUpdate   WSEventType = "LOCK_UPDATE"
 	EventEntityUpdated WSEventType = "ENTITY_UPDATED"
+	EventDonationPrompt WSEventType = "DONATION_PROMPT"
 )
 
 // WSEvent represents the structure of messages exchanged via websocket
@@ -46,12 +47,20 @@ type UserPresence struct {
 
 // Client represents a connected websocket client
 type Client struct {
+	mu              sync.Mutex
 	Conn            *websocket.Conn
 	UserID          uint
 	UserName        string
 	TeamID          uint
 	ActiveRequestID uint // 0 if not focusing on any request
 }
+
+func (c *Client) WriteMessage(messageType int, data []byte) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.Conn.WriteMessage(messageType, data)
+}
+
 
 // Hub manages websocket connections and states
 type Hub struct {
@@ -259,7 +268,7 @@ func (h *Hub) BroadcastPresence(teamID uint, requestID uint) {
 
 	// Broadcast to everyone in the team
 	for c := range h.Clients[teamID] {
-		c.Conn.WriteMessage(websocket.TextMessage, msg)
+		c.WriteMessage(websocket.TextMessage, msg)
 	}
 }
 
@@ -288,7 +297,7 @@ func (h *Hub) BroadcastLockUpdate(teamID uint, requestID uint) {
 	msg, _ := json.Marshal(event)
 
 	for c := range h.Clients[teamID] {
-		c.Conn.WriteMessage(websocket.TextMessage, msg)
+		c.WriteMessage(websocket.TextMessage, msg)
 	}
 }
 
@@ -311,7 +320,7 @@ func (h *Hub) SendLockStatus(client *Client, requestID uint) {
 		Payload:   payload,
 	}
 	msg, _ := json.Marshal(event)
-	client.Conn.WriteMessage(websocket.TextMessage, msg)
+	client.WriteMessage(websocket.TextMessage, msg)
 }
 
 func (h *Hub) CleanupExpiredLocks() {
@@ -364,7 +373,7 @@ func (h *Hub) BroadcastEntityUpdate(teamID uint, entityType string, entityID uin
 	msg, _ := json.Marshal(event)
 
 	for c := range h.Clients[teamID] {
-		c.Conn.WriteMessage(websocket.TextMessage, msg)
+		c.WriteMessage(websocket.TextMessage, msg)
 	}
 }
 
@@ -388,4 +397,26 @@ func LogActivity(db *gorm.DB, teamID uint, userID uint, action string, entityTyp
 		Details:    detailsJSON,
 	}
 	db.Create(&log)
+}
+
+// BroadcastDonationPrompt sends a donation prompt to all connected users or a specific user
+func (h *Hub) BroadcastDonationPrompt(userID uint, message string) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	event := WSEvent{
+		Type: EventDonationPrompt,
+		Payload: map[string]interface{}{
+			"message": message,
+		},
+	}
+	msg, _ := json.Marshal(event)
+
+	for _, teamClients := range h.Clients {
+		for c := range teamClients {
+			if userID == 0 || c.UserID == userID {
+				c.WriteMessage(websocket.TextMessage, msg)
+			}
+		}
+	}
 }

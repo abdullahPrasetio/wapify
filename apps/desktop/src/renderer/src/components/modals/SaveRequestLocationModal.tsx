@@ -28,7 +28,7 @@ export const SaveRequestLocationModal = ({
       if (collections.length > 0 && !selectedCollectionId) {
         setSelectedCollectionId(collections[0].id)
       }
-      // Extract name from draft if possible (Wapify draft tabs usually have name)
+      // Extract name from draft if possible (Wapbolt draft tabs usually have name)
       const tab = tabs.find(t => t.requestId === draftId)
       if (tab) {
          let name = tab.name

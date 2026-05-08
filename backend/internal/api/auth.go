@@ -6,7 +6,8 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/waluyo/wapify-backend/internal/repository"
+	"github.com/waluyo/wapbolt-backend/internal/middleware"
+	"github.com/waluyo/wapbolt-backend/internal/repository"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -20,6 +21,42 @@ func SetupAuthRoutes(app *fiber.App) {
 	authGroup.Post("/login", Login)
 	authGroup.Post("/refresh", Refresh)
 	authGroup.Post("/logout", Logout)
+	authGroup.Put("/change-password", middleware.RequireAuth, ChangePassword)
+}
+
+func ChangePassword(c *fiber.Ctx) error {
+	userID := uint(c.Locals("user_id").(float64))
+	
+	var input struct {
+		OldPassword string `json:"old_password"`
+		NewPassword string `json:"new_password"`
+	}
+	if err := c.BodyParser(&input); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid body"})
+	}
+
+	var user repository.User
+	if err := repository.DB.First(&user, userID).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "User not found"})
+	}
+
+	// Verify old password
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(input.OldPassword)); err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Incorrect old password"})
+	}
+
+	// Hash new password
+	hashed, err := bcrypt.GenerateFromPassword([]byte(input.NewPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to hash password"})
+	}
+
+	user.PasswordHash = string(hashed)
+	if err := repository.DB.Save(&user).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to update password"})
+	}
+
+	return c.JSON(fiber.Map{"message": "Password updated successfully"})
 }
 
 func Login(c *fiber.Ctx) error {

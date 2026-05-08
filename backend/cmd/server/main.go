@@ -8,36 +8,71 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/joho/godotenv"
-	"github.com/waluyo/wapify-backend/internal/api"
-	"github.com/waluyo/wapify-backend/internal/middleware"
-	"github.com/waluyo/wapify-backend/internal/repository"
+	"github.com/waluyo/wapbolt-backend/internal/api"
+	"github.com/waluyo/wapbolt-backend/internal/middleware"
+	"github.com/waluyo/wapbolt-backend/internal/repository"
 )
 
 // LicensePublicKey can be injected via -ldflags during build
 var LicensePublicKey = ""
 
 func main() {
-	// Load environment variables
-	if err := godotenv.Load(); err != nil {
-		log.Println("Warning: No .env file found")
+	if err := Run(); err != nil {
+		log.Fatalf("Fatal: %v", err)
+	}
+}
+
+func Run() error {
+	app, addr, err := PrepareServer()
+	if err != nil {
+		return err
 	}
 
-	// Initialize Database
-	repository.ConnectDB()
+	log.Printf("Starting Wapbolt Backend on %s", addr)
+	if LicensePublicKey != "" {
+		log.Println("Security: Ed25519 License Verification is ACTIVE")
+	}
+
+	return app.Listen(addr)
+}
+
+func PrepareServer() (*fiber.App, string, error) {
+	if os.Getenv("GO_ENV") != "test" {
+		// Load environment variables
+		if err := godotenv.Load(); err != nil {
+			log.Println("Warning: No .env file found")
+		}
+
+		// Initialize Database
+		if err := repository.ConnectDB(); err != nil {
+			return nil, "", err
+		}
+	}
 
 	// Sync User Integrity Signatures
 	api.SyncUserSignatures()
 
+	app := SetupApp()
+
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8000"
+	}
+
+	return app, ":" + port, nil
+}
+
+func SetupApp() *fiber.App {
 	app := fiber.New(fiber.Config{
-		AppName: "Wapify API Server",
+		AppName: "Wapbolt API Server",
 	})
 
 	// Middlewares
 	app.Use(logger.New())
 	app.Use(cors.New(cors.Config{
 		AllowOrigins:  "*",
-		AllowHeaders:  "Origin, Content-Type, Accept, Authorization, X-Wapify-License-Warning",
-		ExposeHeaders: "X-Wapify-License-Warning",
+		AllowHeaders:  "Origin, Content-Type, Accept, Authorization, X-Wapbolt-License-Warning",
+		ExposeHeaders: "X-Wapbolt-License-Warning",
 	}))
 
 	// License Middleware (Offline Validation)
@@ -58,26 +93,15 @@ func main() {
 	api.SetupDocumentationRoutes(app)
 	api.SetupMockServerRoutes(app)
 	api.SetupExampleRoutes(app)
+	api.SetupDonationRoutes(app)
 
 	// Default Route
 	app.Get("/", func(c *fiber.Ctx) error {
 		return c.JSON(fiber.Map{
-			"message": "Wapify API Engine is running",
+			"message": "Wapbolt API Engine is running",
 			"status":  "healthy",
 		})
 	})
 
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8000"
-	}
-
-	log.Printf("Starting Wapify Backend on port %s", port)
-	if LicensePublicKey != "" {
-		log.Println("Security: Ed25519 License Verification is ACTIVE")
-	}
-
-	if err := app.Listen(":" + port); err != nil {
-		log.Fatalf("Failed to start server: %v", err)
-	}
+	return app
 }

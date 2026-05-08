@@ -4,76 +4,89 @@ import (
 	"crypto/ed25519"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
-	"log"
+	"io"
 	"os"
 	"time"
 
 	"github.com/joho/godotenv"
-	"github.com/waluyo/wapify-backend/internal/license"
+	"github.com/waluyo/wapbolt-backend/internal/license"
 )
 
 func main() {
-	// Load .env if exists to get default LICENSE_PRIVATE_KEY
-	// Try loading from the current backend directory
-	_ = godotenv.Load()
-	_ = godotenv.Load(".env")
-	_ = godotenv.Load("../../.env") // In case it's run from within the cmd/license folder
-
-	if len(os.Args) < 2 {
-		printUsage()
+	if err := Run(os.Args, os.Stdout); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
+}
 
-	switch os.Args[1] {
+func Run(args []string, out io.Writer) error {
+	// Load .env if exists (unless in test)
+	if os.Getenv("GO_ENV") != "test" {
+		_ = godotenv.Load()
+		_ = godotenv.Load(".env")
+		_ = godotenv.Load("../../.env")
+	}
+
+	if len(args) < 2 {
+		printUsage(out)
+		return errors.New("missing command")
+	}
+
+	switch args[1] {
 	case "keygen":
-		generateKeypair()
+		return generateKeypair(out)
 	case "generate":
-		generateLicense()
+		return generateLicense(args[2:], out)
 	default:
-		printUsage()
-		os.Exit(1)
+		printUsage(out)
+		return fmt.Errorf("unknown command: %s", args[1])
 	}
 }
 
-func printUsage() {
-	fmt.Println("Wapify License CLI Usage:")
-	fmt.Println("  keygen                          - Generate a new Ed25519 keypair")
-	fmt.Println("  generate [flags]                - Generate a new signed license key")
-	fmt.Println("\nFlags for generate:")
-	fmt.Println("  --name string                   - Client/Organization name")
-	fmt.Println("  --email string                  - Client contact email")
-	fmt.Println("  --duration string               - 1month, 1year, or lifetime (default: 1year)")
-	fmt.Println("  --private-key string            - Private key in Base64 (default: LICENSE_PRIVATE_KEY from .env)")
+func printUsage(out io.Writer) {
+	fmt.Fprintln(out, "Wapbolt License CLI Usage:")
+	fmt.Fprintln(out, "  keygen                          - Generate a new Ed25519 keypair")
+	fmt.Fprintln(out, "  generate [flags]                - Generate a new signed license key")
+	fmt.Fprintln(out, "\nFlags for generate:")
+	fmt.Fprintln(out, "  --name string                   - Client/Organization name")
+	fmt.Fprintln(out, "  --email string                  - Client contact email")
+	fmt.Fprintln(out, "  --duration string               - 1month, 1year, or lifetime (default: 1year)")
+	fmt.Fprintln(out, "  --private-key string            - Private key in Base64 (default: LICENSE_PRIVATE_KEY from .env)")
 }
 
-func generateKeypair() {
+func generateKeypair(out io.Writer) error {
 	pub, priv, err := ed25519.GenerateKey(nil)
 	if err != nil {
-		log.Fatalf("Failed to generate keypair: %v", err)
+		return fmt.Errorf("failed to generate keypair: %v", err)
 	}
 
-	fmt.Println("=== Wapify Keypair Generated ===")
-	fmt.Printf("LICENSE_PRIVATE_KEY=%s\n", base64.StdEncoding.EncodeToString(priv))
-	fmt.Printf("LICENSE_PUBLIC_KEY=%s\n", base64.StdEncoding.EncodeToString(pub))
-	fmt.Println("================================")
-	fmt.Println("Keep the PRIVATE_KEY secret. The PUBLIC_KEY should be embedded in the client binary.")
+	fmt.Fprintln(out, "=== Wapbolt Keypair Generated ===")
+	fmt.Fprintf(out, "LICENSE_PRIVATE_KEY=%s\n", base64.StdEncoding.EncodeToString(priv))
+	fmt.Fprintf(out, "LICENSE_PUBLIC_KEY=%s\n", base64.StdEncoding.EncodeToString(pub))
+	fmt.Fprintln(out, "================================")
+	fmt.Fprintln(out, "Keep the PRIVATE_KEY secret. The PUBLIC_KEY should be embedded in the client binary.")
+	return nil
 }
 
-func generateLicense() {
-	genCmd := flag.NewFlagSet("generate", flag.ExitOnError)
+func generateLicense(args []string, out io.Writer) error {
+	genCmd := flag.NewFlagSet("generate", flag.ContinueOnError)
+	genCmd.SetOutput(out)
 	name := genCmd.String("name", "", "Client name")
 	email := genCmd.String("email", "", "Client email")
 	duration := genCmd.String("duration", "1year", "1month, 1year, lifetime")
 	privKeyFlag := genCmd.String("private-key", "", "Private key Base64")
 
-	genCmd.Parse(os.Args[2:])
+	if err := genCmd.Parse(args); err != nil {
+		return err
+	}
 
 	if *name == "" || *email == "" {
-		fmt.Println("Error: --name and --email are required")
-		genCmd.PrintDefaults()
-		os.Exit(1)
+		fmt.Fprintln(out, "Error: --name and --email are required")
+		genCmd.Usage()
+		return errors.New("missing required flags")
 	}
 
 	// Determine Private Key
@@ -83,12 +96,12 @@ func generateLicense() {
 	}
 
 	if privKeyStr == "" {
-		log.Fatal("Error: License private key is not provided (use --private-key or set LICENSE_PRIVATE_KEY in .env)")
+		return errors.New("Error: License private key is not provided (use --private-key or set LICENSE_PRIVATE_KEY in .env)")
 	}
 
 	privKeyBytes, err := base64.StdEncoding.DecodeString(privKeyStr)
 	if err != nil || len(privKeyBytes) != ed25519.PrivateKeySize {
-		log.Fatalf("Error: Invalid private key format or size: %v", err)
+		return fmt.Errorf("Error: Invalid private key format or size: %v", err)
 	}
 
 	privKey := ed25519.PrivateKey(privKeyBytes)
@@ -111,7 +124,7 @@ func generateLicense() {
 	case "lifetime":
 		validUntil = time.Now().AddDate(100, 0, 0)
 	default:
-		log.Fatalf("Error: Invalid duration '%s'. Use 1month, 1year, or lifetime.", *duration)
+		return fmt.Errorf("Error: Invalid duration '%s'. Use 1month, 1year, or lifetime.", *duration)
 	}
 
 	payload := license.LicensePayload{
@@ -128,11 +141,12 @@ func generateLicense() {
 		base64.StdEncoding.EncodeToString(signature),
 	)
 
-	fmt.Println("=== License Generated Successfully ===")
-	fmt.Printf("Client:      %s\n", *name)
-	fmt.Printf("Email:       %s\n", *email)
-	fmt.Printf("Valid Until: %s\n", validUntil.Format("2006-01-02"))
-	fmt.Println("--------------------------------------")
-	fmt.Printf("LICENSE_KEY:\n%s\n", licenseKey)
-	fmt.Println("======================================")
+	fmt.Fprintln(out, "=== License Generated Successfully ===")
+	fmt.Fprintf(out, "Client:      %s\n", *name)
+	fmt.Fprintf(out, "Email:       %s\n", *email)
+	fmt.Fprintf(out, "Valid Until: %s\n", validUntil.Format("2006-01-02"))
+	fmt.Fprintln(out, "--------------------------------------")
+	fmt.Fprintf(out, "LICENSE_KEY:\n%s\n", licenseKey)
+	fmt.Fprintln(out, "======================================")
+	return nil
 }

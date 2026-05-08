@@ -6,7 +6,8 @@ interface RequestConfig {
   method: string
   url: string
   headers?: Record<string, string>
-  body?: string
+  body?: any
+  body_type?: string
 }
 
 interface IpcResponse {
@@ -23,23 +24,26 @@ const api = {
    * Kirim HTTP request via Electron Main Process.
    * Ini memastikan request BEBAS CORS karena dikirim dari Node.js, bukan browser.
    */
-  wapifyRequest: (config: RequestConfig): Promise<IpcResponse> => {
-    return ipcRenderer.invoke('wapify:request', config)
+  wapboltRequest: (config: RequestConfig): Promise<IpcResponse> => {
+    return ipcRenderer.invoke('wapbolt:request', config)
   },
   setToken: (token: string): Promise<void> => {
-    return ipcRenderer.invoke('wapify:set-token', token)
+    return ipcRenderer.invoke('wapbolt:set-token', token)
   },
   getToken: (): Promise<string | null> => {
-    return ipcRenderer.invoke('wapify:get-token')
+    return ipcRenderer.invoke('wapbolt:get-token')
   },
   deleteToken: (): Promise<void> => {
-    return ipcRenderer.invoke('wapify:delete-token')
+    return ipcRenderer.invoke('wapbolt:delete-token')
   },
   getAppVersion: (): Promise<string> => {
-    return ipcRenderer.invoke('wapify:get-version')
+    return ipcRenderer.invoke('wapbolt:get-version')
+  },
+  reloadApp: (): void => {
+    ipcRenderer.send('wapbolt:reload')
   },
   parseCurl: (curlCommand: string): Promise<any> => {
-    return ipcRenderer.invoke('wapify:parse-curl', curlCommand)
+    return ipcRenderer.invoke('wapbolt:parse-curl', curlCommand)
   }
 }
 

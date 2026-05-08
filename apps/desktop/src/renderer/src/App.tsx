@@ -5,6 +5,9 @@ import { LoginPage } from './components/auth/LoginPage'
 import { Toaster, toast } from 'sonner'
 import { initWebSocketIntegration } from './api/websocket'
 import { Key, AlertCircle, RefreshCw } from 'lucide-react'
+import { DonationModal } from './components/modals/DonationModal'
+import { apiClient } from './api/client'
+import { useAppStore } from './store/useAppStore'
 
 // Initialize WebSocket sync logic
 initWebSocketIntegration()
@@ -27,12 +30,12 @@ function App(): React.JSX.Element {
     }
     const handleLicenseWarning = (e: Event) => {
       const detail = (e as CustomEvent).detail
-      toast.warning(`${detail.message} Visit wapify.temancode.my.id to renew.`, {
+      toast.warning(`${detail.message} Visit wapbolt.temancode.my.id to renew.`, {
         id: 'license-warning', // Prevent duplicates
         duration: 10000,
         action: {
           label: 'Renew',
-          onClick: () => window.open('https://wapify.temancode.my.id', '_blank')
+          onClick: () => window.open('https://wapbolt.temancode.my.id', '_blank')
         }
       })
     }
@@ -44,18 +47,36 @@ function App(): React.JSX.Element {
       })
     }
 
-    window.addEventListener('wapify:auth-expired', handleAuthExpired)
-    window.addEventListener('wapify:license-invalid', handleLicenseInvalid)
-    window.addEventListener('wapify:license-warning', handleLicenseWarning)
-    window.addEventListener('wapify:access-denied', handleAccessDenied)
+    window.addEventListener('wapbolt:auth-expired', handleAuthExpired)
+    window.addEventListener('wapbolt:license-invalid', handleLicenseInvalid)
+    window.addEventListener('wapbolt:license-warning', handleLicenseWarning)
+    window.addEventListener('wapbolt:access-denied', handleAccessDenied)
 
     return () => {
-      window.removeEventListener('wapify:auth-expired', handleAuthExpired)
-      window.removeEventListener('wapify:license-invalid', handleLicenseInvalid)
-      window.removeEventListener('wapify:license-warning', handleLicenseWarning)
-      window.removeEventListener('wapify:access-denied', handleAccessDenied)
+      window.removeEventListener('wapbolt:auth-expired', handleAuthExpired)
+      window.removeEventListener('wapbolt:license-invalid', handleLicenseInvalid)
+      window.removeEventListener('wapbolt:license-warning', handleLicenseWarning)
+      window.removeEventListener('wapbolt:access-denied', handleAccessDenied)
     }
   }, [logout])
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      const checkDonation = async () => {
+        try {
+          const res = await apiClient.get<{ show: boolean; message: string }>('/api/v1/donations/check')
+          if (res.status === 200 && res.data.show) {
+            const appStore = useAppStore.getState()
+            appStore.setDonationMessage(res.data.message)
+            appStore.setDonationModalOpen(true)
+          }
+        } catch (e) {
+          console.error('Failed to check donation status:', e)
+        }
+      }
+      checkDonation()
+    }
+  }, [isAuthenticated])
 
   if (licenseError) {
     return (
@@ -77,7 +98,7 @@ function App(): React.JSX.Element {
           <div className="bg-background/50 border border-border rounded-xl p-4 mb-8 flex items-start gap-3">
             <AlertCircle size={16} className="text-warning shrink-0 mt-0.5" />
             <div className="text-[11px] text-muted leading-normal">
-              To renew your license or get a new key, please visit our portal at <a href="https://wapify.temancode.my.id" target="_blank" rel="noreferrer" className="text-primary hover:underline font-bold">wapify.temancode.my.id</a> or update your server configuration.
+              To renew your license or get a new key, please visit our portal at <a href="https://wapbolt.temancode.my.id" target="_blank" rel="noreferrer" className="text-primary hover:underline font-bold">wapbolt.temancode.my.id</a> or update your server configuration.
             </div>
           </div>
 
@@ -90,7 +111,7 @@ function App(): React.JSX.Element {
               Check Again
             </button>
             <a 
-              href="https://wapify.temancode.my.id" 
+              href="https://wapbolt.temancode.my.id" 
               target="_blank" 
               rel="noreferrer"
               className="w-full py-3 bg-white/5 hover:bg-white/10 text-white rounded-lg font-bold transition-all flex items-center justify-center gap-2 border border-white/10"
@@ -109,7 +130,7 @@ function App(): React.JSX.Element {
         <div className="flex flex-col items-center gap-4">
           <div className="w-10 h-10 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
           <span className="text-muted text-sm font-medium animate-pulse">
-            Initializing Wapify...
+            Initializing Wapbolt...
           </span>
         </div>
       </div>
@@ -129,6 +150,7 @@ function App(): React.JSX.Element {
     <>
       <Toaster position="bottom-right" theme="dark" richColors />
       <AppLayout />
+      <DonationModal />
     </>
   )
 }

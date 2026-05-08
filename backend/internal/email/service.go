@@ -18,7 +18,7 @@ func SendWelcomeEmail(toEmail, name, password string) error {
 	client := resend.NewClient(apiKey)
 
 	htmlContent := fmt.Sprintf(`
-		<h1>Welcome to Wapify, %s!</h1>
+		<h1>Welcome to Wapbolt, %s!</h1>
 		<p>Your account has been created by the administrator.</p>
 		<p><strong>Login Credentials:</strong></p>
 		<ul>
@@ -27,13 +27,13 @@ func SendWelcomeEmail(toEmail, name, password string) error {
 		</ul>
 		<p>Please change your password after logging in.</p>
 		<br/>
-		<p>Best regards,<br/>Wapify Team</p>
+		<p>Best regards,<br/>Wapbolt Team</p>
 	`, name, toEmail, password)
 
 	params := &resend.SendEmailRequest{
-		From:    "Wapify <noreply@wapify.io>",
+		From:    "Wapbolt <noreply@wapbolt.io>",
 		To:      []string{toEmail},
-		Subject: "Welcome to Wapify - Your Account Credentials",
+		Subject: "Welcome to Wapbolt - Your Account Credentials",
 		Html:    htmlContent,
 	}
 

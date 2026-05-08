@@ -27,7 +27,7 @@ import {
   useSortable
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { apiClient } from '../../api/client'
+import { apiClient, getBaseUrl } from '../../api/client'
 import type { MockEndpoint, MockScenario, MockCondition } from '../../types'
 import { toast } from 'sonner'
 import Editor from '@monaco-editor/react'
@@ -154,14 +154,19 @@ export const ScenariosPanel: React.FC<ScenariosPanelProps> = ({
     if (!endpoint?.id) return
     try {
       const res = await apiClient.get<MockScenario[]>(
-        `/api/v1/collections/${endpoint.collection_id}/mock/endpoints/${endpoint.id}/scenarios`
+        `/api/v1/mock-endpoints/${endpoint.id}/scenarios`
       )
       const data = res.data as MockScenario[]
-      setScenarios(data)
-      if (data.length > 0 && !activeScenarioId) {
-        const first = data[0]
-        setActiveScenarioId(first.id)
-        setEditingScenario(first)
+      
+      if (Array.isArray(data)) {
+        setScenarios(data)
+        if (data.length > 0 && !activeScenarioId) {
+          const first = data[0]
+          setActiveScenarioId(first.id)
+          setEditingScenario(first)
+        }
+      } else {
+        setScenarios([])
       }
     } catch {
       toast.error('Failed to load scenarios')
@@ -176,7 +181,7 @@ export const ScenariosPanel: React.FC<ScenariosPanelProps> = ({
     if (!endpoint?.id || !scenarioId) return
     try {
       await apiClient.patch(
-        `/api/v1/collections/${endpoint.collection_id}/mock/endpoints/${endpoint.id}/mode`,
+        `/api/v1/mock-endpoints/${endpoint.id}/mode`,
         { evaluation_mode: mode, active_scenario_id: scenarioId }
       )
       onUpdateEndpoint({ ...endpoint, evaluation_mode: mode, active_scenario_id: scenarioId })
@@ -189,7 +194,7 @@ export const ScenariosPanel: React.FC<ScenariosPanelProps> = ({
     if (!endpoint?.id) return
     try {
       const res = await apiClient.post<MockScenario>(
-        `/api/v1/collections/${endpoint.collection_id}/mock/endpoints/${endpoint.id}/scenarios`,
+        `/api/v1/mock-endpoints/${endpoint.id}/scenarios`,
         {
           name: 'New Scenario',
           status_code: 200,
@@ -217,12 +222,12 @@ export const ScenariosPanel: React.FC<ScenariosPanelProps> = ({
       toast.error('Cannot save: Scenario ID is missing. Try creating a new one.')
       return
     }
-    if (!endpoint?.id || !endpoint?.collection_id) return
+    if (!endpoint?.id) return
 
     setSaving(true)
     try {
       const res = await apiClient.put<MockScenario>(
-        `/api/v1/collections/${endpoint.collection_id}/mock/endpoints/${endpoint.id}/scenarios/${editingScenario.id}`,
+        `/api/v1/mock-endpoints/${endpoint.id}/scenarios/${editingScenario.id}`,
         editingScenario
       )
       const updated = res.data as MockScenario
@@ -250,7 +255,9 @@ export const ScenariosPanel: React.FC<ScenariosPanelProps> = ({
   }
 
   const copyAsCurl = (s: MockScenario) => {
-    const mockBaseUrl = `http://localhost:8000/mock/${endpoint.collection_id}`
+    const mockBaseUrl = endpoint.collection_id 
+      ? `${getBaseUrl()}/mock/${endpoint.collection_id}`
+      : `${getBaseUrl()}/mock/w/${endpoint.team_id}`
     const url = `${mockBaseUrl}${endpoint.path}`
     
     const queryParams: Record<string, string> = {}
@@ -291,13 +298,19 @@ export const ScenariosPanel: React.FC<ScenariosPanelProps> = ({
     // Build body string
     let bodyPart = ''
     if (Object.keys(bodyObj).length > 0) {
-      bodyPart = ` \\\n     -d '${JSON.stringify(bodyObj, null, 2)}'`
+      if (headers['Content-Type'] === 'application/x-www-form-urlencoded') {
+        const params = new URLSearchParams()
+        Object.entries(bodyObj).forEach(([k, v]) => params.append(k, String(v)))
+        bodyPart = ` \\\n     -d '${params.toString()}'`
+      } else {
+        bodyPart = ` \\\n     -d '${JSON.stringify(bodyObj, null, 2)}'`
+      }
     } else if (endpoint.method !== 'GET' && endpoint.method !== 'HEAD') {
       // Add empty JSON if method usually requires body but none in conditions
       bodyPart = ` \\\n     -d '{}'`
     }
 
-    const curl = `curl -X ${endpoint.method} "${url}${qs}" \\\n     ${headerLines.join(' \\\n     ')}${bodyPart}`
+    const curl = `curl -k -X ${endpoint.method} "${url}${qs}" \\\n     ${headerLines.join(' \\\n     ')}${bodyPart}`
     
     navigator.clipboard.writeText(curl)
     toast.success(`cURL for "${s.name}" copied with required data!`)
@@ -305,9 +318,9 @@ export const ScenariosPanel: React.FC<ScenariosPanelProps> = ({
 
   const handleDeleteScenario = async (id: number) => {
     if (!id || id.toString() === 'undefined') return
-    if (!window.confirm('Delete this scenario?') || !endpoint?.id || !endpoint?.collection_id) return
+    if (!window.confirm('Delete this scenario?') || !endpoint?.id) return
     try {
-      await apiClient.delete(`/api/v1/collections/${endpoint.collection_id}/mock/endpoints/${endpoint.id}/scenarios/${id}`)
+      await apiClient.delete(`/api/v1/mock-endpoints/${endpoint.id}/scenarios/${id}`)
       setScenarios(prev => prev.filter(s => s.id !== id))
       if (activeScenarioId === id) {
         setActiveScenarioId(null)
@@ -331,7 +344,7 @@ export const ScenariosPanel: React.FC<ScenariosPanelProps> = ({
     setScenarios(updatedWithOrder)
 
     try {
-      await apiClient.patch(`/api/v1/collections/${endpoint.collection_id}/mock/endpoints/${endpoint.id}/scenarios/reorder`, {
+      await apiClient.patch(`/api/v1/mock-endpoints/${endpoint.id}/scenarios/reorder`, {
         scenarios: updatedWithOrder.map(s => ({ id: s.id, order_index: s.order_index }))
       })
     } catch {
@@ -376,7 +389,7 @@ export const ScenariosPanel: React.FC<ScenariosPanelProps> = ({
     reader.readAsDataURL(file)
   }
 
-  const sortableIds = useMemo(() => scenarios.map(s => s.id), [scenarios])
+  const sortableIds = useMemo(() => (scenarios || []).map(s => s.id), [scenarios])
 
   return (
     <div className="flex flex-col h-full bg-surface">

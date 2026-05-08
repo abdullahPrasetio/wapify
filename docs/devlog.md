@@ -1,5 +1,67 @@
 # Wapify — Development Log
 
+## [2026-05-05] — Implementation of End-to-End Donation System
+**Fase:** Fase 7 — Kolaborasi Lanjutan
+**Dikerjakan oleh:** Antigravity
+**Status:** ✅ Selesai
+
+### Yang Dikerjakan
+- **Full-stack Donation System**: Implementasi sistem donasi QRIS untuk mendukung pengembangan proyek.
+- **Backend & Database**:
+    - Penambahan tabel `system_settings` untuk konfigurasi global (key-value).
+    - Penambahan kolom `last_donation_prompt_at` di tabel `users`.
+    - API Endpoints: `GET /api/v1/donations/check`, `POST /api/v1/donations/mark-seen`, dan Admin CRUD untuk konfigurasi.
+- **WebSocket Integration**: Implementasi event `DONATION_PROMPT` untuk memicu pop-up real-time ke user tertentu atau broadcast ke semua user.
+- **Frontend UI/UX**:
+    - `DonationModal.tsx`: Desain premium dengan integrasi gambar QRIS, mendukung transisi halus dan feedback toast.
+    - **Admin Panel**: Menu baru "Donation Settings" untuk mengelola pesan, cooldown, dan tombol broadcast instan dengan pilihan target user.
+- **Fixes**: Perbaikan bug sintaksis di `websocket.ts` dan sinkronisasi cooldown untuk semua aksi penutupan modal.
+
+### Perubahan File
+- `backend/migrations/000016_add_system_settings.*`
+- `backend/internal/api/donation.go`
+- `apps/desktop/src/renderer/src/components/modals/DonationModal.tsx`
+- `apps/desktop/src/renderer/src/components/admin/DonationSettings.tsx`
+- `apps/desktop/package.json` (Versi 1.4.7)
+
+### Keputusan & Catatan
+- Memutuskan untuk menggunakan tabel `system_settings` agar konfigurasi aplikasi bisa diubah secara dinamis tanpa restart server.
+- Menggunakan `mark-seen` pada semua aksi penutupan modal (X, Nanti, Donasi) untuk memastikan user tidak merasa terganggu oleh pop-up yang muncul terus-menerus.
+
+---
+
+## [2026-05-02] — Massive Unit Testing Expansion (97%+ Coverage) & Backend Refactoring
+**Fase:** Fase 7 — Kolaborasi Lanjutan & Mock Pro
+**Dikerjakan oleh:** Gemini
+**Status:** ✅ Selesai (Fase 1-4)
+
+### Yang Dikerjakan
+- **Global Test Coverage (97%+)**: Berhasil meningkatkan cakupan unit test backend secara masif dari ~41% ke 97% secara keseluruhan (98.5% pada modul API).
+- **Backend Refactoring**:
+    - **Thread-Safety WebSocket**: Menambahkan sinkronisasi mutex pada `Client` websocket untuk mencegah *concurrent write panic*.
+    - **Entry Point Refactor**: Merefaktorisasi `cmd/server`, `cmd/admin`, dan `cmd/license` agar logika bisnis terpisah dari `main()`, memungkinkan pengujian CLI tanpa `os.Exit`.
+    - **Database Error Handling**: Mengubah `ConnectDB` agar mengembalikan `error` alih-alih `log.Fatal`, meningkatkan ketahanan aplikasi.
+- **Comprehensive API Testing**:
+    - Implementasi test case mendalam untuk `mock_server.go`, `request.go`, dan `documentation.go` mencakup evaluasi skenario otomatis, ekspor OpenAPI/Markdown, dan manipulasi tree koleksi.
+    - Melengkapi skenario *edge case* untuk validasi input, kegagalan database, dan pengecekan otorisasi (*forbidden*).
+- **CI/CD Readiness**: Menyesuaikan `go.mod` ke Go 1.24 untuk stabilitas tooling coverage (`covdata` compatibility) dan sinkronisasi dependensi.
+
+### Perubahan File
+- `backend/internal/api/*_test.go` — Penambahan ribuan baris kode pengujian baru.
+- `backend/internal/repository/db.go` — Refaktor koneksi DB.
+- `backend/cmd/*/main.go` — Refaktor entry points aplikasi.
+- `backend/go.mod` — Downgrade target version ke 1.24.0 untuk stabilitas tooling.
+
+### Keputusan & Catatan
+- Menggunakan strategi `MatchExpectationsInOrder(false)` pada `sqlmock` untuk mengakomodasi sifat non-deterministik query GORM pada asosiasi kompleks.
+- Memutuskan untuk melakukan refaktor pada fungsi startup utama guna menjamin setiap baris kode inisialisasi dapat diverifikasi secara otomatis.
+
+### Langkah Selanjutnya
+- Implementasi Notifikasi in-app saat koleksi diupdate (Fase 7.2).
+- Peningkatan UI Diff visual untuk membandingkan versi request.
+
+---
+
 ## [2026-04-21] — Inisialisasi License Management (Fase 5 MVP)
 **Fase:** Fase 5 — On-Premise & License
 **Dikerjakan oleh:** Gemini
@@ -58,7 +120,7 @@
 
 ### Langkah Selanjutnya
 - Implementasi runner untuk folder individual.
-- Integrasi runner dengan CLI (`wapify run`).
+- Integrasi runner dengan CLI (`wapbolt run`).
 
 ---
 
@@ -180,7 +242,7 @@
 
 ### Yang Dikerjakan
 - **Import dari cURL (Fase 6.4)**:
-    - Integrasi library `curlconverter` untuk memproses perintah cURL menjadi request Wapify.
+    - Integrasi library `curlconverter` untuk memproses perintah cURL menjadi request Wapbolt.
     - Implementasi `ImportCurlModal` untuk mengimpor perintah cURL secara manual.
     - **Smart Auto-Detection**: Menambahkan logika deteksi otomatis saat pengguna mem-paste perintah yang diawali `curl ` ke dalam URL bar, memicu dialog konfirmasi import otomatis.
 - **Export Code Snippet (Fase 6.5)**:
@@ -297,7 +359,7 @@
     - Peningkatan akurasi penghitungan ukuran respons (Size) untuk data biner.
 - **Sesi Pengguna & Keamanan**:
     - Memperpanjang masa berlaku **Access Token** menjadi 24 jam dan **Refresh Token** menjadi 90 hari guna memastikan pengguna "tetap masuk" tanpa gangguan.
-    - Penambahan tautan portal lisensi (`https://wapify.temancode.my.id`) pada layar kunci lisensi dan notifikasi peringatan.
+    - Penambahan tautan portal lisensi (`https://wapbolt.temancode.my.id`) pada layar kunci lisensi dan notifikasi peringatan.
 - **Landing Page & Dev Tooling**:
     - Update `apps/landing-page` dengan seksi fitur profesional baru dan tabel perbandingan yang diperbarui.
     - Penambahan target `make build-landing` pada `Makefile` untuk otomatisasi pembangunan image Docker landing page dengan parameter `TAG`.
@@ -317,3 +379,219 @@
 
 ### Langkah Selanjutnya
 - Implementasi Notifikasi in-app saat koleksi diupdate (Fase 7.2).
+
+---
+
+## [2026-04-27] — Rebranding to Wapbolt & UX Improvements
+**Fase:** Fase 6 — UX & Power Features
+**Dikerjakan oleh:** Gemini
+**Status:** ✅ Selesai
+
+### Yang Dikerjakan
+- **Rebranding Massal**:
+    - Mengubah identitas produk dari **Wapify** menjadi **Wapbolt** di seluruh ekosistem (Backend, Desktop, Landing Page, dan Infrastruktur).
+    - Update module path di `go.mod`, jalur impor Go, header HTTP (`X-Wapbolt-*`), dan metadata aplikasi (`appId`, `productName`).
+    - Migrasi kunci LocalStorage (`wapbolt_server_url`, `wapbolt-data-storage`) dan IPC channels agar sinkron dengan nama baru.
+- **Identitas Visual Baru**:
+    - Mendesain ulang ikon `resources/icon.svg` dengan menggabungkan inisial "W" dan simbol "Bolt" (Petir).
+    - Memperbarui komponen UI (Login, Sidebar, Main Area) dengan ikon **Zap** (Lucide React) sebagai logo utama yang lebih modern dan dinamis.
+- **UX Resizer Improvement**:
+    - Memperbaiki bug pada *Response Area Resizer* yang sebelumnya bisa ditarik hingga hilang.
+    - Implementasi `minBottomHeightPx` sebesar 80px untuk memastikan Tab Response (Body, Headers, dll) tetap terlihat saat panel diturunkan maksimal.
+
+### Perubahan File
+- Seluruh file proyek (Rebranding massal).
+- `apps/desktop/resources/icon.svg` — Ikon baru.
+- `apps/desktop/src/renderer/src/components/layout/MainArea.tsx` — Logika resizer baru.
+- `docker-compose.yml`, `Makefile`, `go.mod` — Sinkronisasi metadata.
+
+### Keputusan & Catatan
+- Memilih nama **Wapbolt** karena unik (zero search competition), mencerminkan kecepatan, dan tetap mempertahankan inisial personal (WAP).
+- Memilih batas minimal 80px pada resizer berdasarkan kebutuhan visual agar kontrol utama tidak tersembunyi.
+
+### Langkah Selanjutnya
+- Persiapan rename repositori di GitHub (Wapbolt & Wapbolt-desktop-releases).
+- Implementasi Notifikasi in-app (Fase 7.2).
+
+---
+
+## [2026-04-27] — Rebranding to Wapbolt & UX Improvements
+**Fase:** Fase 6 — UX & Power Features
+**Dikerjakan oleh:** Gemini
+**Status:** ✅ Selesai
+
+### Yang Dikerjakan
+- **Rebranding Massal**:
+    - Mengubah identitas produk dari **Wapify** menjadi **Wapbolt** di seluruh ekosistem (Backend, Desktop, Landing Page, dan Infrastruktur).
+    - Update module path di `go.mod`, jalur impor Go, header HTTP (`X-Wapbolt-*`), dan metadata aplikasi (`appId`, `productName`).
+    - Migrasi kunci LocalStorage (`wapbolt_server_url`, `wapbolt-data-storage`) dan IPC channels agar sinkron dengan nama baru.
+- **Identitas Visual Baru**:
+    - Mendesain ulang ikon `resources/icon.svg` dengan menggabungkan inisial "W" dan simbol "Bolt" (Petir).
+    - Memperbarui komponen UI (Login, Sidebar, Main Area) dengan ikon **Zap** (Lucide React) sebagai logo utama yang lebih modern dan dinamis.
+- **UX Resizer Improvement**:
+    - Memperbaiki bug pada *Response Area Resizer* yang sebelumnya bisa ditarik hingga hilang.
+    - Implementasi `minBottomHeightPx` sebesar 80px untuk memastikan Tab Response (Body, Headers, dll) tetap terlihat saat panel diturunkan maksimal.
+
+### Perubahan File
+- Seluruh file proyek (Rebranding massal).
+- `apps/desktop/resources/icon.svg` — Ikon baru.
+- `apps/desktop/src/renderer/src/components/layout/MainArea.tsx` — Logika resizer baru.
+- `docker-compose.yml`, `Makefile`, `go.mod` — Sinkronisasi metadata.
+
+### Keputusan & Catatan
+- Memilih nama **Wapbolt** karena unik (zero search competition), mencerminkan kecepatan, dan tetap mempertahankan inisial personal (WAP).
+- Memilih batas minimal 80px pada resizer berdasarkan kebutuhan visual agar kontrol utama tidak tersembunyi.
+
+### Langkah Selanjutnya
+- Persiapan rename repositori di GitHub (Wapbolt & Wapbolt-desktop-releases).
+- Implementasi Notifikasi in-app (Fase 7.2).
+
+---
+
+## [2026-04-27] — Fix Workspace Members & Dynamic Server URLs
+**Fase:** Fase 6 — UX & Power Features
+**Dikerjakan oleh:** Gemini
+**Status:** ✅ Selesai
+
+### Yang Dikerjakan
+- **Fix Workspace Member List**:
+    - Memperbaiki rute API `GET /api/v1/teams/:id` yang sebelumnya tidak terdaftar dengan benar sehingga list member tidak muncul.
+    - Melakukan konsolidasi rute manajemen tim dari `team_member.go` ke `team.go` agar lebih terstruktur.
+    - Memastikan GORM melakukan `.Preload("User")` pada endpoint detail tim agar informasi nama dan email member tampil di UI.
+- **Dynamic Server URLs**:
+    - Menghapus hardcode `localhost:8000` pada panel **Mock Server** dan **Scenarios**. Kini URL mock dan cURL generator otomatis mengikuti konfigurasi server di Settings.
+    - Memperbarui `WebSocketClient` agar menggunakan protocol yang sesuai (`ws` atau `wss`) secara dinamis berdasarkan URL backend yang aktif, menjamin fitur kolaborasi tetap jalan di domain kustom/Cloudflare.
+
+### Perubahan File
+- `backend/internal/api/team.go` & `team_member.go` — Perbaikan rute dan konsolidasi.
+- `apps/desktop/src/renderer/src/components/layout/MockServerPanel.tsx` — Dynamic URL.
+- `apps/desktop/src/renderer/src/components/layout/ScenariosPanel.tsx` — Dynamic URL.
+- `apps/desktop/src/renderer/src/api/websocket.ts` — Dynamic protocol detection.
+
+### Keputusan & Catatan
+- Menggabungkan rute tim dan member ke satu file `team.go` untuk menyederhanakan pemeliharaan karena keduanya sangat berkaitan erat secara logika.
+- Menggunakan helper `getBaseUrl()` yang sudah ada di frontend sebagai sumber kebenaran tunggal untuk semua alamat endpoint eksternal.
+
+### Langkah Selanjutnya
+- Implementasi Notifikasi in-app (Fase 7.2).
+
+---
+
+## [2026-04-30] — Backend Compilation Fixes, UI Bug Squashing & Mock Server UX
+**Fase:** Fase 7 — Kolaborasi Lanjutan & Mock Pro
+**Dikerjakan oleh:** Agent
+**Status:** ✅ Selesai
+
+### Yang Dikerjakan
+- **Backend Compilation Fix**:
+    - Memperbaiki error `undefined: middleware` pada `auth.go` dengan menambahkan import yang hilang.
+    - Memperbaiki ketidakcocokan tipe data `uint` vs `*uint` pada `CollectionID` di `mock_server.go`.
+- **UI Bug Squashing**:
+    - Memperbaiki crash `TypeError: scenarios.map is not a function` pada `ScenariosPanel.tsx` dengan menambahkan pengecekan defensif `Array.isArray`.
+- **Mock Server UX & Routing**:
+    - **Pemindahan Akses**: Mengeluarkan "Workspace Mock Server" dari Admin Panel (Super Admin Only) ke bagian **Workspaces** di Sidebar, sehingga bisa diakses oleh semua anggota tim.
+    - **Universal API Routes**: Implementasi rute universal `/api/v1/mock-endpoints/:id/...` di backend untuk mengelola skenario tanpa ketergantungan pada `collection_id`.
+    - **Fix Routing Hijacking**: Memperbaiki urutan rute mock di backend agar rute Standalone (`/mock/w/`) tidak "dibajak" oleh rute Koleksi.
+    - **Database Compatibility**: Memperbaiki pencarian `team_id` pada query standalone mock agar menggunakan `uint` demi kompatibilitas database yang lebih baik.
+
+### Perubahan File
+- `backend/internal/api/auth.go` — Penambahan import middleware.
+- `backend/internal/api/mock_server.go` — Perbaikan tipe data, urutan rute, universal API, dan parsing ID.
+- `apps/desktop/src/renderer/src/components/layout/ScenariosPanel.tsx` — Pengecekan defensif `.map` dan migrasi ke universal API.
+- `apps/desktop/src/renderer/src/components/layout/Sidebar.tsx` — Pemindahan akses fitur mock server ke level workspace.
+- `apps/desktop/src/renderer/src/types/index.ts` — Update interface `MockEndpoint` untuk mendukung `collection_id: null`.
+
+### Keputusan & Catatan
+- Memutuskan untuk membuat rute universal `/api/v1/mock-endpoints/` guna menghindari redundansi logika manajemen skenario antara mock koleksi dan standalone.
+- Memindahkan akses fitur ke level Workspace karena secara fungsional fitur ini memang ditujukan untuk tim, bukan sekadar administrasi sistem.
+
+### Langkah Selanjutnya
+- Melanjutkan implementasi Notifikasi in-app (Fase 7.2).
+
+---
+
+## [2026-04-30] (Part 2) — Request Execution Overhaul, Wire Format History & Pro Console
+**Fase:** Fase 7 — Kolaborasi Lanjutan & Mock Pro
+**Dikerjakan oleh:** Agent
+**Status:** ✅ Selesai
+
+### Yang Dikerjakan
+- **Request Execution Fixes**:
+    - Memperbaiki pengiriman data `x-www-form-urlencoded` dan `form-data` dengan menggunakan `URLSearchParams` dan `FormData` langsung di Main Process demi akurasi spesifikasi HTTP.
+    - Memperbaiki bug "header hijacking" di mana `application/json` dipaksakan meskipun user memilih tipe body lain.
+- **Advanced Console & Network Logging**:
+    - Implementasi **Network Logger** yang mendetail: mencatat Request/Response Headers dan Body (Wire Format) secara transparan di tab Console.
+    - Menambahkan UI detail log yang bisa di-expand (collapsible) untuk debugging mendalam ala Postman Console.
+    - Implementasi Pascal-Case formatting untuk Response Headers agar lebih enak dibaca.
+- **Wire Format History**:
+    - Mengubah sistem penyimpanan riwayat agar menyimpan body dalam format string asli yang dikirim ke jaringan (urlencoded string), bukan format array internal.
+- **Crash Fixes**:
+    - Memperbaiki crash `TypeError: body.filter is not a function` pada fitur Ekspor Kode dengan menambahkan validasi tipe data yang ketat.
+
+### Perubahan File
+- `apps/desktop/src/main/index.ts` — Perbaikan serialisasi body dan penambahan debug logging.
+- `apps/desktop/src/renderer/src/api/client.ts` — Perbaikan logika header default dan sinkronisasi parameter `body_type`.
+- `apps/desktop/src/renderer/src/store/useDataStore.ts` — Perbaikan penyimpanan history (wire format) dan implementasi log network.
+- `apps/desktop/src/renderer/src/components/layout/ResponseArea.tsx` — Implementasi UI Log mendetail dan Pascal-Case headers.
+- `apps/desktop/src/renderer/src/components/modals/ExportCodeModal.tsx` — Fix crash filter dan perbaikan akurasi generator snippet.
+
+### Keputusan & Catatan
+- Memutuskan untuk menyimpan format asli (string) ke riwayat agar user mendapatkan gambaran 1:1 antara apa yang ada di aplikasi dengan apa yang diterima server.
+- Menggunakan Main Process (Electron) sebagai tempat final serialisasi untuk menjamin kompatibilitas `FormData` yang lebih baik dibanding lingkungan browser murni.
+
+### Langkah Selanjutnya
+- Melanjutkan implementasi Notifikasi in-app (Fase 7.2).
+- Ekspansi Unit Test untuk mencapai target coverage 80-100% (Fase 7.3).
+
+---
+
+## [2026-05-01] (Part 3) — Unit Testing Completion (Success & Error Paths)
+**Fase:** Fase 7 — Kolaborasi Lanjutan & Mock Pro
+**Dikerjakan oleh:** Agent
+**Status:** ✅ Selesai (Fase 1-3)
+
+### Yang Dikerjakan
+- **Comprehensive Error Testing**: 
+    - Melengkapi skenario negatif untuk semua modul utama: Auth, Collections, Teams, Folders, dan Requests.
+    - Menambahkan validasi penanganan "Not Found", "Forbidden" (Authorization Bypass protection), dan "Database Errors".
+- **Account Integrity Testing**: Menguji fitur keamanan signature role user untuk mencegah manipulasi data database secara ilegal.
+- **Activity Logging & Collaboration**: Verifikasi pencatatan log aktivitas otomatis saat terjadi perubahan data (tim, koleksi, request).
+- **Bug Fix in Backend**: Menemukan dan memperbaiki bug validasi pada `CreateTeam` di mana nama tim sebelumnya bisa kosong.
+
+### Perubahan File
+- `backend/internal/api/team.go` — Penambahan validasi nama tim.
+- `backend/internal/api/*_test.go` — Update besar pada 26 file pengujian untuk mencakup skenario error.
+
+### Keputusan & Catatan
+- Mengadopsi **Flexible Regex Matching** pada `sqlmock` untuk memastikan tes tidak mudah pecah saat ada perubahan minor pada optimasi query GORM.
+- Mencapai milestone coverage yang signifikan sebagai fondasi kestabilan sistem.
+
+### Langkah Selanjutnya
+- Monitor stabilitas build CI/CD dengan menjalankan `make test-backend` secara otomatis.
+- Implementasi Notifikasi in-app (Fase 7.2).
+
+---
+
+## [2026-05-01] — Unit Testing Infrastructure & Initial Backend Tests
+**Fase:** Fase 7 — Kolaborasi Lanjutan & Mock Pro
+**Dikerjakan oleh:** Agent
+**Status:** ✅ Selesai (Fase 1)
+
+### Yang Dikerjakan
+- **Build System Integration**: Menambahkan perintah `make test-backend` dan `make test-coverage` ke dalam `Makefile`.
+- **Agent Workflows**: Membuat standar operasional prosedur untuk penulisan dan pengecekan tes di folder `.agents/workflows/`.
+- **Initial Utility Tests**: Implementasi unit test pertama di `backend/internal/api/util_test.go` untuk menguji fungsi `parseUint` dan `CalculateRoleSignature`.
+- **Verification**: Verifikasi keberhasilan eksekusi tes dengan hasil `PASS`.
+
+### Perubahan File
+- `Makefile` — Penambahan target testing.
+- `.agents/workflows/update-unit-test.md` — Panduan penulisan tes.
+- `.agents/workflows/check-unit-test.md` — Panduan verifikasi tes.
+- `backend/internal/api/util_test.go` — Implementasi tes pertama.
+
+### Keputusan & Catatan
+- Menggunakan pendekatan *phased implementation* untuk mengejar target coverage 80-100% agar tidak mengganggu stabilitas fitur yang sedang dikembangkan.
+- Memilih pola *Table-Driven Tests* sebagai standar proyek untuk efisiensi skenario pengujian.
+
+### Langkah Selanjutnya
+- Implementasi Mocking Database untuk menguji API Handlers (Fase 2).

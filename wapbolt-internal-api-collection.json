@@ -1,7 +1,7 @@
 {
   "info": {
-    "name": "Wapify Internal API",
-    "description": "Koleksi lengkap API internal untuk mengelola Wapify."
+    "name": "Wapbolt Internal API",
+    "description": "Koleksi lengkap API internal untuk mengelola Wapbolt."
   },
   "item": [
     {
@@ -32,7 +32,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"admin@wapify.io\",\n  \"password\": \"admin123\"\n}"
+              "raw": "{\n  \"email\": \"admin@wapbolt.io\",\n  \"password\": \"admin123\"\n}"
             }
           }
         },
@@ -112,7 +112,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Wapify Docs\",\n  \"description\": \"API documentation for Wapify\"\n}"
+              "raw": "{\n  \"name\": \"Wapbolt Docs\",\n  \"description\": \"API documentation for Wapbolt\"\n}"
             }
           }
         }
@@ -157,7 +157,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"newuser@wapify.io\",\n  \"name\": \"New Staff\",\n  \"password\": \"staff123\",\n  \"initial_team_id\": {{teamId}},\n  \"role\": \"editor\"\n}"
+              "raw": "{\n  \"email\": \"newuser@wapbolt.io\",\n  \"name\": \"New Staff\",\n  \"password\": \"staff123\",\n  \"initial_team_id\": {{teamId}},\n  \"role\": \"editor\"\n}"
             }
           }
         }

@@ -1,3 +1,4 @@
+/// <reference types="vite/client" />
 import { ElectronAPI } from '@electron-toolkit/preload'
 
 interface RequestConfig {
@@ -14,8 +15,8 @@ interface IpcResponse {
   timing: number
 }
 
-interface WapifyAPI {
-  wapifyRequest: (config: RequestConfig) => Promise<IpcResponse>
+interface WapboltAPI {
+  wapboltRequest: (config: RequestConfig) => Promise<IpcResponse>
   setToken: (token: string) => Promise<void>
   getToken: () => Promise<string | null>
   deleteToken: () => Promise<void>
@@ -26,7 +27,7 @@ interface WapifyAPI {
 declare global {
   interface Window {
     electron: ElectronAPI
-    api: WapifyAPI
+    api: WapboltAPI
   }
 }
 

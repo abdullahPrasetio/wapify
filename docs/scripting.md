@@ -1,6 +1,6 @@
-# Wapify Scripting Guide 🚀
+# Wapbolt Scripting Guide 🚀
 
-Dokumen ini menjelaskan cara menggunakan fitur **Pre-request** dan **Post-request (Tests)** di Wapify menggunakan objek global `wap`.
+Dokumen ini menjelaskan cara menggunakan fitur **Pre-request** dan **Post-request (Tests)** di Wapbolt menggunakan objek global `wap`.
 
 ---
 
@@ -25,7 +25,7 @@ Objek `wap` (atau alias `pm`) adalah SDK utama untuk berinteraksi dengan request
 ---
 
 ## 2. Library Terintegrasi
-Wapify menyertakan library populer yang bisa langsung dipanggil tanpa `require`:
+Wapbolt menyertakan library populer yang bisa langsung dipanggil tanpa `require`:
 
 ### Moment.js (`moment`)
 Digunakan untuk manipulasi tanggal dan waktu.

@@ -14,7 +14,7 @@ import {
   Zap,
   LayoutGrid
 } from 'lucide-react'
-import { apiClient } from '../../api/client'
+import { apiClient, getBaseUrl } from '../../api/client'
 import type { MockEndpoint, ApiRequest } from '../../types'
 import { MethodBadge } from '../ui/MethodBadge'
 import { toast } from 'sonner'
@@ -42,7 +42,7 @@ export const MockServerPanel: React.FC<MockServerPanelProps> = ({
   const [copiedId, setCopiedId] = useState<number | null>(null)
   const [managingScenariosEndpoint, setManagingScenariosEndpoint] = useState<MockEndpoint | null>(null)
 
-  const mockBaseUrl = `http://localhost:8000/mock/${collectionId}`
+  const mockBaseUrl = `${getBaseUrl()}/mock/${collectionId}`
 
   const fetchEndpoints = useCallback(async () => {
     setLoading(true)
@@ -117,7 +117,8 @@ export const MockServerPanel: React.FC<MockServerPanelProps> = ({
 
   const copyAsCurl = async (ep: MockEndpoint) => {
     const url = `${mockBaseUrl}${ep.path}`
-    const curl = `curl -X ${ep.method} "${url}" \\
+    const isInsecure = url.startsWith('https')
+    const curl = `curl ${isInsecure ? '-k ' : ''}-X ${ep.method} "${url}" \\
      -H "Content-Type: application/json"`
     await navigator.clipboard.writeText(curl)
     toast.success('cURL command copied to clipboard')
@@ -161,6 +162,23 @@ export const MockServerPanel: React.FC<MockServerPanelProps> = ({
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              onClick={async () => {
+                if (!window.confirm('Generate mock endpoints and scenarios from all requests and examples in this collection?')) return
+                try {
+                  const res = await apiClient.post<{ message: string, count: number }>(`/api/v1/collections/${collectionId}/mock/generate-from-collection`, {})
+                  toast.success(res.data.message)
+                  fetchEndpoints()
+                } catch {
+                  toast.error('Failed to generate mocks')
+                }
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20 hover:bg-amber-500/20 transition-all mr-2"
+              title="Generate mocks from collection requests and examples"
+            >
+              <Zap size={13} />
+              Auto-Generate
+            </button>
             <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono bg-black/30 border border-white/10 text-muted">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
               {mockBaseUrl}
@@ -436,7 +454,7 @@ const MockEndpointForm: React.FC<MockEndpointFormProps> = ({
   const [path, setPath] = useState(existing?.path ?? '/')
   const [statusCode, setStatusCode] = useState(existing?.status_code ?? 200)
   const [responseBody, setResponseBody] = useState(
-    existing?.response_body ?? '{\n  "message": "Hello from Wapify Mock!"\n}'
+    existing?.response_body ?? '{\n  "message": "Hello from Wapbolt Mock!"\n}'
   )
   const [delayMs, setDelayMs] = useState(existing?.delay_ms ?? 0)
   const [saving, setSaving] = useState(false)

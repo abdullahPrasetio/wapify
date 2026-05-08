@@ -1,8 +1,13 @@
 // websocket.ts
 import { useAuthStore } from '../store/useAuthStore'
 import { useDataStore } from '../store/useDataStore'
+import { useAppStore } from '../store/useAppStore'
+import { getBaseUrl } from './client'
 
-const WS_BASE_URL = 'ws://localhost:8000'
+const getWsBaseUrl = () => {
+  const baseUrl = getBaseUrl()
+  return baseUrl.replace(/^http/, 'ws')
+}
 
 export class WebSocketClient {
   public ws: WebSocket | null = null
@@ -13,13 +18,13 @@ export class WebSocketClient {
     if (this.ws || this.isConnecting) return
 
     this.isConnecting = true
-    const url = `${WS_BASE_URL}/ws?team_id=${teamId}&user_id=${userId}&user_name=${encodeURIComponent(userName)}`
+    const url = `${getWsBaseUrl()}/ws?team_id=${teamId}&user_id=${userId}&user_name=${encodeURIComponent(userName)}`
 
     try {
       this.ws = new WebSocket(url)
 
       this.ws.onopen = () => {
-        console.log('[Wapify WS] Connected to collaboration server')
+        console.log('[Wapbolt WS] Connected to collaboration server')
         this.isConnecting = false
         if (this.reconnectTimer) {
           clearTimeout(this.reconnectTimer)
@@ -41,12 +46,12 @@ export class WebSocketClient {
           const data = JSON.parse(event.data)
           this.handleMessage(data)
         } catch (e) {
-          console.error('[Wapify WS] Failed to parse message', e)
+          console.error('[Wapbolt WS] Failed to parse message', e)
         }
       }
 
       this.ws.onclose = () => {
-        console.log('[Wapify WS] Disconnected')
+        console.log('[Wapbolt WS] Disconnected')
         this.ws = null
         this.isConnecting = false
         // Clear all presence/locks locally
@@ -55,11 +60,11 @@ export class WebSocketClient {
       }
 
       this.ws.onerror = (err) => {
-        console.error('[Wapify WS] Error:', err)
+        console.error('[Wapbolt WS] Error:', err)
         // onclose will be called
       }
     } catch (e) {
-      console.error('[Wapify WS] Connection error:', e)
+      console.error('[Wapbolt WS] Connection error:', e)
       this.isConnecting = false
       this.scheduleReconnect(teamId, userId, userName)
     }
@@ -67,7 +72,7 @@ export class WebSocketClient {
 
   private scheduleReconnect(teamId: number, userId: number, userName: string) {
     if (this.reconnectTimer) return
-    console.log('[Wapify WS] Reconnecting in 5 seconds...')
+    console.log('[Wapbolt WS] Reconnecting in 5 seconds...')
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null
       this.connect(teamId, userId, userName)
@@ -103,12 +108,38 @@ export class WebSocketClient {
       case 'ENTITY_UPDATED':
         // Jika entity yang diupdate adalah request yang sedang kita buka, fetch ulang
         if (message.payload?.entity_type === 'REQUEST') {
+          const reqId = message.payload.entity_id
+          const collectionId = store.requests.find(r => r.id === reqId)?.collection_id
+          if (collectionId) {
+            store.fetchCollectionContents(collectionId)
+          }
+        } else if (message.payload?.entity_type === 'FOLDER') {
+          // Find collection id for this folder
+          const colId = Object.entries(store.foldersByCollection).find(([_, folders]) => 
+            folders.some(f => f.id === message.payload.entity_id)
+          )?.[0]
+          if (colId) {
+            store.fetchCollectionContents(Number(colId))
+          }
+        } else if (message.payload?.entity_type === 'COLLECTION') {
+          store.fetchCollectionContents(message.payload.entity_id)
+        } else if (message.payload?.entity_type === 'TEAM') {
+          if (store.activeTeamId) {
+            store.fetchCollections(store.activeTeamId)
+          }
+        } else if (message.payload?.entity_type === 'HISTORY') {
+          store.fetchHistory()
+        }
 
-          // Optionally, we could show a toast or auto-fetch
-          // store.fetchCollectionContents(...)
-          window.dispatchEvent(
-            new CustomEvent('wapify:entity-updated', { detail: message.payload })
-          )
+        window.dispatchEvent(
+          new CustomEvent('wapbolt:entity-updated', { detail: message.payload })
+        )
+        break
+      case 'DONATION_PROMPT':
+        {
+          const appStore = useAppStore.getState()
+          appStore.setDonationMessage(message.payload?.message || '')
+          appStore.setDonationModalOpen(true)
         }
         break
     }
@@ -119,32 +150,32 @@ export const wsClient = new WebSocketClient()
 
 // Auto-connect hook
 export function initWebSocketIntegration() {
-  console.log('[Wapify WS] Initializing WebSocket integration...')
+  console.log('[Wapbolt WS] Initializing WebSocket integration...')
 
   // Listen to store changes to connect/disconnect or join/leave requests
   useDataStore.subscribe(
     (state) => ({ activeTeamId: state.activeTeamId, activeTabId: state.activeTabId }),
     (currentState, previousState) => {
       const auth = useAuthStore.getState()
-      console.log('[Wapify WS] Data store change detected:', { 
+      console.log('[Wapbolt WS] Data store change detected:', { 
         activeTeamId: currentState.activeTeamId, 
         hasUser: !!auth.user 
       })
 
       // If team changed, reconnect
       if (currentState.activeTeamId !== previousState.activeTeamId || (currentState.activeTeamId && !wsClient.ws)) {
-        console.log('[Wapify WS] Team changed or missing connection, reconnecting...')
+        console.log('[Wapbolt WS] Team changed or missing connection, reconnecting...')
         wsClient.disconnect()
         if (currentState.activeTeamId && auth.user) {
           wsClient.connect(currentState.activeTeamId, auth.user.id, auth.user.name)
         } else {
-          console.log('[Wapify WS] Missing teamId or user, skipping connection')
+          console.log('[Wapbolt WS] Missing teamId or user, skipping connection')
         }
       }
 
       // If active tab changed, send JOIN/LEAVE
       if (currentState.activeTabId !== previousState.activeTabId) {
-        console.log('[Wapify WS] Active tab changed:', currentState.activeTabId)
+        console.log('[Wapbolt WS] Active tab changed:', currentState.activeTabId)
         if (previousState.activeTabId) {
           const prevTab = useDataStore
             .getState()
@@ -169,7 +200,7 @@ export function initWebSocketIntegration() {
   const initialData = useDataStore.getState()
   const initialAuth = useAuthStore.getState()
   if (initialData.activeTeamId && initialAuth.user) {
-    console.log('[Wapify WS] Attempting initial connection...')
+    console.log('[Wapbolt WS] Attempting initial connection...')
     wsClient.connect(initialData.activeTeamId, initialAuth.user.id, initialAuth.user.name)
   }
 
@@ -178,7 +209,7 @@ export function initWebSocketIntegration() {
     (state) => state.user,
     (user) => {
       if (!user) {
-        console.log('[Wapify WS] User logged out, disconnecting...')
+        console.log('[Wapbolt WS] User logged out, disconnecting...')
         wsClient.disconnect()
       }
     }

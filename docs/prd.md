@@ -1,4 +1,4 @@
-# Wapify — Product Requirements Document (PRD)
+# Wapbolt — Product Requirements Document (PRD)
 
 **Versi:** 1.5  
 **Status:** Active Development  
@@ -9,7 +9,7 @@
 
 # Overview
 
-**Wapify** adalah desktop application untuk pengujian, kolaborasi, dan dokumentasi API — alternatif Postman yang dirancang untuk tim developer dan QA.
+**Wapbolt** adalah desktop application untuk pengujian, kolaborasi, dan dokumentasi API — alternatif Postman yang dirancang untuk tim developer dan QA.
 
 Dibangun sebagai **Electron desktop app** (macOS + Windows), bebas CORS karena request dikirim dari Electron Main Process. Backend **Go single binary** berjalan di STB Android Waluyo (via Cloudflare), dan kelak bisa diinstall **on-premise di server client** tanpa perubahan kode.
 
@@ -21,11 +21,11 @@ Dibangun sebagai **Electron desktop app** (macOS + Windows), bebas CORS karena r
 
 | Atribut | Detail |
 |---|---|
-| **Nama Produk** | Wapify |
+| **Nama Produk** | Wapbolt |
 | **Asal Nama** | Inisial **W**aluyo **A**de **P**rasetio + suffix *-ify* |
 | **Tagline** | *"API Testing, Built for Teams"* |
-| **Domain** | wapify.io / wapify.dev |
-| **Backend URL (internal)** | api.wapify.io (via Cloudflare Tunnel → STB Android) |
+| **Domain** | wapbolt.io / wapbolt.dev |
+| **Backend URL (internal)** | api.wapbolt.io (via Cloudflare Tunnel → STB Android) |
 
 ---
 
@@ -37,7 +37,7 @@ Tim (mana saja, internet)
         ▼
 ┌───────────────────┐
 │  Cloudflare       │  ← HTTPS otomatis, DDoS protection, IP rumah tersembunyi
-│  api.wapify.io    │
+│  api.wapbolt.io    │
 └────────┬──────────┘
          │ Cloudflare Tunnel
          ▼
@@ -114,14 +114,14 @@ Untuk menjaga fokus pada stabilitas fitur utama, beberapa elemen UI berikut diar
 - CRUD Collection, Folder, Request
 - Import Postman v2.1 JSON
 - Environment variables dengan interpolasi `{{variable}}`
-- Pre-request & Post-request script (JavaScript, Wapify SDK dengan alias `wap`/`pm`)
+- Pre-request & Post-request script (JavaScript, Wapbolt SDK dengan alias `wap`/`pm`)
 - Kirim request via Electron Main Process (bebas CORS)
 - Response viewer (status, body pretty-print, headers, timing)
 - Auth: Basic Auth, Bearer Token, API Key
 - Real-time collaboration & field-level locking
 - Versioning & rollback
 - Mock server (basic)
-- Collection Runner & CLI (`wapify run`)
+- Collection Runner & CLI (`wapbolt run`)
 - On-premise license (Ed25519)
 
 ## 🚧 Fase 6 — UX & Power Features (Sekarang)
@@ -177,10 +177,10 @@ Variabel environment yang aktif di-resolve dulu sebelum di-generate (misal `{{ba
 
 ### 5. Import dari cURL
 
-User bisa paste cURL command ke Wapify dan otomatis dikonversi menjadi request:
+User bisa paste cURL command ke Wapbolt dan otomatis dikonversi menjadi request:
 
 ```bash
-# Input (paste ke Wapify):
+# Input (paste ke Wapbolt):
 curl -X POST https://api.example.com/users \
   -H "Authorization: Bearer token123" \
   -H "Content-Type: application/json" \
@@ -405,7 +405,7 @@ erDiagram
 # Technical Constraints & Guidelines
 
 - **CORS:** Request ke target API wajib dari Electron Main Process, bukan Renderer.
-- **No Self-Register:** Akun dibuat via `wapify-admin create-user`.
+- **No Self-Register:** Akun dibuat via `wapbolt-admin create-user`.
 - **Super Admin:** `is_super_admin = true` bypass semua role check.
 - **body_type Migration:** Migration tambah kolom `body_type` ke tabel REQUEST dengan default `raw-json` agar tidak breaking existing data.
 - **cURL Import:** Parser harus toleran terhadap variasi format cURL (multiline dengan `\`, single line, dengan/tanpa quotes).

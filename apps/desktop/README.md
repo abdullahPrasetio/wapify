@@ -1,4 +1,4 @@
-# wapify-desktop
+# wapbolt-desktop
 
 An Electron application with React and TypeScript
 

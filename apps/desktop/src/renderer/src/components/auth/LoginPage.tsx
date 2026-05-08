@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Loader2, AlertCircle, Settings } from 'lucide-react'
+import { Loader2, AlertCircle, Settings, Zap } from 'lucide-react'
 import { useAuthStore } from '../../store/useAuthStore'
 import { ServerSettingsModal } from '../modals/ServerSettingsModal'
 
@@ -48,11 +48,11 @@ export const LoginPage = (): React.JSX.Element => {
       <div className="relative z-10 w-full max-w-md px-6">
         {/* Logo & Title */}
         <div className="text-center mb-10">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-primary shadow-lg shadow-primary/30 mb-4">
-            <span className="text-white font-black text-2xl tracking-tight">W</span>
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary shadow-xl shadow-primary/30 mb-6 animate-pulse">
+            <Zap size={32} fill="white" className="text-white" />
           </div>
-          <h1 className="text-2xl font-bold text-text tracking-tight">Wapify</h1>
-          <p className="text-muted text-sm mt-1">API Testing, Built for Teams</p>
+          <h1 className="text-3xl font-black text-text tracking-tighter italic uppercase">Wapbolt</h1>
+          <p className="text-muted text-sm mt-1 font-medium">API Testing, Built for Teams</p>
         </div>
 
         {/* Login Card */}
@@ -129,7 +129,7 @@ export const LoginPage = (): React.JSX.Element => {
 
       {appVersion && (
         <div className="absolute bottom-6 left-6 text-[10px] font-black uppercase tracking-[0.2em] text-muted opacity-30 select-none">
-          Wapify v{appVersion}
+          Wapbolt v{appVersion}
         </div>
       )}
 

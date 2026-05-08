@@ -1,5 +1,10 @@
 import { app, shell, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'path'
+
+// SEGERA matikan validasi SSL sebelum modul lain (seperti axios) diinisialisasi
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'
+app.commandLine.appendSwitch('ignore-certificate-errors')
+
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { autoUpdater } from 'electron-updater'
 import log from 'electron-log'
@@ -7,25 +12,38 @@ import icon from '../../resources/icon.png?asset'
 import keytar from 'keytar'
 import axios from 'axios'
 import FormData from 'form-data'
+import https from 'https'
+
+// Set default axios agent secara global
+axios.defaults.httpsAgent = new https.Agent({
+  rejectUnauthorized: false
+})
 
 // Konfigurasi logger
 autoUpdater.logger = log
 log.transports.file.level = 'info'
 log.info('App starting...')
 
-const KEYTAR_SERVICE = 'io.wapify.desktop'
+// Handle SSL/TLS certificate errors (for self-signed certs in OCP/Internal environments)
+app.on('certificate-error', (event, _webContents, _url, _error, _certificate, callback) => {
+  // Prevent default behavior and trust the certificate
+  event.preventDefault()
+  callback(true)
+})
+
+const KEYTAR_SERVICE = 'io.wapbolt.desktop'
 const KEYTAR_ACCOUNT = 'refresh_token'
 
 // ─── IPC: Keytar (Secure Storage) ──────────────────────────────────────────
-ipcMain.handle('wapify:set-token', async (_event, token: string) => {
+ipcMain.handle('wapbolt:set-token', async (_event, token: string) => {
   return keytar.setPassword(KEYTAR_SERVICE, KEYTAR_ACCOUNT, token)
 })
 
-ipcMain.handle('wapify:get-token', async () => {
+ipcMain.handle('wapbolt:get-token', async () => {
   return keytar.getPassword(KEYTAR_SERVICE, KEYTAR_ACCOUNT)
 })
 
-ipcMain.handle('wapify:delete-token', async () => {
+ipcMain.handle('wapbolt:delete-token', async () => {
   return keytar.deletePassword(KEYTAR_SERVICE, KEYTAR_ACCOUNT)
 })
 
@@ -45,7 +63,7 @@ interface IpcResponse {
   timing: number
 }
 
-ipcMain.handle('wapify:request', async (_event, config: IpcRequestConfig): Promise<IpcResponse> => {
+ipcMain.handle('wapbolt:request', async (_event, config: IpcRequestConfig): Promise<IpcResponse> => {
   const startTime = Date.now()
   try {
     let requestData: any = config.body
@@ -60,6 +78,9 @@ ipcMain.handle('wapify:request', async (_event, config: IpcRequestConfig): Promi
         }
       })
       requestData = form
+      // Ensure Content-Type is NOT set manually so Axios/FormData can set boundary
+      delete finalHeaders['Content-Type']
+      delete finalHeaders['content-type']
       // Merge form-data headers (boundary)
       Object.assign(finalHeaders, form.getHeaders())
     } else if (config.body_type === 'x-www-form-urlencoded' && Array.isArray(config.body)) {
@@ -69,7 +90,10 @@ ipcMain.handle('wapify:request', async (_event, config: IpcRequestConfig): Promi
           params.append(item.key, item.value || '')
         }
       })
-      requestData = params.toString()
+      requestData = params // Pass object directly, Axios handles serialization and Content-Type
+      
+      // If user hasn't set Content-Type, or it's wrong, we force it or let Axios handle it
+      // Standard practice: if we pass URLSearchParams, Axios sets application/x-www-form-urlencoded
     } else if (config.body_type?.startsWith('raw-')) {
        // Just use string data directly
     }
@@ -80,8 +104,17 @@ ipcMain.handle('wapify:request', async (_event, config: IpcRequestConfig): Promi
       data: requestData,
       headers: finalHeaders,
       timeout: 30000,
-      validateStatus: () => true // Don't throw on 4xx/500
+      validateStatus: () => true, // Don't throw on 4xx/500
+      httpsAgent: new https.Agent({
+        rejectUnauthorized: false
+      })
     })
+
+    console.log(`\n[Main Process] >>> SENDING REQUEST: ${config.method} ${config.url}`)
+    console.log(`[Main Process] HEADERS:`, JSON.stringify(finalHeaders, null, 2))
+    console.log(`[Main Process] BODY TYPE: ${config.body_type}`)
+    console.log(`[Main Process] SERIALIZED BODY:`, requestData?.toString?.() || requestData)
+    console.log(`[Main Process] <<< RESPONSE STATUS: ${response.status}\n`)
 
     const timing = Date.now() - startTime
     
@@ -120,7 +153,7 @@ function createWindow(): void {
     minWidth: 960,
     minHeight: 600,
     show: false,
-    title: 'Wapify',
+    title: 'Wapbolt',
     autoHideMenuBar: true,
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
@@ -146,7 +179,7 @@ function createWindow(): void {
 }
 
 app.whenReady().then(() => {
-  electronApp.setAppUserModelId('io.wapify.desktop')
+  electronApp.setAppUserModelId('io.wapbolt.desktop')
 
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
@@ -155,8 +188,27 @@ app.whenReady().then(() => {
   createWindow()
   autoUpdater.checkForUpdatesAndNotify()
 
-  ipcMain.handle('wapify:get-version', () => {
+  // Aktifkan shortcut DevTools (Ctrl+Shift+I / Cmd+Option+I) di build production untuk debugging
+  app.on('browser-window-focus', () => {
+    const { globalShortcut } = require('electron')
+    globalShortcut.register('CommandOrControl+Shift+I', () => {
+      const win = BrowserWindow.getFocusedWindow()
+      if (win) win.webContents.toggleDevTools()
+    })
+  })
+
+  app.on('browser-window-blur', () => {
+    const { globalShortcut } = require('electron')
+    globalShortcut.unregister('CommandOrControl+Shift+I')
+  })
+
+  ipcMain.handle('wapbolt:get-version', () => {
     return app.getVersion()
+  })
+
+  ipcMain.on('wapbolt:reload', () => {
+    const win = BrowserWindow.getFocusedWindow()
+    if (win) win.webContents.reloadIgnoringCache()
   })
 
   app.on('activate', function () {

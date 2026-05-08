@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
-import { Settings, Globe, X, Check } from 'lucide-react'
+import { Settings, Globe, X, Check, Type } from 'lucide-react'
 import { getBaseUrl, setBaseUrl } from '../../api/client'
+import { useAppStore } from '../../store/useAppStore'
 
 interface ServerSettingsModalProps {
   onClose: () => void
@@ -8,12 +9,12 @@ interface ServerSettingsModalProps {
 
 export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({ onClose }) => {
   const [url, setUrl] = useState(getBaseUrl())
+  const { fontSize, setFontSize } = useAppStore()
 
   const handleSave = () => {
     if (!url.trim()) return
     setBaseUrl(url.trim())
     onClose()
-    // Optional: window.location.reload() if we want to ensure everything uses new URL
   }
 
   return (
@@ -25,8 +26,8 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({ onClos
               <Settings size={20} />
             </div>
             <div>
-              <h3 className="text-lg font-bold text-foreground">Server Config</h3>
-              <p className="text-xs text-muted">Point Wapify to your backend</p>
+              <h3 className="text-lg font-bold text-foreground">App Settings</h3>
+              <p className="text-xs text-muted">Configure your workspace</p>
             </div>
           </div>
           <button onClick={onClose} className="text-muted hover:text-foreground transition-colors">
@@ -34,9 +35,10 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({ onClos
           </button>
         </div>
 
-        <div className="space-y-5">
-          <div>
-            <label className="text-[10px] font-black text-muted uppercase tracking-[0.2em] mb-2 block">
+        <div className="space-y-6">
+          {/* Server URL Settings */}
+          <div className="space-y-3">
+            <label className="text-[10px] font-black text-muted uppercase tracking-[0.2em] block">
               Backend Server URL
             </label>
             <div className="relative group">
@@ -53,9 +55,44 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({ onClos
                 className="w-full bg-black/40 border border-white/10 rounded-xl pl-10 pr-4 py-3 text-sm text-foreground focus:outline-none focus:border-primary/50 transition-all font-mono"
               />
             </div>
-            <p className="mt-2 text-[10px] text-muted leading-relaxed">
-              Default is <code className="text-primary/70">http://localhost:8000</code>. If you are using Cloudflare Tunnel or an IP, enter it here.
-            </p>
+          </div>
+
+          {/* Font Size Settings */}
+          <div className="space-y-3 pt-2 border-t border-white/5">
+            <div className="flex items-center justify-between">
+              <label className="text-[10px] font-black text-muted uppercase tracking-[0.2em] flex items-center gap-2">
+                <Type size={12} className="text-primary" /> Editor Font Size
+              </label>
+              <span className="text-xs font-bold text-primary">{fontSize}px</span>
+            </div>
+            
+            <div className="flex items-center gap-4">
+              <button 
+                onClick={() => setFontSize(Math.max(10, fontSize - 1))}
+                className="w-8 h-8 rounded-lg bg-black/40 border border-white/10 flex items-center justify-center text-muted hover:text-text hover:border-primary transition-all"
+              >
+                -
+              </button>
+              <input 
+                type="range"
+                min="10"
+                max="24"
+                step="1"
+                value={fontSize}
+                onChange={(e) => setFontSize(parseInt(e.target.value))}
+                className="flex-1 accent-primary h-1.5 bg-white/10 rounded-lg appearance-none cursor-pointer"
+              />
+              <button 
+                onClick={() => setFontSize(Math.min(24, fontSize + 1))}
+                className="w-8 h-8 rounded-lg bg-black/40 border border-white/10 flex items-center justify-center text-muted hover:text-text hover:border-primary transition-all"
+              >
+                +
+              </button>
+            </div>
+            
+            <div className="p-2 bg-black/20 rounded border border-white/5 font-mono text-muted text-center" style={{ fontSize: `${fontSize}px` }}>
+              Preview Text
+            </div>
           </div>
 
           <div className="flex gap-3 pt-2">

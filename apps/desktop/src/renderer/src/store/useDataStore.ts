@@ -92,9 +92,10 @@ export interface WorkingRequest {
 export interface LogEntry {
   id: string
   timestamp: string
-  level: 'log' | 'info' | 'warn' | 'error'
+  level: 'log' | 'info' | 'warn' | 'error' | 'network'
   message: string
   requestId?: number | string
+  details?: any
 }
 
 export interface RequestVersion {
@@ -275,7 +276,7 @@ const replaceVariables = (text: string, variables: Record<string, string>): stri
     const resolved = lowerVars[trimmedKey]
 
     console.log(
-      `[Wapify] Matching variable: "${key.trim()}" -> ${resolved !== undefined ? 'FOUND' : 'NOT FOUND'}`
+      `[Wapbolt] Matching variable: "${key.trim()}" -> ${resolved !== undefined ? 'FOUND' : 'NOT FOUND'}`
     )
 
     return resolved !== undefined ? resolved : match
@@ -500,11 +501,11 @@ export const useDataStore = create<DataState>()(
               apiClient.get<ApiRequest[]>(`/api/v1/collections/${collectionId}/requests`)
             ])
 
-            const folders = foldersRes.status === 200 
-              ? (foldersRes.data as Folder[]).sort((a, b) => (a.order_index - b.order_index) || (a.id - b.id)) 
+            const folders = foldersRes.status === 200
+              ? (foldersRes.data as Folder[]).sort((a, b) => (a.order_index - b.order_index) || (a.id - b.id))
               : []
-            const allRequestsRaw = requestsRes.status === 200 
-              ? (requestsRes.data as ApiRequest[]).sort((a, b) => (a.order_index - b.order_index) || (a.id - b.id)) 
+            const allRequestsRaw = requestsRes.status === 200
+              ? (requestsRes.data as ApiRequest[]).sort((a, b) => (a.order_index - b.order_index) || (a.id - b.id))
               : []
             const allRequests = allRequestsRaw.map(normalizeRequest)
 
@@ -722,7 +723,7 @@ export const useDataStore = create<DataState>()(
           if (typeof activeTabId === 'string' && (activeTabId.startsWith('draft-') || activeTabId.startsWith('example-'))) {
             // If it's a draft or an example, we trigger the "Save to Collection" modal via the UI component.
             // The UI (MainArea.tsx) handles the modal trigger for string IDs starting with these prefixes.
-            window.dispatchEvent(new CustomEvent('wapify:trigger-save-modal'))
+            window.dispatchEvent(new CustomEvent('wapbolt:trigger-save-modal'))
             return
           }
 
@@ -1060,7 +1061,6 @@ export const useDataStore = create<DataState>()(
 
         fetchHistory: async () => {
           const { activeTeamId } = get()
-          console.log("", activeTeamId)
           if (!activeTeamId) return
           set({ historyLoading: true })
           try {
@@ -1253,7 +1253,7 @@ export const useDataStore = create<DataState>()(
             const url = URL.createObjectURL(blob)
             const a = document.createElement('a')
             a.href = url
-            a.download = `${collection.name}.wapify_collection.json`
+            a.download = `${collection.name}.wapbolt_collection.json`
             a.click()
             URL.revokeObjectURL(url)
             toast.success('Collection exported successfully')
@@ -1273,6 +1273,22 @@ export const useDataStore = create<DataState>()(
           const activeTab = tabs.find((t) => t.requestId === activeTabId)
           if (!activeTab || activeTab.isSending || !activeTab.workingRequest.url) return
 
+          const addLog = (level: LogEntry['level'], message: string, details?: any) => {
+            set((state) => ({
+              logs: [
+                {
+                  id: Math.random().toString(36).substr(2, 9),
+                  timestamp: new Date().toLocaleTimeString(),
+                  level,
+                  message,
+                  requestId: activeTab.requestId,
+                  details
+                },
+                ...state.logs
+              ].slice(0, 100)
+            }))
+          }
+
           const { workingRequest } = activeTab
           const activeEnv = environments.find((e) => e.id === activeEnvironmentId)
           // Gunakan shallow copy agar tidak mutasi state langsung
@@ -1281,22 +1297,11 @@ export const useDataStore = create<DataState>()(
           // --- 1. Pre-request Script Execution ---
           if (workingRequest.pre_request_script) {
             try {
-              const addLog = (level: LogEntry['level'], ...args: unknown[]) => {
+              const scriptLog = (level: LogEntry['level'], ...args: unknown[]) => {
                 const message = args
                   .map((a) => (typeof a === 'object' ? JSON.stringify(a) : String(a)))
                   .join(' ')
-                set((state) => ({
-                  logs: [
-                    {
-                      id: Math.random().toString(36).substr(2, 9),
-                      timestamp: new Date().toLocaleTimeString(),
-                      level,
-                      message,
-                      requestId: activeTab.requestId
-                    },
-                    ...state.logs
-                  ].slice(0, 100)
-                }))
+                addLog(level, message)
               }
 
               const wap = {
@@ -1330,13 +1335,13 @@ export const useDataStore = create<DataState>()(
                 },
                 setEnvironmentVariable: (key: string, val: unknown) => {
                   const strVal = String(val)
-                  console.log(`[Wapify] Pre-script setting env: ${key}=${strVal}`)
+                  console.log(`[Wapbolt] Pre-script setting env: ${key}=${strVal}`)
                   vars[key] = strVal
                   updateActiveEnvironmentVariable(key, strVal)
                 },
                 setEnv: (key: string, val: unknown) => {
                   const strVal = String(val)
-                  console.log(`[Wapify] Pre-script setting env: ${key}=${strVal}`)
+                  console.log(`[Wapbolt] Pre-script setting env: ${key}=${strVal}`)
                   vars[key] = strVal
                   updateActiveEnvironmentVariable(key, strVal)
                 }
@@ -1345,19 +1350,19 @@ export const useDataStore = create<DataState>()(
               const mockConsole = {
                 log: (...args: unknown[]) => {
                   console.log(...args)
-                  addLog('log', ...args)
+                  scriptLog('log', ...args)
                 },
                 info: (...args: unknown[]) => {
                   console.info(...args)
-                  addLog('info', ...args)
+                  scriptLog('info', ...args)
                 },
                 warn: (...args: unknown[]) => {
                   console.warn(...args)
-                  addLog('warn', ...args)
+                  scriptLog('warn', ...args)
                 },
                 error: (...args: unknown[]) => {
                   console.error(...args)
-                  addLog('error', ...args)
+                  scriptLog('error', ...args)
                 }
               }
 
@@ -1384,12 +1389,12 @@ export const useDataStore = create<DataState>()(
           // variables are already updated in 'vars' by the script
 
           // Substitusi variabel di URL
-          console.log('[Wapify] Current vars for replacement:', vars)
+          console.log('[Wapbolt] Current vars for replacement:', vars)
           let substitutedUrl = replaceVariables(workingRequest.url, vars)
 
           // Jangan blokir jika ada {{, biarkan saja agar user bisa debug sendiri (seperti Postman)
           if (substitutedUrl.includes('{{')) {
-            console.warn('[Wapify] Some variables in URL could not be resolved:', substitutedUrl)
+            console.warn('[Wapbolt] Some variables in URL could not be resolved:', substitutedUrl)
           }
 
           // Inject Auth into Headers
@@ -1440,28 +1445,52 @@ export const useDataStore = create<DataState>()(
               workingRequest.method,
               substitutedUrl,
               substitutedHeaders,
-              substitutedBody
+              substitutedBody,
+              workingRequest.body_type
             )
+
+            // Log network activity to console
+            addLog('network', `${workingRequest.method} ${substitutedUrl}`, {
+              request: {
+                method: workingRequest.method,
+                url: substitutedUrl,
+                headers: substitutedHeaders,
+                body: substitutedBody,
+                body_type: workingRequest.body_type
+              },
+              response: {
+                status: response.status,
+                timing: response.timing,
+                headers: response.headers,
+                data: response.data
+              }
+            })
 
             // --- 2. Post-request Script (Tests) Execution ---
             if (workingRequest.post_request_script) {
               try {
-                console.log('[Wapify] Starting post-request script execution...')
-                console.log('[Wapify] Response Data:', response.data)
+                console.log('[Wapbolt] Starting post-request script execution...')
                 const testResults: { name: string; status: 'passed' | 'failed'; error?: string }[] =
                   []
+
+                const scriptLog = (level: LogEntry['level'], ...args: unknown[]) => {
+                  const message = args
+                    .map((a) => (typeof a === 'object' ? JSON.stringify(a) : String(a)))
+                    .join(' ')
+                  addLog(level, message)
+                }
 
                 const wap = {
                   set: (key: string, val: unknown) => {
                     const strVal = String(val)
-                    console.log(`[Wapify] Script setting env: ${key}=${strVal}`)
+                    console.log(`[Wapbolt] Script setting env: ${key}=${strVal}`)
                     vars[key] = strVal
                     updateActiveEnvironmentVariable(key, strVal)
                   },
                   environment: {
                     set: (key: string, val: unknown) => {
                       const strVal = String(val)
-                      console.log(`[Wapify] Script setting env: ${key}=${strVal}`)
+                      console.log(`[Wapbolt] Script setting env: ${key}=${strVal}`)
                       vars[key] = strVal
                       updateActiveEnvironmentVariable(key, strVal)
                     },
@@ -1477,13 +1506,13 @@ export const useDataStore = create<DataState>()(
                   },
                   setEnvironmentVariable: (key: string, val: unknown) => {
                     const strVal = String(val)
-                    console.log(`[Wapify] Script setting env (alias): ${key}=${strVal}`)
+                    console.log(`[Wapbolt] Script setting env (alias): ${key}=${strVal}`)
                     vars[key] = strVal
                     updateActiveEnvironmentVariable(key, strVal)
                   },
                   setEnv: (key: string, val: unknown) => {
                     const strVal = String(val)
-                    console.log(`[Wapify] Script setting env (alias): ${key}=${strVal}`)
+                    console.log(`[Wapbolt] Script setting env (alias): ${key}=${strVal}`)
                     vars[key] = strVal
                     updateActiveEnvironmentVariable(key, strVal)
                   },
@@ -1544,40 +1573,22 @@ export const useDataStore = create<DataState>()(
                   }
                 }
 
-                const addLog = (level: LogEntry['level'], ...args: unknown[]): void => {
-                  const message = args
-                    .map((a) => (typeof a === 'object' ? JSON.stringify(a) : String(a)))
-                    .join(' ')
-                  set((state) => ({
-                    logs: [
-                      {
-                        id: Math.random().toString(36).substr(2, 9),
-                        timestamp: new Date().toLocaleTimeString(),
-                        level,
-                        message,
-                        requestId: activeTab.requestId
-                      },
-                      ...state.logs
-                    ].slice(0, 100)
-                  }))
-                }
-
                 const mockConsole = {
                   log: (...args: unknown[]): void => {
                     console.log(...args)
-                    addLog('log', ...args)
+                    scriptLog('log', ...args)
                   },
                   info: (...args: unknown[]): void => {
                     console.info(...args)
-                    addLog('info', ...args)
+                    scriptLog('info', ...args)
                   },
                   warn: (...args: unknown[]): void => {
                     console.warn(...args)
-                    addLog('warn', ...args)
+                    scriptLog('warn', ...args)
                   },
                   error: (...args: unknown[]): void => {
                     console.error(...args)
-                    addLog('error', ...args)
+                    scriptLog('error', ...args)
                   }
                 }
 
@@ -1616,6 +1627,22 @@ export const useDataStore = create<DataState>()(
               )
             }))
 
+            // Prepare body for history: Show exactly what was sent over the wire
+            let historyBody = substitutedBody
+            if (
+              (workingRequest.body_type === 'x-www-form-urlencoded' ||
+                workingRequest.body_type === 'form-data') &&
+              Array.isArray(substitutedBody)
+            ) {
+              const params = new URLSearchParams()
+              substitutedBody.forEach((item: any) => {
+                if (item.enabled && item.key) params.append(item.key, item.value || '')
+              })
+              historyBody = params.toString()
+            } else if (typeof substitutedBody !== 'string') {
+              historyBody = JSON.stringify(substitutedBody, null, 2)
+            }
+
             // Save to history
             await apiClient.post('/api/v1/history', {
               team_id: get().activeTeamId,
@@ -1623,10 +1650,10 @@ export const useDataStore = create<DataState>()(
               method: workingRequest.method,
               url: substitutedUrl,
               request_headers: substitutedHeaders,
-              request_body: substitutedBody,
+              request_body: historyBody,
               response_headers: response.headers,
               response_body:
-                typeof response.data === 'string' ? response.data : JSON.stringify(response.data),
+                typeof response.data === 'string' ? response.data : JSON.stringify(response.data, null, 2),
               status_code: response.status,
               response_time: Math.round(response.timing)
             })
@@ -1943,7 +1970,7 @@ export const useDataStore = create<DataState>()(
         }
       }),
       {
-        name: 'wapify-data-storage',
+        name: 'wapbolt-data-storage',
         storage: createJSONStorage(() => localStorage),
         partialize: (state) => ({
           activeTeamId: state.activeTeamId,

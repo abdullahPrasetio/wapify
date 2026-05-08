@@ -6,7 +6,6 @@ import {
   ChevronRight,
   ChevronDown,
   Hash,
-  RefreshCw,
   LogOut,
   Users,
   ShieldCheck,
@@ -23,7 +22,8 @@ import {
   X,
   Download,
   Copy,
-  GripVertical
+  GripVertical, Key, DatabaseZap,
+  Zap, Heart
 } from 'lucide-react'
 import { useState, useEffect, useLayoutEffect, useMemo } from 'react'
 import {
@@ -50,6 +50,8 @@ import { ImportModal } from '../modals/ImportModal'
 import { PromptModal } from '../modals/PromptModal'
 import { EnvironmentModal } from '../modals/EnvironmentModal'
 import { ServerSettingsModal } from '../modals/ServerSettingsModal'
+import { ChangePasswordModal } from "../modals/ChangePasswordModal"
+import { StandaloneMockPanel } from "./StandaloneMockPanel"
 import { DocumentationPanel } from './DocumentationPanel'
 import { MockServerPanel } from './MockServerPanel'
 import type { ApiRequest, Collection, Folder, RequestExample } from '../../types'
@@ -145,9 +147,9 @@ const SortableItem = ({ id, children, disabled, type = 'request' }: SortableItem
   const isOverSelf = isOver && over?.id === id
 
   return (
-    <div 
-      ref={setNodeRef} 
-      style={style} 
+    <div
+      ref={setNodeRef}
+      style={style}
       className="relative group/sortable"
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
@@ -648,6 +650,8 @@ const CollectionItem = ({ collection }: { collection: Collection }): React.JSX.E
 export const Sidebar = (): React.JSX.Element => {
   const { user, logout } = useAuthStore()
   const [showServerSettings, setShowServerSettings] = useState(false)
+  const [showChangePassword, setShowChangePassword] = useState(false)
+  const [showStandaloneMock, setShowStandaloneMock] = useState(false)
   const [appVersion, setAppVersion] = useState<string>('')
 
   const {
@@ -655,7 +659,6 @@ export const Sidebar = (): React.JSX.Element => {
     activeTeamId,
     collections,
     collectionsLoading,
-    teamsLoading,
     fetchTeams,
     setActiveTeam,
     environments,
@@ -718,9 +721,9 @@ export const Sidebar = (): React.JSX.Element => {
 
       if (overIdStr.startsWith('folder-')) {
         if (isLeftSide) {
-           dropZone = relativeY < overRect.height / 2 ? 'sort-top' : 'sort-bottom'
+          dropZone = relativeY < overRect.height / 2 ? 'sort-top' : 'sort-bottom'
         } else {
-           dropZone = 'nest'
+          dropZone = 'nest'
         }
       } else {
         dropZone = relativeY < overRect.height / 2 ? 'sort-top' : 'sort-bottom'
@@ -815,7 +818,8 @@ export const Sidebar = (): React.JSX.Element => {
           await state.moveFolder(folderId, targetCollectionId, null, maxIdx + 1000)
         }
       }
-    }  }
+    }
+  }
 
   return (
     <DndContext
@@ -825,13 +829,22 @@ export const Sidebar = (): React.JSX.Element => {
     >
       <div className="w-64 h-full bg-surface border-r border-border flex flex-col flex-shrink-0 overflow-hidden">
         <div className="h-14 flex items-center justify-between px-4 border-b border-border shrink-0">
-          <div onClick={() => setActiveView('request-builder')} className="font-semibold text-text flex items-center gap-2 cursor-pointer">
-            <div className="w-6 h-6 rounded bg-primary flex items-center justify-center text-white font-black text-xs shadow-sm shadow-primary/40">W</div>
-            <span className="text-sm">Wapify</span>
+          <div onClick={() => setActiveView('request-builder')} className="font-semibold text-text flex items-center gap-2 cursor-pointer group">
+            <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center text-white shadow-lg shadow-primary/30 group-hover:scale-110 transition-transform">
+              <Zap size={16} fill="currentColor" />
+            </div>
+            <span className="text-sm font-black tracking-tight">WAPBOLT</span>
           </div>
-          <button onClick={() => fetchTeams()} title="Refresh" className="text-muted hover:text-text transition-colors">
+          {/* <button 
+            onClick={() => {
+              if (window.api) window.api.reloadApp();
+              else fetchTeams();
+            }} 
+            title="Reload Application" 
+            className="text-muted hover:text-text transition-colors"
+          >
             <RefreshCw size={14} className={teamsLoading ? 'animate-spin' : ''} />
-          </button>
+          </button> */}
         </div>
 
         <div className="flex-1 overflow-y-auto min-h-0 flex flex-col">
@@ -850,7 +863,10 @@ export const Sidebar = (): React.JSX.Element => {
                     <UserCog size={12} /> User Management
                   </div>
                   <div onClick={() => setActiveView('admin-teams')} className={`flex items-center gap-2 px-2 py-1.5 rounded text-xs cursor-pointer ${activeView === 'admin-teams' ? 'bg-primary/10 text-primary' : 'text-text hover:bg-background'}`}>
-                    <Building2 size={12} /> Team Management
+                    <Building2 size={12} /> Workspace Management
+                  </div>
+                  <div onClick={() => setActiveView('admin-donations')} className={`flex items-center gap-2 px-2 py-1.5 rounded text-xs cursor-pointer ${activeView === 'admin-donations' ? 'bg-primary/10 text-primary' : 'text-text hover:bg-background'}`}>
+                    <Heart size={12} /> Donation Settings
                   </div>
                 </div>
               )}
@@ -870,6 +886,12 @@ export const Sidebar = (): React.JSX.Element => {
                 </div>
               ))}
             </div>
+
+            {activeTeamId && (
+              <div onClick={() => setShowStandaloneMock(true)} className="flex items-center gap-2 px-2 py-1.5 rounded text-[10px] cursor-pointer text-emerald-400 hover:bg-emerald-500/10 transition-colors mt-2 border border-emerald-500/10 bg-emerald-500/5 font-black uppercase tracking-[0.1em] shadow-lg shadow-emerald-500/5">
+                <DatabaseZap size={11} /> Workspace Mock Server
+              </div>
+            )}
           </div>
 
           <div className="flex px-3 pt-3 gap-4 border-b border-border">
@@ -931,13 +953,14 @@ export const Sidebar = (): React.JSX.Element => {
           </div>
 
           <div className="px-3 py-2 flex flex-col gap-1 border-t border-border/50 bg-background/50">
-            {appVersion && <div className="px-1 text-[9px] font-black uppercase tracking-[0.2em] text-muted/70 mb-1 text-center">Wapify v{appVersion}</div>}
+            {appVersion && <div className="px-1 text-[9px] font-black uppercase tracking-[0.2em] text-muted/70 mb-1 text-center">Wapbolt v{appVersion}</div>}
             <div className="flex items-center justify-between min-w-0">
               <div className="min-w-0 flex-1">
                 <div className="text-xs font-bold text-text truncate">{user?.name}</div>
                 <div className="text-[10px] text-muted truncate">{user?.email}</div>
               </div>
-              <div className="flex items-center gap-2 shrink-0 ml-2">
+              <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                <button onClick={() => setShowChangePassword(true)} title="Change Password" className="text-muted hover:text-text"><Key size={14} /></button>
                 <button onClick={() => setShowServerSettings(true)} className="text-muted hover:text-text"><Settings size={14} /></button>
                 <button onClick={logout} className="text-muted hover:text-danger"><LogOut size={14} /></button>
               </div>
@@ -946,6 +969,14 @@ export const Sidebar = (): React.JSX.Element => {
         </div>
 
         {showServerSettings && <ServerSettingsModal onClose={() => setShowServerSettings(false)} />}
+        {showChangePassword && <ChangePasswordModal isOpen={showChangePassword} onClose={() => setShowChangePassword(false)} />}
+        {showStandaloneMock && activeTeam && (
+          <StandaloneMockPanel
+            teamId={activeTeam.id}
+            workspaceName={activeTeam.name}
+            onClose={() => setShowStandaloneMock(false)}
+          />
+        )}
 
         {isNewCollectionModalOpen && (
           <PromptModal

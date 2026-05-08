@@ -1,7 +1,7 @@
 {
   "info": {
-    "name": "Wapify Demo Collection",
-    "description": "Koleksi demo untuk mencoba fitur Wapify"
+    "name": "Wapbolt Demo Collection",
+    "description": "Koleksi demo untuk mencoba fitur Wapbolt"
   },
   "item": [
     {
@@ -20,7 +20,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"admin@wapify.io\",\n  \"password\": \"admin123\"\n}"
+              "raw": "{\n  \"email\": \"admin@wapbolt.io\",\n  \"password\": \"admin123\"\n}"
             }
           }
         }
@@ -71,7 +71,7 @@
         "header": [
           {
             "key": "X-Custom-Header",
-            "value": "Wapify-Test"
+            "value": "Wapbolt-Test"
           }
         ]
       }

@@ -2,8 +2,8 @@ package api
 
 import (
 	"github.com/gofiber/fiber/v2"
-	"github.com/waluyo/wapify-backend/internal/middleware"
-	"github.com/waluyo/wapify-backend/internal/repository"
+	"github.com/waluyo/wapbolt-backend/internal/middleware"
+	"github.com/waluyo/wapbolt-backend/internal/repository"
 )
 
 type CreateTeamRequest struct {
@@ -17,6 +17,9 @@ func SetupTeamRoutes(app *fiber.App) {
 
 	teamGroup.Post("/", CreateTeam)
 	teamGroup.Get("/", ListTeams)
+	teamGroup.Get("/:id", GetTeamDetail)
+	teamGroup.Put("/:id", UpdateTeam)
+	teamGroup.Delete("/:id", DeleteTeam)
 	teamGroup.Get("/:id/members", ListTeamMembers)
 	teamGroup.Post("/:id/members", AddTeamMember)
 	teamGroup.Put("/:id/members/:userId", UpdateTeamMember)
@@ -27,6 +30,10 @@ func CreateTeam(c *fiber.Ctx) error {
 	req := new(CreateTeamRequest)
 	if err := c.BodyParser(req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body", "code": "BAD_REQUEST"})
+	}
+
+	if req.Name == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Team name is required", "code": "BAD_REQUEST"})
 	}
 
 	userId := c.Locals("user_id").(float64) // JWT map claims parse numbers as float64
