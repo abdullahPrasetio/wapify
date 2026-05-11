@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 
-export type AppView = 'request-builder' | 'admin-users' | 'admin-teams' | 'admin-licenses' | 'admin-donations' | 'history-detail'
+export type AppView = 'request-builder' | 'admin-users' | 'admin-teams' | 'admin-licenses' | 'admin-donations' | 'history-detail' | 'activity-log'
 
 interface AppState {
   // Navigation

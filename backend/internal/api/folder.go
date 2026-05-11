@@ -74,6 +74,9 @@ func MoveFolder(c *fiber.Ctx) error {
 		WSHub.BroadcastEntityUpdate(collection.TeamID, "COLLECTION", payload.CollectionID)
 	}
 
+	userID := uint(c.Locals("user_id").(float64))
+	NotifyEntityUpdate(collection.TeamID, userID, "Folder", folder.Name, "move", map[string]interface{}{"collection_id": collection.ID, "folder_id": folder.ID})
+
 	return c.JSON(folder)
 }
 
@@ -126,6 +129,7 @@ func CreateFolder(c *fiber.Ctx) error {
 	userID := uint(c.Locals("user_id").(float64))
 	WSHub.BroadcastEntityUpdate(collection.TeamID, "COLLECTION", collection.ID)
 	LogActivity(repository.DB, collection.TeamID, userID, "CREATED_FOLDER", "FOLDER", folder.ID, map[string]interface{}{"name": folder.Name})
+	NotifyEntityUpdate(collection.TeamID, userID, "Folder", folder.Name, "create", map[string]interface{}{"collection_id": collection.ID, "folder_id": folder.ID})
 
 	return c.Status(fiber.StatusCreated).JSON(folder)
 }
@@ -156,6 +160,7 @@ func UpdateFolder(c *fiber.Ctx) error {
 	userID := uint(c.Locals("user_id").(float64))
 	WSHub.BroadcastEntityUpdate(collection.TeamID, "COLLECTION", collection.ID)
 	LogActivity(repository.DB, collection.TeamID, userID, "UPDATED_FOLDER", "FOLDER", folder.ID, nil)
+	NotifyEntityUpdate(collection.TeamID, userID, "Folder", folder.Name, "update", map[string]interface{}{"collection_id": collection.ID, "folder_id": folder.ID})
 
 	return c.JSON(folder)
 }
@@ -179,6 +184,7 @@ func DeleteFolder(c *fiber.Ctx) error {
 	userID := uint(c.Locals("user_id").(float64))
 	WSHub.BroadcastEntityUpdate(collection.TeamID, "COLLECTION", collection.ID)
 	LogActivity(repository.DB, collection.TeamID, userID, "DELETED_FOLDER", "FOLDER", folder.ID, map[string]interface{}{"name": folder.Name})
+	NotifyEntityUpdate(collection.TeamID, userID, "Folder", folder.Name, "delete", map[string]interface{}{"collection_id": collection.ID})
 
 	return c.JSON(fiber.Map{"message": "Folder deleted successfully"})
 }

@@ -13,7 +13,7 @@ import { useAppStore } from './store/useAppStore'
 initWebSocketIntegration()
 
 function App(): React.JSX.Element {
-  const { isAuthenticated, logout, rehydrateAuth, isLoading } = useAuthStore()
+  const { isAuthenticated, logout, rehydrateAuth, isRehydrating } = useAuthStore()
   const { theme } = useAppStore()
   const [licenseError, setLicenseError] = useState<{ message: string; code: string } | null>(null)
 
@@ -153,7 +153,7 @@ function App(): React.JSX.Element {
     )
   }
 
-  if (isLoading && !isAuthenticated) {
+  if (isRehydrating && !isAuthenticated) {
     return (
       <div className="h-screen w-screen bg-background flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">

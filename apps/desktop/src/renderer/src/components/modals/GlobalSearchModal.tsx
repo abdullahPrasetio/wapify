@@ -10,7 +10,8 @@ import {
   LayoutDashboard,
   UserCog,
   Building2,
-  Heart
+  Heart,
+  Bell
 } from 'lucide-react'
 import { useDataStore } from '../../store/useDataStore'
 import { useAppStore } from '../../store/useAppStore'
@@ -59,6 +60,7 @@ export const GlobalSearchModal = (): React.JSX.Element | null => {
     if (!query.trim()) {
       const navs: SearchResult[] = [
         { id: 'nav-dashboard', type: 'navigation', title: 'Go to Dashboard', icon: LayoutDashboard, action: () => setActiveView('request-builder') },
+        { id: 'nav-activity', type: 'navigation', title: 'Activity Log', icon: Bell, action: () => setActiveView('activity-log') },
         {
           id: 'nav-settings', type: 'navigation', title: 'Open Settings', icon: Settings, action: () => {
             setActiveView('request-builder')
@@ -141,6 +143,7 @@ export const GlobalSearchModal = (): React.JSX.Element | null => {
     // 4. Filter Navigations
     const allNavs: SearchResult[] = [
       { id: 'nav-dashboard', type: 'navigation', title: 'Dashboard', icon: LayoutDashboard, action: () => setActiveView('request-builder') },
+      { id: 'nav-activity', type: 'navigation', title: 'Activity Log', icon: Bell, action: () => setActiveView('activity-log') },
       {
         id: 'nav-settings', type: 'navigation', title: 'Settings', icon: Settings, action: () => {
           setActiveView('request-builder')

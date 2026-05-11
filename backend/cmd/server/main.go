@@ -52,6 +52,9 @@ func PrepareServer() (*fiber.App, string, error) {
 	// Sync User Integrity Signatures
 	api.SyncUserSignatures()
 
+	// Notification Cleanup (Background)
+	go api.CleanupOldNotifications()
+
 	app := SetupApp()
 
 	port := os.Getenv("PORT")
@@ -95,6 +98,7 @@ func SetupApp() *fiber.App {
 	api.SetupMockServerRoutes(app)
 	api.SetupExampleRoutes(app)
 	api.SetupDonationRoutes(app)
+	api.SetupNotificationRoutes(app)
 
 	// Default Route
 	app.Get("/", func(c *fiber.Ctx) error {

@@ -265,3 +265,18 @@ type SystemSetting struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
+type Notification struct {
+	ID        uint      `gorm:"primaryKey" json:"id"`
+	UserID    uint      `gorm:"not null;index" json:"user_id"`
+	SenderID  uint      `gorm:"not null" json:"sender_id"`
+	Type      string    `gorm:"size:50;not null" json:"type"`
+	Title     string    `gorm:"not null" json:"title"`
+	Message   string    `gorm:"not null" json:"message"`
+	Metadata  JSONB     `gorm:"type:jsonb;default:'{}'" json:"metadata"`
+	IsRead    bool      `gorm:"default:false;index" json:"is_read"`
+	CreatedAt time.Time `json:"created_at"`
+
+	User   *User `gorm:"foreignKey:UserID" json:"-"`
+	Sender *User `gorm:"foreignKey:SenderID" json:"sender,omitempty"`
+}
+

@@ -1,7 +1,9 @@
 // websocket.ts
+import { toast } from 'sonner'
 import { useAuthStore } from '../store/useAuthStore'
 import { useDataStore } from '../store/useDataStore'
 import { useAppStore } from '../store/useAppStore'
+import { useNotificationStore } from '../store/useNotificationStore'
 import { getBaseUrl } from './client'
 
 const getWsBaseUrl = () => {
@@ -25,11 +27,15 @@ export class WebSocketClient {
 
       this.ws.onopen = () => {
         console.log('[Wapbolt WS] Connected to collaboration server')
+        toast.success('Connected to collaboration server', { id: 'ws-status' })
         this.isConnecting = false
         if (this.reconnectTimer) {
           clearTimeout(this.reconnectTimer)
           this.reconnectTimer = null
         }
+
+        // Start heartbeat
+        this.startHeartbeat()
 
         // When connected, send current active request if any
         const state = useDataStore.getState()
@@ -44,6 +50,7 @@ export class WebSocketClient {
       this.ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data)
+          console.log('[Wapbolt WS] Received message:', data)
           this.handleMessage(data)
         } catch (e) {
           console.error('[Wapbolt WS] Failed to parse message', e)
@@ -52,8 +59,10 @@ export class WebSocketClient {
 
       this.ws.onclose = () => {
         console.log('[Wapbolt WS] Disconnected')
+        toast.error('Disconnected from collaboration server', { id: 'ws-status' })
         this.ws = null
         this.isConnecting = false
+        this.stopHeartbeat()
         // Clear all presence/locks locally
         useDataStore.getState().clearPresenceAndLocks()
         this.scheduleReconnect(teamId, userId, userName)
@@ -67,6 +76,21 @@ export class WebSocketClient {
       console.error('[Wapbolt WS] Connection error:', e)
       this.isConnecting = false
       this.scheduleReconnect(teamId, userId, userName)
+    }
+  }
+
+  private heartbeatTimer: any = null
+  private startHeartbeat() {
+    this.stopHeartbeat()
+    this.heartbeatTimer = setInterval(() => {
+      this.send({ type: 'PING' })
+    }, 30000)
+  }
+
+  private stopHeartbeat() {
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer)
+      this.heartbeatTimer = null
     }
   }
 
@@ -140,6 +164,15 @@ export class WebSocketClient {
           const appStore = useAppStore.getState()
           appStore.setDonationMessage(message.payload?.message || '')
           appStore.setDonationModalOpen(true)
+        }
+        break
+      case 'NOTIFICATION_NEW':
+        if (message.payload) {
+          useNotificationStore.getState().addNotification(message.payload)
+          toast(message.payload.title, {
+            description: message.payload.message,
+            duration: 5000,
+          })
         }
         break
     }

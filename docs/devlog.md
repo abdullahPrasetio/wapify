@@ -1,4 +1,77 @@
 # Wapify — Development Log
+ 
++## [2026-05-11] — Real-Time Notifications, Deep Linking & v1.5.0
++**Fase:** Fase 7 — Kolaborasi Lanjutan
++**Dikerjakan oleh:** Antigravity
++**Status:** ✅ Selesai
++
++### Yang Dikerjakan
++- **Version Bump**: Menaikkan versi aplikasi ke **1.5.0**.
++- **Advanced WebSocket Stability**:
++    - Implementasi **Heartbeat (PING)** setiap 30 detik untuk menjaga koneksi tetap hidup.
++    - Perbaikan *mutex panic* (double unlock) pada backend hub.
++    - Penambahan indikator status koneksi (Connected/Disconnected) via toast.
++- **Deep Linking System**:
++    - Integrasi navigasi otomatis saat notifikasi diklik: membuka sidebar, ekspansi koleksi, dan membuka tab request yang relevan.
++    - Dukungan navigasi lintas-view (dari Admin/Settings kembali ke Request Builder).
++- **Activity Log Dashboard**:
++    - Pembuatan halaman penuh `ActivityLogView` untuk melihat riwayat kolaborasi tim secara komprehensif.
++    - Fitur filter (All/Unread) dan pencarian instan pada log aktivitas.
++    - Integrasi "Activity Log" ke dalam Global Search (`Cmd+K`).
++- **Data Management & Retention**:
++    - Implementasi **Auto-Retention Policy**: Penghapusan otomatis notifikasi >30 hari via background job (Ticker).
++    - Penambahan fitur "Clear All Notifications" untuk penghapusan manual secara permanen.
++- **UX & Bug Fixes**:
++    - **Login Fix**: Memastikan input Email tetap terjaga saat terjadi kesalahan password (persistence).
++    - **TypeScript Audit**: Pembersihan kode dari unused imports dan perbaikan error kompilasi pada proses build.
++
++### Perubahan File
++- `apps/desktop/package.json` — Version 1.5.0.
++- `apps/desktop/src/renderer/src/App.tsx` — Login persistence fix & splash screen logic.
++- `apps/desktop/src/renderer/src/api/websocket.ts` — Heartbeat & status toasts.
++- `apps/desktop/src/renderer/src/components/layout/ActivityLogView.tsx` — Full activity dashboard.
++- `apps/desktop/src/renderer/src/components/layout/NotificationBell.tsx` — Deep linking & UI optimization.
++- `backend/internal/api/notification.go` — Delete API & Auto-cleanup job.
++- `backend/cmd/server/main.go` — Startup background job integration.
++
++### Keputusan & Catatan
++- Menggunakan `isRehydrating` state terpisah pada Auth Store untuk mencegah unmounting halaman login saat proses login berlangsung, sehingga input email tidak ter-reset.
++- Memilih interval 24 jam untuk cleanup job agar tidak memberatkan database selama jam kerja sibuk.
++
++---
++
++## [2026-05-09] — Real-time In-App Notifications System
++**Fase:** Fase 7 — Kolaborasi Lanjutan
++**Dikerjakan oleh:** Antigravity
++**Status:** ✅ Selesai
++
++### Yang Dikerjakan
++- **Full-stack Notification System**: Implementasi sistem notifikasi real-time untuk memberi tahu pengguna tentang aktivitas anggota tim lain di Workspace.
++- **Backend**:
++    - Database migration `000017_create_notifications_table`.
++    - Model `Notification` dan API endpoints (`GET`, `PATCH`, `POST read-all`).
++    - Notification Hooks: Trigger otomatis pada aksi Create/Update/Delete/Move untuk Request, Folder, dan Koleksi.
++- **WebSocket Integration**: Event `NOTIFICATION_NEW` untuk pengiriman notifikasi instan ke client yang sedang online.
++- **Frontend UI/UX**:
++    - `useNotificationStore`: State management dengan persistensi lokal.
++    - `NotificationBell`: Ikon lonceng premium dengan badge unread real-time.
++    - `NotificationPopover`: Dropdown list bergaya modern dengan format pesan yang deskriptif dan dukungan navigasi otomatis saat diklik.
++
++### Perubahan File
++- `backend/migrations/000017_create_notifications_table.*`
++- `backend/internal/api/notification.go`
++- `backend/internal/api/websocket.go`
++- `backend/internal/repository/models.go`
++- `apps/desktop/src/renderer/src/store/useNotificationStore.ts`
++- `apps/desktop/src/renderer/src/components/layout/NotificationBell.tsx`
++- `apps/desktop/src/renderer/src/api/websocket.ts`
++
++### Keputusan & Catatan
++- Memasukkan metadata (ID koleksi/request) ke dalam notifikasi untuk mendukung fitur **Quick Navigation** saat notifikasi diklik.
++- Menggunakan `NotifyTeamMembers` helper agar notifikasi hanya dikirim ke anggota tim lain, bukan ke pelaku aksi sendiri.
++
++---
++
 
 ## [2026-05-08] — Cross-Team Global Search & v1.4.9 Final
 **Fase:** Fase 6 — UX & Power Features

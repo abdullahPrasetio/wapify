@@ -85,6 +85,10 @@ func MoveRequest(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to move request", "code": "INTERNAL_SERVER_ERROR"})
 	}
 
+	userID := uint(c.Locals("user_id").(float64))
+	WSHub.BroadcastEntityUpdate(collection.TeamID, "COLLECTION", collection.ID)
+	NotifyEntityUpdate(collection.TeamID, userID, "Request", request.Name, "move", map[string]interface{}{"collection_id": collection.ID, "request_id": request.ID})
+
 	return c.JSON(request)
 }
 
@@ -158,6 +162,7 @@ func CreateRequestInFolder(c *fiber.Ctx) error {
 
 	WSHub.BroadcastEntityUpdate(collection.TeamID, "COLLECTION", collection.ID)
 	LogActivity(repository.DB, collection.TeamID, userID, "CREATED_REQUEST", "REQUEST", request.ID, map[string]interface{}{"name": request.Name})
+	NotifyEntityUpdate(collection.TeamID, userID, "Request", request.Name, "create", map[string]interface{}{"collection_id": collection.ID, "request_id": request.ID})
 
 	return c.Status(fiber.StatusCreated).JSON(request)
 }
@@ -231,6 +236,7 @@ func CreateRequestInCollection(c *fiber.Ctx) error {
 
 	WSHub.BroadcastEntityUpdate(collection.TeamID, "COLLECTION", collection.ID)
 	LogActivity(repository.DB, collection.TeamID, userID, "CREATED_REQUEST", "REQUEST", request.ID, map[string]interface{}{"name": request.Name})
+	NotifyEntityUpdate(collection.TeamID, userID, "Request", request.Name, "create", map[string]interface{}{"collection_id": collection.ID, "request_id": request.ID})
 
 	return c.Status(fiber.StatusCreated).JSON(request)
 }
@@ -313,6 +319,7 @@ func UpdateRequest(c *fiber.Ctx) error {
 	userID := uint(c.Locals("user_id").(float64))
 	WSHub.BroadcastEntityUpdate(collection.TeamID, "REQUEST", request.ID)
 	LogActivity(repository.DB, collection.TeamID, userID, "UPDATED_REQUEST", "REQUEST", request.ID, nil)
+	NotifyEntityUpdate(collection.TeamID, userID, "Request", request.Name, "update", map[string]interface{}{"collection_id": collection.ID, "request_id": request.ID})
 
 	return c.JSON(request)
 }
@@ -336,6 +343,7 @@ func DeleteRequest(c *fiber.Ctx) error {
 	userID := uint(c.Locals("user_id").(float64))
 	WSHub.BroadcastEntityUpdate(collection.TeamID, "COLLECTION", collection.ID)
 	LogActivity(repository.DB, collection.TeamID, userID, "DELETED_REQUEST", "REQUEST", request.ID, map[string]interface{}{"name": request.Name})
+	NotifyEntityUpdate(collection.TeamID, userID, "Request", request.Name, "delete", map[string]interface{}{"collection_id": collection.ID})
 
 	return c.JSON(fiber.Map{"message": "Request deleted successfully"})
 }
@@ -380,6 +388,7 @@ func DuplicateRequest(c *fiber.Ctx) error {
 	// Real-time broadcast
 	WSHub.BroadcastEntityUpdate(collection.TeamID, "COLLECTION", collection.ID)
 	LogActivity(repository.DB, collection.TeamID, userID, "DUPLICATED_REQUEST", "REQUEST", newRequest.ID, map[string]interface{}{"name": newRequest.Name})
+	NotifyEntityUpdate(collection.TeamID, userID, "Request", newRequest.Name, "create", map[string]interface{}{"collection_id": collection.ID, "request_id": newRequest.ID})
 
 	return c.Status(fiber.StatusCreated).JSON(newRequest)
 }

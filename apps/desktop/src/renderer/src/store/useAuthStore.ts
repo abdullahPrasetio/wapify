@@ -8,6 +8,7 @@ interface AuthState {
   token: string | null
   isAuthenticated: boolean
   isLoading: boolean
+  isRehydrating: boolean
   error: string | null
 
   login: (email: string, password: string) => Promise<void>
@@ -22,6 +23,7 @@ export const useAuthStore = create<AuthState>()(
   token: null,
   isAuthenticated: false,
   isLoading: false,
+  isRehydrating: true,
   error: null,
 
   login: async (email: string, password: string) => {
@@ -60,7 +62,7 @@ export const useAuthStore = create<AuthState>()(
   },
 
   rehydrateAuth: async () => {
-    set({ isLoading: true })
+    set({ isRehydrating: true })
     try {
       const refreshToken = window.api ? await window.api.getToken() : null
       if (refreshToken) {
@@ -75,14 +77,14 @@ export const useAuthStore = create<AuthState>()(
           if (newRefreshToken && window.api) {
             await window.api.setToken(newRefreshToken)
           }
-          set({ user, token, isAuthenticated: true, isLoading: false })
+          set({ user, token, isAuthenticated: true, isRehydrating: false })
           return
         }
       }
     } catch (err) {
       console.error('[Auth] Rehydration failed:', err)
     }
-    set({ isLoading: false, isAuthenticated: false })
+    set({ isRehydrating: false, isAuthenticated: false })
   },
 
   clearError: () => set({ error: null })

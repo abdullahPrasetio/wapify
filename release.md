@@ -1,24 +1,25 @@
-# Release Notes — Wapbolt v1.4.9
+# Release Notes — Wapbolt v1.5.0
 
 ## What's New 🚀
-Rilis ini memperkenalkan fitur **Global Search (Omnibar)** untuk navigasi super cepat dan penggabungan fitur kenyamanan dari versi sebelumnya.
+Rilis ini membawa pembaruan besar pada sistem kolaborasi tim dengan pengenalan **Real-Time Notifications** dan perbaikan stabilitas fundamental.
 
-### 🔍 Global Search (Omnibar)
-- **Spotlight Navigation**: Akses apa pun di Wapbolt melalui satu pintasan: `Cmd+K` (Mac) atau `Ctrl+K` (Windows).
-- **Intelligent Search**: Cari **Requests** berdasarkan nama atau URL, **Collections**, dan menu navigasi secara instan.
-- **Admin Commands**: Jika Anda seorang admin, menu manajemen (User, Workspace, Donation) akan muncul di hasil pencarian untuk akses langsung.
+### 🔔 Real-Time Notification System
+- **Live Collaboration**: Dapatkan notifikasi instan saat rekan tim membuat, mengubah, atau memindahkan request/koleksi di workspace yang sama.
+- **Heartbeat Protocol**: Implementasi koneksi WebSocket yang lebih stabil dengan mekanisme *heartbeat* untuk mencegah pemutusan koneksi yang tidak diinginkan.
+- **Activity Center**: Halaman "Activity Log" baru untuk melacak riwayat kolaborasi secara mendalam.
+- **Deep Linking**: Klik pada notifikasi akan otomatis membuka sidebar, mengekspansi koleksi, dan memuat request yang relevan.
 
-### 📂 Sidebar & Navigation Improvements
-- **Collapse All**: Tombol baru di sidebar untuk menutup semua koleksi dan folder yang terbuka dalam satu klik.
-- **Persistence Fix**: Wapbolt sekarang mengingat status ekspansi sidebar Anda bahkan setelah aplikasi di-refresh (Cmd+R).
+### 🧹 Auto-Retention & Cleanup
+- **30-Day Retention**: Backend sekarang otomatis menghapus notifikasi lama (>30 hari) setiap 24 jam untuk menjaga performa database.
+- **Manual Clear**: Tombol "Clear Activities" di halaman Log untuk menghapus seluruh riwayat aktivitas secara instan.
 
-### 🎨 Dynamic Theme System
-- **Light & Dark Mode**: Dukungan penuh untuk tema terang yang bersih atau tema gelap klasik.
-- **Auto Sync**: Editor kode dan notifikasi secara otomatis mengikuti tema yang Anda pilih.
+### 🔑 Login UX Improvements
+- **Input Persistence**: Memperbaiki bug yang menghapus input Email jika password salah. Sekarang Anda hanya perlu membetulkan password tanpa mengetik ulang email.
 
-### 🔧 Fixes & Improvements
-- **UI Cleanup**: Pembersihan border *hardcoded* dan perbaikan warna kursor di Light Mode.
-- **Font Preview**: Restorasi kotak "Preview Text" pada pengaturan ukuran font.
+### 🔧 Fixes & Stability
+- **Backend Hub Fix**: Memperbaiki *panic error* pada WebSocket Hub yang sebelumnya bisa menyebabkan server crash saat user disconnect.
+- **Search Integration**: Menambahkan navigasi "Activity Log" ke dalam Global Search (`Cmd+K`).
+- **Notification Dropdown**: Tampilan lonceng yang lebih bersih, hanya menampilkan 5 aktivitas terbaru dengan akses cepat ke log penuh.
 
 ---
-*Dibuat oleh Agent pada 08 Mei 2026*
+*Dibuat oleh Antigravity pada 11 Mei 2026*

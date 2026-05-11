@@ -6,6 +6,7 @@ import { useDataStore } from '../../store/useDataStore'
 import { UserManagement } from '../admin/UserManagement'
 import { TeamManagement } from '../admin/TeamManagement'
 import { DonationSettings } from '../admin/DonationSettings'
+import { ActivityLogView } from './ActivityLogView'
 import { GlobalSearchModal } from '../modals/GlobalSearchModal'
 
 export const AppLayout = (): React.JSX.Element => {
@@ -64,6 +65,8 @@ export const AppLayout = (): React.JSX.Element => {
         return <TeamManagement />
       case 'admin-donations':
         return <DonationSettings />
+      case 'activity-log':
+        return <ActivityLogView />
       case 'request-builder':
       default:
         return (

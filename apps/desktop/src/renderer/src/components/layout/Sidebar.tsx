@@ -54,6 +54,7 @@ import { ChangePasswordModal } from "../modals/ChangePasswordModal"
 import { StandaloneMockPanel } from "./StandaloneMockPanel"
 import { DocumentationPanel } from './DocumentationPanel'
 import { MockServerPanel } from './MockServerPanel'
+import { NotificationBell } from './NotificationBell'
 import type { ApiRequest, Collection, Folder, RequestExample } from '../../types'
 
 const METHOD_COLORS: Record<string, string> = {
@@ -986,6 +987,7 @@ export const Sidebar = (): React.JSX.Element => {
                 <div className="text-[10px] text-muted truncate">{user?.email}</div>
               </div>
               <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                <NotificationBell />
                 <button onClick={() => setShowChangePassword(true)} title="Change Password" className="text-muted hover:text-text"><Key size={14} /></button>
                 <button onClick={() => setShowServerSettings(true)} className="text-muted hover:text-text"><Settings size={14} /></button>
                 <button onClick={logout} className="text-muted hover:text-danger"><LogOut size={14} /></button>

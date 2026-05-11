@@ -25,6 +25,7 @@ const (
 	EventLockUpdate   WSEventType = "LOCK_UPDATE"
 	EventEntityUpdated WSEventType = "ENTITY_UPDATED"
 	EventDonationPrompt WSEventType = "DONATION_PROMPT"
+	EventNotificationNew WSEventType = "NOTIFICATION_NEW"
 )
 
 // WSEvent represents the structure of messages exchanged via websocket
@@ -148,12 +149,14 @@ func (h *Hub) Register(client *Client) {
 		h.Clients[client.TeamID] = make(map[*Client]bool)
 	}
 	h.Clients[client.TeamID][client] = true
+	log.Printf("WS: Client Registered - UserID: %d, TeamID: %d, Total Clients in Team: %d", client.UserID, client.TeamID, len(h.Clients[client.TeamID]))
 }
 
 func (h *Hub) Unregister(client *Client) {
 	h.mu.Lock()
 	if h.Clients[client.TeamID] != nil {
 		delete(h.Clients[client.TeamID], client)
+		log.Printf("WS: Client Unregistered - UserID: %d, TeamID: %d, Clients left in Team: %d", client.UserID, client.TeamID, len(h.Clients[client.TeamID]))
 	}
 	
 	// If the user had a lock, release it
@@ -220,6 +223,9 @@ func (h *Hub) HandleEvent(client *Client, event WSEvent) {
 			h.BroadcastLockUpdate(client.TeamID, event.RequestID)
 		}
 
+	case "PING":
+		// Heartbeat, do nothing
+		return
 	case EventUnlockRequest:
 		h.mu.Lock()
 		lock, exists := h.Locks[event.RequestID]
@@ -418,5 +424,32 @@ func (h *Hub) BroadcastDonationPrompt(userID uint, message string) {
 				c.WriteMessage(websocket.TextMessage, msg)
 			}
 		}
+	}
+}
+
+// BroadcastNotification sends a new notification to a specific user
+func (h *Hub) BroadcastNotification(userID uint, notification repository.Notification) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	event := WSEvent{
+		Type: EventNotificationNew,
+		Payload: notification,
+	}
+	msg, _ := json.Marshal(event)
+
+	// Search for the user in all teams
+	found := false
+	for teamID, teamClients := range h.Clients {
+		for c := range teamClients {
+			if c.UserID == userID {
+				c.WriteMessage(websocket.TextMessage, msg)
+				found = true
+				log.Printf("WS: Notification sent to UserID %d in TeamID %d", userID, teamID)
+			}
+		}
+	}
+	if !found {
+		log.Printf("WS: Could not find active connection for UserID %d to send notification", userID)
 	}
 }
