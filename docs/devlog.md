@@ -1,4 +1,157 @@
-# Wapify — Development Log
+
+## [2026-05-12] — Structured API Validation & v1.5.1
+**Fase:** Fase 3 — Dokumentasi & Mock Server (Enhancement)
+**Dikerjakan oleh:** Antigravity
+**Status:** ✅ Selesai
+
+### Yang Dikerjakan
+- **Version Bump**: Menaikkan versi aplikasi ke **1.5.1**.
+- **Structured API Validation System (V2)**:
+    - Migrasi sistem validasi dari inline comments (`//`) ke metadata terstruktur menggunakan kolom JSONB.
+    - Penambahan tab **"Validation"** pada Request Builder untuk mengelola aturan (Required, Email, Length, dll) secara visual.
+    - Implementasi auto-generation field validation berdasarkan header dan body yang aktif.
+    - Sinkronisasi otomatis antara UI Validation dengan database backend.
+- **Documentation Overhaul**:
+    - Panel Dokumentasi kini merender metadata validasi secara dinamis tanpa parsing teks.
+    - Penambahan kolom **Description** khusus pada tabel dokumentasi untuk meningkatkan keterbacaan.
+    - Optimasi layout tabel (lebar kolom & ukuran font) agar lebih nyaman dibaca pada dokumentasi yang kompleks.
+- **Codebase Cleanup**:
+    - Penghapusan seluruh logika *legacy* `stripInlineComments` di Main Process dan `parseAnnotations` di Frontend.
+    - Perbaikan bug sinkronisasi state `workingRequest` pada fitur `openExample` dan `createRequest`.
+
+### Perubahan File
+- `apps/desktop/package.json` — Version 1.5.1.
+- `release.md` — Ringkasan rilis untuk pengguna.
+- `backend/migrations/000018_add_field_validations_to_requests.up.sql` — Kolom JSONB baru.
+- `apps/desktop/src/renderer/src/components/layout/DocumentationPanel.tsx` — UI dokumentasi baru.
+- `apps/desktop/src/main/index.ts` — Pembersihan legacy logic.
+- `apps/desktop/src/renderer/src/store/useDataStore.ts` — Integrasi field_validations ke store.
+
+### Keputusan & Catatan
+- Memutuskan memisahkan kolom deskripsi dari kolom validasi di dokumentasi agar informasi penting tidak terpotong (truncated).
+- Menggunakan pendekatan JSONB di PostgreSQL untuk fleksibilitas aturan validasi di masa depan tanpa perlu migrasi skema berulang kali.
+
+---
++## [2026-05-11] — Real-Time Notifications, Deep Linking & v1.5.0
++**Fase:** Fase 7 — Kolaborasi Lanjutan
++**Dikerjakan oleh:** Antigravity
++**Status:** ✅ Selesai
++
++### Yang Dikerjakan
++- **Version Bump**: Menaikkan versi aplikasi ke **1.5.0**.
++- **Advanced WebSocket Stability**:
++    - Implementasi **Heartbeat (PING)** setiap 30 detik untuk menjaga koneksi tetap hidup.
++    - Perbaikan *mutex panic* (double unlock) pada backend hub.
++    - Penambahan indikator status koneksi (Connected/Disconnected) via toast.
++- **Deep Linking System**:
++    - Integrasi navigasi otomatis saat notifikasi diklik: membuka sidebar, ekspansi koleksi, dan membuka tab request yang relevan.
++    - Dukungan navigasi lintas-view (dari Admin/Settings kembali ke Request Builder).
++- **Activity Log Dashboard**:
++    - Pembuatan halaman penuh `ActivityLogView` untuk melihat riwayat kolaborasi tim secara komprehensif.
++    - Fitur filter (All/Unread) dan pencarian instan pada log aktivitas.
++    - Integrasi "Activity Log" ke dalam Global Search (`Cmd+K`).
++- **Data Management & Retention**:
++    - Implementasi **Auto-Retention Policy**: Penghapusan otomatis notifikasi >30 hari via background job (Ticker).
++    - Penambahan fitur "Clear All Notifications" untuk penghapusan manual secara permanen.
++- **UX & Bug Fixes**:
++    - **Login Fix**: Memastikan input Email tetap terjaga saat terjadi kesalahan password (persistence).
++    - **TypeScript Audit**: Pembersihan kode dari unused imports dan perbaikan error kompilasi pada proses build.
++
++### Perubahan File
++- `apps/desktop/package.json` — Version 1.5.0.
++- `apps/desktop/src/renderer/src/App.tsx` — Login persistence fix & splash screen logic.
++- `apps/desktop/src/renderer/src/api/websocket.ts` — Heartbeat & status toasts.
++- `apps/desktop/src/renderer/src/components/layout/ActivityLogView.tsx` — Full activity dashboard.
++- `apps/desktop/src/renderer/src/components/layout/NotificationBell.tsx` — Deep linking & UI optimization.
++- `backend/internal/api/notification.go` — Delete API & Auto-cleanup job.
++- `backend/cmd/server/main.go` — Startup background job integration.
++
++### Keputusan & Catatan
++- Menggunakan `isRehydrating` state terpisah pada Auth Store untuk mencegah unmounting halaman login saat proses login berlangsung, sehingga input email tidak ter-reset.
++- Memilih interval 24 jam untuk cleanup job agar tidak memberatkan database selama jam kerja sibuk.
++
++---
++
++## [2026-05-09] — Real-time In-App Notifications System
++**Fase:** Fase 7 — Kolaborasi Lanjutan
++**Dikerjakan oleh:** Antigravity
++**Status:** ✅ Selesai
++
++### Yang Dikerjakan
++- **Full-stack Notification System**: Implementasi sistem notifikasi real-time untuk memberi tahu pengguna tentang aktivitas anggota tim lain di Workspace.
++- **Backend**:
++    - Database migration `000017_create_notifications_table`.
++    - Model `Notification` dan API endpoints (`GET`, `PATCH`, `POST read-all`).
++    - Notification Hooks: Trigger otomatis pada aksi Create/Update/Delete/Move untuk Request, Folder, dan Koleksi.
++- **WebSocket Integration**: Event `NOTIFICATION_NEW` untuk pengiriman notifikasi instan ke client yang sedang online.
++- **Frontend UI/UX**:
++    - `useNotificationStore`: State management dengan persistensi lokal.
++    - `NotificationBell`: Ikon lonceng premium dengan badge unread real-time.
++    - `NotificationPopover`: Dropdown list bergaya modern dengan format pesan yang deskriptif dan dukungan navigasi otomatis saat diklik.
++
++### Perubahan File
++- `backend/migrations/000017_create_notifications_table.*`
++- `backend/internal/api/notification.go`
++- `backend/internal/api/websocket.go`
++- `backend/internal/repository/models.go`
++- `apps/desktop/src/renderer/src/store/useNotificationStore.ts`
++- `apps/desktop/src/renderer/src/components/layout/NotificationBell.tsx`
++- `apps/desktop/src/renderer/src/api/websocket.ts`
++
++### Keputusan & Catatan
++- Memasukkan metadata (ID koleksi/request) ke dalam notifikasi untuk mendukung fitur **Quick Navigation** saat notifikasi diklik.
++- Menggunakan `NotifyTeamMembers` helper agar notifikasi hanya dikirim ke anggota tim lain, bukan ke pelaku aksi sendiri.
++
++---
++
+
+## [2026-05-08] — Cross-Team Global Search & v1.4.9 Final
+**Fase:** Fase 6 — UX & Power Features
+**Dikerjakan oleh:** Antigravity
+**Status:** ✅ Selesai
+
+### Yang Dikerjakan
+- **Cross-Team Global Search**: Peningkatan fitur Omnibar untuk mendukung pencarian di seluruh Workspace yang dimiliki pengguna.
+- **Backend Search API**: Implementasi `/api/v1/search/summary` dengan logic Join table untuk akses data lintas tim secara efisien.
+- **Robust Navigation**: Perbaikan logika perpindahan workspace yang memastikan data request di-fetch secara asinkron sebelum dibuka, menjamin stabilitas navigasi.
+- **Middleware Fixes**: Penambahan helper `JWTProtected` dan `GetUserFromCtx` pada middleware auth untuk standarisasi akses data user di backend.
+- **Null Safety**: Penanganan defensif pada frontend untuk mencegah crash saat data pencarian kosong.
+
+### Perubahan File
+- `backend/internal/api/search.go` — Backend Join logic & access control.
+- `backend/internal/middleware/auth.go` — Middleware helpers.
+- `apps/desktop/src/renderer/src/components/modals/GlobalSearchModal.tsx` — Async navigation & safety checks.
+
+---
+
+## [2026-05-07] — Global Search (Omnibar), Menu Navigation & v1.4.9
+**Fase:** Fase 7 — Kolaborasi Lanjutan
+**Dikerjakan oleh:** Agent
+**Status:** ✅ Selesai
+
+### Yang Dikerjakan
+- **Global Search (Omnibar)**: Implementasi fitur pencarian cepat bergaya Spotlight/Raycast yang dapat diakses via `Cmd+K` (Mac) atau `Ctrl+K` (Windows).
+- **Intelligent Filtering**: Mendukung pencarian **Requests** (berdasarkan nama & URL), **Collections**, dan **Menu Navigasi**.
+- **Role-Based Search Results**: Menu administratif seperti "User Management" dan "Workspace Management" hanya muncul di hasil pencarian jika user adalah Super Admin.
+- **Quick Navigation**: Integrasi dengan `useDataStore` dan `useAppStore` untuk langsung berpindah antar view atau mengekspansi koleksi dari hasil pencarian.
+- **Custom Event System**: Menghubungkan Omnibar dengan komponen Sidebar untuk membuka modal Settings dan Standalone Mocks secara programatik.
+- **Version Bump**: Menaikkan versi aplikasi ke **1.4.9**.
+
+### Perubahan File
+- `apps/desktop/src/renderer/src/components/modals/GlobalSearchModal.tsx` — Komponen UI Omnibar.
+- `apps/desktop/src/renderer/src/components/layout/AppLayout.tsx` — Keyboard listener & mounting modal.
+- `apps/desktop/src/renderer/src/store/useAppStore.ts` — State modal pencarian.
+- `apps/desktop/src/renderer/src/components/layout/Sidebar.tsx` — Listener untuk navigasi modal dari search.
+- `apps/desktop/package.json` — Bump version to 1.4.9.
+
+### Keputusan & Catatan
+- Memisahkan logika pencarian sepenuhnya di frontend untuk performa instan (*sub-millisecond search*).
+- Menggunakan `lucide-react` untuk ikon kategori agar user cepat membedakan tipe hasil pencarian (Request, Folder, Menu).
+
+### Langkah Selanjutnya
+- Audit fitur-fitur baru dan persiapan untuk rilis stabil v1.5.
+
+---
 
 ## [2026-05-07] — Implementasi Sistem Tema Dinamis (Light/Dark/System) & Pembersihan UI
 **Fase:** Fase 6 — UX & Power Features
@@ -14,8 +167,9 @@
 - **Light Mode UI Fixes**: 
     - Menghapus border *hardcoded* pada `VariableOverlayInput` yang menyebabkan tampilan "kotak-kotak" pada tabel di tema terang.
     - Mengatur ulang warna kursor (*caret*) agar selalu kontras dengan latar belakang.
-- **Global Style Cleanup**: Melakukan pembersihan pada file `DocumentationPanel.tsx`, `MockServerPanel.tsx`, `StandaloneMockPanel.tsx`, dan `ResponseArea.tsx` untuk mengganti ratusan warna *hardcoded* gelap menjadi variabel tema yang dinamis.
+- **Global Style Cleanup**: Melakukan pembersihan pada file `DocumentationPanel.tsx`, `MockServerPanel.tsx`, dan `StandaloneMockPanel.tsx` untuk mengganti ratusan warna *hardcoded* gelap menjadi variabel tema yang dinamis.
 - **Restorasi Fitur**: Mengembalikan bagian "Preview Text" pada pengaturan ukuran font yang sempat hilang saat pemindahan UI.
+- **Sidebar Persistence Fix**: Memperbaiki bug di mana sidebar (koleksi/folder) ter-collapse atau terlihat kosong saat aplikasi di-refresh. Sekarang aplikasi secara otomatis mengambil konten untuk semua item yang sebelumnya sudah diekspansi.
 
 ### Perubahan File
 - `apps/desktop/src/renderer/src/assets/main.css` — Definisi variabel CSS tema.

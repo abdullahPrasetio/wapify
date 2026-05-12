@@ -2,7 +2,7 @@
 description: Panduan langkah-demi-langkah untuk melakukan git commit di project Wapify
 ---
 
-# Commit Workflow — Wapify
+# Commit Workflow — Wapbolt
 
 Gunakan workflow ini SETIAP KALI akan melakukan commit untuk memastikan standar kualitas dan dokumentasi terjaga.
 

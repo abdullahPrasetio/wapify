@@ -51,14 +51,15 @@ type DocFolder struct {
 
 // DocRequest is a simplified request for the docs viewer
 type DocRequest struct {
-	ID          uint                   `json:"id"`
-	Name        string                 `json:"name"`
-	Description string                 `json:"description"`
-	Method      string                 `json:"method"`
-	URL         string                 `json:"url"`
-	Headers     map[string]interface{} `json:"headers"`
-	Body        map[string]interface{} `json:"body"`
-	Examples    []repository.RequestExample `json:"examples,omitempty"`
+	ID               uint                   `json:"id"`
+	Name             string                 `json:"name"`
+	Description      string                 `json:"description"`
+	Method           string                 `json:"method"`
+	URL              string                 `json:"url"`
+	Headers          map[string]interface{} `json:"headers"`
+	Body             map[string]interface{} `json:"body"`
+	FieldValidations map[string]interface{} `json:"field_validations"`
+	Examples         []repository.RequestExample `json:"examples,omitempty"`
 }
 
 // DocResponse is the response structure for the docs viewer
@@ -132,15 +133,20 @@ func toDocRequest(r repository.Request) DocRequest {
 	for k, v := range r.Body {
 		body[k] = v
 	}
+	fieldValidations := make(map[string]interface{})
+	for k, v := range r.FieldValidations {
+		fieldValidations[k] = v
+	}
 	return DocRequest{
-		ID:          r.ID,
-		Name:        r.Name,
-		Description: r.Description,
-		Method:      r.Method,
-		URL:         r.URL,
-		Headers:     headers,
-		Body:        body,
-		Examples:    r.Examples,
+		ID:               r.ID,
+		Name:             r.Name,
+		Description:      r.Description,
+		Method:           r.Method,
+		URL:              r.URL,
+		Headers:          headers,
+		Body:             body,
+		FieldValidations: fieldValidations,
+		Examples:         r.Examples,
 	}
 }
 

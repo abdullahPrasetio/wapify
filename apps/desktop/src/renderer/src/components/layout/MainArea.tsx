@@ -4,7 +4,7 @@ import { useAuthStore } from '../../store/useAuthStore'
 import { KeyValueEditor } from '../ui/KeyValueEditor'
 import { VariableOverlayInput } from '../ui/VariableOverlayInput'
 import { SetVarModal } from '../modals/SetVarModal'
-import { Shield, Eye, EyeOff, X, RefreshCw, Save, Lock, Users, ChevronDown, FileCode2, Terminal as TerminalIcon, Code, Box, Globe, Link as LinkIcon, BookOpen, Zap } from 'lucide-react'
+import { Shield, Eye, EyeOff, X, RefreshCw, Save, Lock, Users, ChevronDown, FileCode2, Terminal as TerminalIcon, Code, Box, Globe, Link as LinkIcon, BookOpen, Zap, ShieldCheck, FileText } from 'lucide-react'
 import { ResponseArea } from './ResponseArea'
 import { HistoryDetailView } from './HistoryDetailView'
 import { CollaborationPanel } from './CollaborationPanel'
@@ -15,7 +15,8 @@ import { ComingSoonModal } from '../modals/ComingSoonModal'
 import { parseCurlCommand } from '../../utils/curlParser'
 import Editor, { loader } from '@monaco-editor/react'
 import * as monaco from 'monaco-editor'
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
+import type { FieldValidationRule, FieldValidations } from '../../types'
 import { toast } from 'sonner'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 
@@ -60,7 +61,7 @@ monaco.languages.registerHoverProvider('xml', createVarHoverProvider('xml'))
 monaco.languages.registerHoverProvider('html', createVarHoverProvider('html'))
 
 
-const REQUEST_TABS = ['Params', 'Auth', 'Headers', 'Body', 'Pre-request', 'Tests'] as const
+const REQUEST_TABS = ['Params', 'Auth', 'Headers', 'Body', 'Pre-request', 'Tests', 'Validation'] as const
 
 const METHOD_COLOR: Record<string, string> = {
   GET: 'text-success',
@@ -573,12 +574,247 @@ const EditorArea = ({
           </div>
         </div>
       </div>
+
+      {/* --- VALIDATION TAB --- rendered by ValidationEditorTab below, included here to follow the same tab pattern */}
+      <ValidationEditorTab
+        activeTab={activeTab}
+        workingRequest={workingRequest}
+        onUpdate={onUpdate}
+        isLocked={isLocked}
+      />
+    </div>
+  )
+}
+
+// ─── Validation Tab ───────────────────────────────────────────────────────────
+
+const AVAILABLE_RULES = [
+  'required', 'nullable', 'string', 'integer', 'numeric',
+  'boolean', 'email', 'url', 'array', 'object', 'unique'
+]
+
+const EMPTY_RULE: FieldValidationRule = { rules: [], min: 0, max: 0, description: '' }
+
+const RULE_BADGE_STYLE: Record<string, string> = {
+  required: 'bg-rose-500/20 text-rose-400 border-rose-500/30',
+  nullable: 'bg-slate-500/20 text-slate-400 border-slate-500/30',
+  email: 'bg-violet-500/20 text-violet-400 border-violet-500/30',
+  url: 'bg-violet-500/20 text-violet-400 border-violet-500/30',
+  unique: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
+}
+
+interface ValidationFieldRowProps {
+  section: 'headers' | 'body'
+  fieldName: string
+  rule: FieldValidationRule
+  onChange: (section: 'headers' | 'body', field: string, rule: FieldValidationRule) => void
+  isLocked?: boolean
+}
+
+const ValidationFieldRow: React.FC<ValidationFieldRowProps> = ({
+  section, fieldName, rule, onChange, isLocked
+}) => {
+  const toggleRule = (r: string): void => {
+    const existing = rule.rules.includes(r)
+    const newRules = existing ? rule.rules.filter((x) => x !== r) : [...rule.rules, r]
+    onChange(section, fieldName, { ...rule, rules: newRules })
+  }
+
+  return (
+    <div className="border border-border rounded-lg p-3 bg-surface/40 hover:bg-surface/70 transition-colors">
+      <div className="flex items-center gap-2 mb-3">
+        <span className="text-[10px] font-bold uppercase tracking-widest text-muted px-1.5 py-0.5 rounded bg-white/5 border border-border">
+          {section === 'headers' ? 'HDR' : 'BODY'}
+        </span>
+        <span className="text-xs font-mono font-semibold text-text flex-1 truncate">{fieldName}</span>
+        {rule.rules.length > 0 && (
+          <span className="text-[9px] text-primary font-bold">{rule.rules.length} rules</span>
+        )}
+      </div>
+
+      {/* Rule badges toggle */}
+      <div className="flex flex-wrap gap-1 mb-3">
+        {AVAILABLE_RULES.map((r) => {
+          const active = rule.rules.includes(r)
+          const badgeStyle = RULE_BADGE_STYLE[r] ?? 'bg-primary/10 text-primary border-primary/20'
+          return (
+            <button
+              key={r}
+              disabled={isLocked}
+              onClick={() => toggleRule(r)}
+              className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide border transition-all ${
+                active ? badgeStyle : 'bg-transparent text-muted border-border hover:border-white/20 hover:text-text'
+              } ${isLocked ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+            >
+              {r}
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Min / Max */}
+      <div className="grid grid-cols-2 gap-2 mb-2">
+        <div>
+          <label className="text-[9px] font-bold text-muted uppercase tracking-widest block mb-1">Min Length</label>
+          <input
+            type="number"
+            min={0}
+            disabled={isLocked}
+            value={rule.min}
+            onChange={(e) => onChange(section, fieldName, { ...rule, min: parseInt(e.target.value) || 0 })}
+            className="w-full bg-background border border-border rounded px-2 py-1 text-xs text-text focus:outline-none focus:border-primary"
+            placeholder="0 = no limit"
+          />
+        </div>
+        <div>
+          <label className="text-[9px] font-bold text-muted uppercase tracking-widest block mb-1">Max Length</label>
+          <input
+            type="number"
+            min={0}
+            disabled={isLocked}
+            value={rule.max}
+            onChange={(e) => onChange(section, fieldName, { ...rule, max: parseInt(e.target.value) || 0 })}
+            className="w-full bg-background border border-border rounded px-2 py-1 text-xs text-text focus:outline-none focus:border-primary"
+            placeholder="0 = no limit"
+          />
+        </div>
+      </div>
+
+      {/* Description */}
+      <div>
+        <label className="text-[9px] font-bold text-muted uppercase tracking-widest block mb-1">Description</label>
+        <input
+          type="text"
+          disabled={isLocked}
+          value={rule.description}
+          onChange={(e) => onChange(section, fieldName, { ...rule, description: e.target.value })}
+          className="w-full bg-background border border-border rounded px-2 py-1 text-xs text-text focus:outline-none focus:border-primary"
+          placeholder="Optional description or custom error message..."
+        />
+      </div>
+    </div>
+  )
+}
+
+interface ValidationEditorTabProps {
+  activeTab: string
+  workingRequest: WorkingRequest
+  onUpdate: (update: Partial<WorkingRequest>) => void
+  isLocked?: boolean
+}
+
+const ValidationEditorTab: React.FC<ValidationEditorTabProps> = ({
+  activeTab, workingRequest, onUpdate, isLocked
+}) => {
+  const fv: FieldValidations = workingRequest.field_validations ?? { headers: {}, body: {} }
+
+  const headerKeys = useMemo(() => Object.keys(workingRequest.headers || {}), [workingRequest.headers])
+
+  const bodyKeys = useMemo(() => {
+    const body = workingRequest.body
+    const bt = workingRequest.body_type
+    if (bt === 'form-data' || bt === 'x-www-form-urlencoded') {
+      if (Array.isArray(body)) return body.map((item: any) => item.key).filter(Boolean)
+    }
+    if (bt?.startsWith('raw-')) {
+      try {
+        const parsed = JSON.parse(body as string)
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+          return Object.keys(parsed)
+        }
+      } catch {
+        // not JSON
+      }
+    }
+    return []
+  }, [workingRequest.body, workingRequest.body_type])
+
+  const handleChange = useCallback((
+    section: 'headers' | 'body',
+    field: string,
+    rule: FieldValidationRule
+  ) => {
+    const newFv: FieldValidations = {
+      headers: { ...fv.headers },
+      body: { ...fv.body },
+    }
+    newFv[section] = { ...newFv[section], [field]: rule }
+    onUpdate({ field_validations: newFv })
+  }, [fv, onUpdate])
+
+  const hasNoFields = headerKeys.length === 0 && bodyKeys.length === 0
+
+  return (
+    <div className={`h-full flex flex-col ${activeTab === 'Validation' ? 'flex' : 'hidden'}`}>
+      <div className="px-4 py-2.5 bg-background/50 border-b border-border flex items-center gap-2 shrink-0">
+        <ShieldCheck size={12} className="text-primary" />
+        <span className="text-[9px] font-black uppercase tracking-[0.2em] text-muted">
+          Field Validation — Auto-generated from headers &amp; body
+        </span>
+      </div>
+
+      <div className="flex-1 overflow-auto p-4">
+        {hasNoFields ? (
+          <div className="h-full flex flex-col items-center justify-center text-center opacity-40">
+            <FileText size={40} className="mb-3 text-muted" />
+            <p className="text-xs text-muted font-bold uppercase tracking-widest">
+              No fields found
+            </p>
+            <p className="text-[10px] text-muted mt-1">
+              Add headers or a JSON/form body first, then return here to set validation rules.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {headerKeys.length > 0 && (
+              <div>
+                <h4 className="text-[9px] font-black uppercase tracking-widest text-muted mb-2 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-info inline-block"></span> Headers ({headerKeys.length})
+                </h4>
+                <div className="space-y-2">
+                  {headerKeys.map((key) => (
+                    <ValidationFieldRow
+                      key={`h-${key}`}
+                      section="headers"
+                      fieldName={key}
+                      rule={fv.headers?.[key] ?? { ...EMPTY_RULE }}
+                      onChange={handleChange}
+                      isLocked={isLocked}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {bodyKeys.length > 0 && (
+              <div className={headerKeys.length > 0 ? 'mt-4' : ''}>
+                <h4 className="text-[9px] font-black uppercase tracking-widest text-muted mb-2 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-warning inline-block"></span> Body Fields ({bodyKeys.length})
+                </h4>
+                <div className="space-y-2">
+                  {bodyKeys.map((key) => (
+                    <ValidationFieldRow
+                      key={`b-${key}`}
+                      section="body"
+                      fieldName={key}
+                      rule={fv.body?.[key] ?? { ...EMPTY_RULE }}
+                      onChange={handleChange}
+                      isLocked={isLocked}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
 
 const RequestTabs = (): React.JSX.Element => {
   const { tabs, activeTabId, setActiveTab, closeTab } = useDataStore()
+
 
   if (!tabs || tabs.length === 0) return <></>
 

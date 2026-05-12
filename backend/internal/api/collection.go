@@ -195,6 +195,7 @@ func CreateCollection(c *fiber.Ctx) error {
 	// Real-time broadcast & logging
 	WSHub.BroadcastEntityUpdate(tid, "TEAM", tid)
 	LogActivity(repository.DB, tid, userID, "CREATED_COLLECTION", "COLLECTION", collection.ID, map[string]interface{}{"name": collection.Name})
+	NotifyEntityUpdate(tid, userID, "Collection", collection.Name, "create", map[string]interface{}{"collection_id": collection.ID})
 
 	return c.Status(fiber.StatusCreated).JSON(collection)
 }
@@ -256,6 +257,7 @@ func UpdateCollection(c *fiber.Ctx) error {
 	userID := uint(c.Locals("user_id").(float64))
 	WSHub.BroadcastEntityUpdate(collection.TeamID, "TEAM", collection.TeamID)
 	LogActivity(repository.DB, collection.TeamID, userID, "UPDATED_COLLECTION", "COLLECTION", collection.ID, nil)
+	NotifyEntityUpdate(collection.TeamID, userID, "Collection", collection.Name, "update", map[string]interface{}{"collection_id": collection.ID})
 
 	return c.JSON(collection)
 }
@@ -280,6 +282,7 @@ func DeleteCollection(c *fiber.Ctx) error {
 	userID := uint(c.Locals("user_id").(float64))
 	WSHub.BroadcastEntityUpdate(collection.TeamID, "TEAM", collection.TeamID)
 	LogActivity(repository.DB, collection.TeamID, userID, "DELETED_COLLECTION", "COLLECTION", collection.ID, map[string]interface{}{"name": collection.Name})
+	NotifyEntityUpdate(collection.TeamID, userID, "Collection", collection.Name, "delete", map[string]interface{}{"collection_id": collection.ID})
 
 	return c.JSON(fiber.Map{"message": "Collection deleted successfully"})
 }

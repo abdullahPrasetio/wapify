@@ -6,34 +6,49 @@ import { useDataStore } from '../../store/useDataStore'
 import { UserManagement } from '../admin/UserManagement'
 import { TeamManagement } from '../admin/TeamManagement'
 import { DonationSettings } from '../admin/DonationSettings'
+import { ActivityLogView } from './ActivityLogView'
+import { GlobalSearchModal } from '../modals/GlobalSearchModal'
 
 export const AppLayout = (): React.JSX.Element => {
-  const { activeView } = useAppStore()
-  const {
-    activeTeamId,
-    fetchTeams,
-    fetchCollections,
-    fetchEnvironments,
-    fetchHistory,
-    expandedItems,
-    fetchCollectionContents
-  } = useDataStore()
+  const { activeView, isSearchModalOpen, setSearchModalOpen } = useAppStore()
+
+
+  // Global Keyboard Shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault()
+        setSearchModalOpen(!isSearchModalOpen)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isSearchModalOpen, setSearchModalOpen])
 
   // Re-fetch data for active team on mount (for Cmd+R persistence)
   useEffect(() => {
     const initData = async () => {
-      await fetchTeams()
-      if (activeTeamId) {
-        console.log(`[AppLayout] Rehydrating data for team ${activeTeamId}`)
-        const fetchedCollections = await fetchCollections(activeTeamId)
-        fetchEnvironments(activeTeamId)
-        fetchHistory()
+      // Use getState to ensure we work with the most recent rehydrated values
+      const state = useDataStore.getState()
+      await state.fetchTeams()
+
+      const currentActiveTeamId = useDataStore.getState().activeTeamId
+      if (currentActiveTeamId) {
+        console.log(`[AppLayout] Rehydrating data for team ${currentActiveTeamId}`)
+
+        // Explicitly re-fetch basic data
+        const fetchedCollections = await state.fetchCollections(currentActiveTeamId)
+        state.fetchEnvironments(currentActiveTeamId)
+        state.fetchHistory()
+
+        const expanded = useDataStore.getState().expandedItems
 
         // Fetch contents for already expanded collections
         if (fetchedCollections) {
           fetchedCollections.forEach((col) => {
-            if (expandedItems[`collection-${col.id}`]) {
-              fetchCollectionContents(col.id)
+            if (expanded[`collection-${col.id}`]) {
+              state.fetchCollectionContents(col.id)
             }
           })
         }
@@ -50,6 +65,8 @@ export const AppLayout = (): React.JSX.Element => {
         return <TeamManagement />
       case 'admin-donations':
         return <DonationSettings />
+      case 'activity-log':
+        return <ActivityLogView />
       case 'request-builder':
       default:
         return (
@@ -64,6 +81,7 @@ export const AppLayout = (): React.JSX.Element => {
     <div className="flex h-screen w-screen bg-background text-text overflow-hidden font-sans">
       <Sidebar />
       {renderContent()}
+      <GlobalSearchModal />
     </div>
   )
 }

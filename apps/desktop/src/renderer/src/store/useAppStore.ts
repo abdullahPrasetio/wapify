@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 
-export type AppView = 'request-builder' | 'admin-users' | 'admin-teams' | 'admin-licenses' | 'admin-donations' | 'history-detail'
+export type AppView = 'request-builder' | 'admin-users' | 'admin-teams' | 'admin-licenses' | 'admin-donations' | 'history-detail' | 'activity-log'
 
 interface AppState {
   // Navigation
@@ -18,6 +18,7 @@ interface AppState {
     | 'Body'
     | 'Pre-request'
     | 'Tests'
+    | 'Validation'
     | 'Console'
     | 'Test Results'
     | 'Docs'
@@ -30,6 +31,7 @@ interface AppState {
       | 'Body'
       | 'Pre-request'
       | 'Tests'
+      | 'Validation'
       | 'Console'
       | 'Test Results'
       | 'Docs'
@@ -51,6 +53,10 @@ interface AppState {
   setDonationModalOpen: (open: boolean) => void
   donationMessage: string
   setDonationMessage: (message: string) => void
+
+  // Global Search Modal
+  isSearchModalOpen: boolean
+  setSearchModalOpen: (open: boolean) => void
 }
 
 export const useAppStore = create<AppState>()(
@@ -77,7 +83,10 @@ export const useAppStore = create<AppState>()(
       isDonationModalOpen: false,
       setDonationModalOpen: (open) => set({ isDonationModalOpen: open }),
       donationMessage: '',
-      setDonationMessage: (msg) => set({ donationMessage: msg })
+      setDonationMessage: (msg) => set({ donationMessage: msg }),
+
+      isSearchModalOpen: false,
+      setSearchModalOpen: (open) => set({ isSearchModalOpen: open })
     }),
     {
       name: 'wapbolt-app-settings',

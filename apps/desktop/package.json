@@ -1,6 +1,6 @@
 {
   "name": "wapbolt-desktop",
-  "version": "1.4.8",
+  "version": "1.5.1",
   "description": "An Electron application with React and TypeScript",
   "main": "./out/main/index.js",
   "author": {
@@ -61,6 +61,7 @@
     "@vitejs/plugin-react": "^5.1.1",
     "autoprefixer": "^10.5.0",
     "class-variance-authority": "^0.7.1",
+    "date-fns": "^4.1.0",
     "electron": "^39.2.6",
     "electron-builder": "^26.0.12",
     "electron-vite": "^5.0.0",

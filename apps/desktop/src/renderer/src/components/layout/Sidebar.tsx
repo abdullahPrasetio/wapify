@@ -23,7 +23,7 @@ import {
   Download,
   Copy,
   GripVertical, Key, DatabaseZap,
-  Zap, Heart
+  Zap, Heart, ListTree
 } from 'lucide-react'
 import { useState, useEffect, useLayoutEffect, useMemo } from 'react'
 import {
@@ -54,6 +54,7 @@ import { ChangePasswordModal } from "../modals/ChangePasswordModal"
 import { StandaloneMockPanel } from "./StandaloneMockPanel"
 import { DocumentationPanel } from './DocumentationPanel'
 import { MockServerPanel } from './MockServerPanel'
+import { NotificationBell } from './NotificationBell'
 import type { ApiRequest, Collection, Folder, RequestExample } from '../../types'
 
 const METHOD_COLORS: Record<string, string> = {
@@ -666,7 +667,8 @@ export const Sidebar = (): React.JSX.Element => {
     setActiveEnvironment,
     createCollection,
     history,
-    clearHistory
+    clearHistory,
+    collapseAll
   } = useDataStore()
 
   const { activeView, setActiveView } = useAppStore()
@@ -688,6 +690,19 @@ export const Sidebar = (): React.JSX.Element => {
   }, [])
 
   useEffect(() => { fetchTeams() }, [fetchTeams])
+
+  useEffect(() => {
+    const handleOpenSettings = () => setShowServerSettings(true)
+    const handleOpenMock = () => setShowStandaloneMock(true)
+
+    window.addEventListener('wapbolt:open-settings', handleOpenSettings)
+    window.addEventListener('wapbolt:open-standalone-mock', handleOpenMock)
+
+    return () => {
+      window.removeEventListener('wapbolt:open-settings', handleOpenSettings)
+      window.removeEventListener('wapbolt:open-standalone-mock', handleOpenMock)
+    }
+  }, [])
 
   const activeTeam = teams.find((t) => t.id === activeTeamId)
   const filteredCollections = collections.filter((c) => c.name.toLowerCase().includes(searchQuery.toLowerCase()))
@@ -894,9 +909,21 @@ export const Sidebar = (): React.JSX.Element => {
             )}
           </div>
 
-          <div className="flex px-3 pt-3 gap-4 border-b border-border">
-            <div onClick={() => setSidebarTab('collections')} className={`pb-2 text-xs font-bold uppercase tracking-wider cursor-pointer border-b-2 transition-all ${sidebarTab === 'collections' ? 'border-primary text-primary' : 'border-transparent text-muted hover:text-text'}`}>Collections</div>
-            <div onClick={() => setSidebarTab('history')} className={`pb-2 text-xs font-bold uppercase tracking-wider cursor-pointer border-b-2 transition-all ${sidebarTab === 'history' ? 'border-primary text-primary' : 'border-transparent text-muted hover:text-text'}`}>History</div>
+          <div className="flex px-3 pt-3 gap-2 border-b border-border items-center">
+            <div className="flex flex-1 gap-4">
+              <div onClick={() => setSidebarTab('collections')} className={`pb-2 text-xs font-bold uppercase tracking-wider cursor-pointer border-b-2 transition-all ${sidebarTab === 'collections' ? 'border-primary text-primary' : 'border-transparent text-muted hover:text-text'}`}>Collections</div>
+              <div onClick={() => setSidebarTab('history')} className={`pb-2 text-xs font-bold uppercase tracking-wider cursor-pointer border-b-2 transition-all ${sidebarTab === 'history' ? 'border-primary text-primary' : 'border-transparent text-muted hover:text-text'}`}>History</div>
+            </div>
+            
+            {sidebarTab === 'collections' && (
+              <button 
+                onClick={collapseAll}
+                title="Collapse All"
+                className="mb-2 p-1 rounded hover:bg-background text-muted hover:text-text transition-colors"
+              >
+                <ListTree size={14} />
+              </button>
+            )}
           </div>
 
           <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0">
@@ -960,6 +987,7 @@ export const Sidebar = (): React.JSX.Element => {
                 <div className="text-[10px] text-muted truncate">{user?.email}</div>
               </div>
               <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                <NotificationBell />
                 <button onClick={() => setShowChangePassword(true)} title="Change Password" className="text-muted hover:text-text"><Key size={14} /></button>
                 <button onClick={() => setShowServerSettings(true)} className="text-muted hover:text-text"><Settings size={14} /></button>
                 <button onClick={logout} className="text-muted hover:text-danger"><LogOut size={14} /></button>

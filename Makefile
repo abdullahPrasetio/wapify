@@ -67,3 +67,9 @@ test-backend:
 
 test-coverage:
 	cd $(BACKEND_DIR) && go test -v ./... -coverprofile=coverage.out && go tool cover -html=coverage.out
+
+create-tag:
+	git tag $(TAG)
+
+push-tag:
+	git push origin $(TAG)

@@ -1,6 +1,6 @@
 # Wapbolt — Development Plan
 
-**Terakhir Diperbarui:** 02 Mei 2026
+**Terakhir Diperbarui:** 12 Mei 2026
 **Status Saat Ini:** ✅ Fase 0-6 Selesai → 🟡 Fase 7 In Progress
 
 ---
@@ -16,7 +16,7 @@
 | 4 | Testing & CI/CD | Collection runner, CLI | ✅ Selesai (CLI pending) |
 | 5 | On-Premise & License | Jual ke client luar | ✅ Selesai |
 | 6 | UX & Power Features | Workspace, body types, export, drag-drop, mock dynamic | ✅ Selesai |
-| 7 | Kolaborasi Lanjutan | Notifikasi, shared env, diff visual | 🟡 Dalam Proses |
+| 7 | Kolaborasi Lanjutan | Notifikasi, shared env, diff visual | 🟡 Dalam Proses (Notifikasi Selesai) |
 | 8 | SaaS (Opsional) | Cloud hosted di wapbolt.io | ⬜ Belum Mulai |
 
 ---
@@ -237,6 +237,17 @@ Beberapa fitur yang direncanakan di Fase 6 telah disesuaikan prioritasnya dan un
 
 ---
 
+### 6.8 — Global Search (Omnibar)
+**Status:** ✅ Selesai
+
+- [x] **Omnibar UI**: Modal Spotlight-style via `Cmd+K`.
+- [x] **Intelligent Filtering**: Cari request, koleksi, dan menu.
+- [x] **Cross-Team Search**: Cari data di seluruh workspace yang diakses.
+- [x] **Role-Based**: Hanya tampilkan menu admin untuk Super Admin.
+- [x] **Seamless Navigation**: Pindah workspace otomatis saat hasil diklik.
+
+---
+
 ## Fase 7 — Kolaborasi Lanjutan & Mock Pro
 **Status:** 🟡 Dalam Proses
 **Estimasi:** 2-3 minggu
@@ -246,7 +257,10 @@ Beberapa fitur yang direncanakan di Fase 6 telah disesuaikan prioritasnya dan un
 - [x] **Binary/PDF Response**: Upload file asli atau simpan base64 sebagai respons mock dengan deteksi otomatis `Content-Type: application/pdf`.
 
 ### Kolaborasi & Workflow
-- [ ] Notifikasi in-app saat koleksi diupdate member lain
+- [x] **Notification System**: In-app notifications saat koleksi diupdate member lain.
+- [x] **Deep Linking**: Navigasi otomatis ke request/koleksi dari notifikasi.
+- [x] **Activity Dashboard**: Halaman khusus riwayat aktivitas tim.
+- [x] **Data Retention**: Background job pembersihan notifikasi otomatis (30 hari).
 - [ ] Diff viewer visual yang lebih baik untuk versioning
 - [ ] Shared environment lintas workspace
 - [ ] Thread diskusi pada komentar (reply)
