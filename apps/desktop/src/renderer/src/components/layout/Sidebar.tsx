@@ -718,13 +718,18 @@ export const Sidebar = (): React.JSX.Element => {
   useEffect(() => {
     const handleOpenSettings = () => setShowServerSettings(true)
     const handleOpenMock = () => setShowStandaloneMock(true)
+    const handleOpenConfluence = () => {
+      setShowUserConfluence(true)
+    }
 
     window.addEventListener('wapbolt:open-settings', handleOpenSettings)
     window.addEventListener('wapbolt:open-standalone-mock', handleOpenMock)
+    window.addEventListener('wapbolt:open-user-confluence-settings', handleOpenConfluence)
 
     return () => {
       window.removeEventListener('wapbolt:open-settings', handleOpenSettings)
       window.removeEventListener('wapbolt:open-standalone-mock', handleOpenMock)
+      window.removeEventListener('wapbolt:open-user-confluence-settings', handleOpenConfluence)
     }
   }, [])
 

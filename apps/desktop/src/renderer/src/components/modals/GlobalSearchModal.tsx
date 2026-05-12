@@ -11,7 +11,8 @@ import {
   UserCog,
   Building2,
   Heart,
-  Bell
+  Bell,
+  Cloud
 } from 'lucide-react'
 import { useDataStore } from '../../store/useDataStore'
 import { useAppStore } from '../../store/useAppStore'
@@ -71,6 +72,14 @@ export const GlobalSearchModal = (): React.JSX.Element | null => {
           id: 'nav-mock', type: 'navigation', title: 'Workspace Mock Server', icon: DatabaseZap, action: () => {
             setActiveView('request-builder')
             window.dispatchEvent(new CustomEvent('wapbolt:open-standalone-mock'))
+          }
+        },
+        {
+          id: 'nav-confluence', type: 'navigation', title: 'Confluence Settings', icon: Cloud, action: () => {
+            setActiveView('request-builder')
+            setTimeout(() => {
+              window.dispatchEvent(new CustomEvent('wapbolt:open-user-confluence-settings'))
+            }, 10)
           }
         },
       ]
@@ -156,6 +165,14 @@ export const GlobalSearchModal = (): React.JSX.Element | null => {
           window.dispatchEvent(new CustomEvent('wapbolt:open-standalone-mock'))
         }
       },
+      {
+        id: 'nav-confluence', type: 'navigation', title: 'Confluence Settings', icon: Cloud, action: () => {
+          setActiveView('request-builder')
+          setTimeout(() => {
+            window.dispatchEvent(new CustomEvent('wapbolt:open-user-confluence-settings'))
+          }, 10)
+        }
+      },
     ]
 
     if (user?.is_super_admin) {
@@ -172,7 +189,9 @@ export const GlobalSearchModal = (): React.JSX.Element | null => {
       }
     })
 
-    return filtered.slice(0, 10)
+    // Deduplicate by ID
+    const uniqueResults = Array.from(new Map(filtered.map(item => [item.id, item])).values())
+    return uniqueResults.slice(0, 10)
   }, [query, searchableRequests, searchableCollections, activeTeamId, user, setActiveView, openRequestInTab, toggleExpand, setActiveTeam])
 
   // Handle Keyboard
