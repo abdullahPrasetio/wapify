@@ -81,6 +81,49 @@ export interface RequestExample {
   updated_at: string
 }
 
+// ─── Field Validation Types ───────────────────────────────────────────────────
+
+/** Rules that can be applied to a header or body field */
+export type ValidationRule =
+  | 'required'
+  | 'nullable'
+  | 'email'
+  | 'url'
+  | 'string'
+  | 'integer'
+  | 'numeric'
+  | 'boolean'
+  | 'array'
+  | 'object'
+  | 'unique'
+  | string // allow custom rules like "max:100"
+
+export interface FieldValidationRule {
+  /** Validation rules list, e.g. ["required", "email"] */
+  rules: ValidationRule[]
+  /** Min length/value, 0 means not set */
+  min: number
+  /** Max length/value, 0 means not set */
+  max: number
+  /** Optional description / custom error message */
+  description: string
+}
+
+/**
+ * Map of field validations, keyed by section ("headers" | "body"),
+ * then by field name.
+ *
+ * Example:
+ * {
+ *   headers: { Authorization: { rules: ["required"], min: 0, max: 0, description: "" } },
+ *   body: { email: { rules: ["required", "email"], min: 0, max: 100, description: "Must be valid" } }
+ * }
+ */
+export interface FieldValidations {
+  headers: Record<string, FieldValidationRule>
+  body: Record<string, FieldValidationRule>
+}
+
 export interface ApiRequest {
   id: number
   name: string
@@ -91,6 +134,7 @@ export interface ApiRequest {
   body: unknown
   body_type: string
   auth_config: Record<string, unknown>
+  field_validations: FieldValidations
   collection_id: number
   folder_id: number | null
   created_by: number | null
@@ -146,6 +190,7 @@ export interface DocRequest {
   url: string
   headers: Record<string, unknown>
   body: Record<string, unknown>
+  field_validations: FieldValidations
   examples?: RequestExample[]
 }
 

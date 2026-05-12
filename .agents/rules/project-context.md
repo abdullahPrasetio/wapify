@@ -2,7 +2,7 @@
 trigger: always_on
 ---
 
-# Wapify — Project Context
+# Wapbolt — Project Context
 
 > Baca file ini + `docs/prd.md` + `docs/devplan.md` + `docs/devlog.md` sebelum apapun.
 > Jangan mulai dari nol.
@@ -11,7 +11,7 @@ trigger: always_on
 
 ## Produk
 
-**Wapify** — desktop app API testing & kolaborasi tim, alternatif Postman.
+**Wapbolt** — desktop app API testing & kolaborasi tim, alternatif Postman.
 Nama dari inisial **W**aluyo **A**de **P**rasetio + *-ify*.
 
 **Tahap saat ini:** Internal tim Waluyo (15+ orang), backend di STB Android via Cloudflare.
@@ -55,8 +55,8 @@ Semua config via `.env`, tidak ada yang hardcode.
 
 **No Self-Register:** Tidak ada endpoint register publik. Akun dibuat Waluyo via:
 ```bash
-wapify-admin create-user --email x --name x --password x
-wapify-admin assign-team --email x --team-id x --role editor
+wapbolt-admin create-user --email x --name x --password x
+wapbolt-admin assign-team --email x --team-id x --role editor
 ```
 
 **Super Admin:** `USER.is_super_admin = true` → middleware bypass role check, akses semua tim.

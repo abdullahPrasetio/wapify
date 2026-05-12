@@ -310,6 +310,12 @@ func UpdateRequest(c *fiber.Ctx) error {
 	if post, ok := updateData["post_request_script"].(string); ok {
 		request.PostRequestScript = post
 	}
+	// field_validations: simpan data validasi per field (header/body)
+	if fv, ok := updateData["field_validations"]; ok {
+		if fvMap, ok := fv.(map[string]interface{}); ok {
+			request.FieldValidations = repository.JSONB(fvMap)
+		}
+	}
 
 	if err := repository.DB.Save(&request).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to update request", "code": "INTERNAL_SERVER_ERROR"})

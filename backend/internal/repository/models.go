@@ -103,23 +103,24 @@ type Folder struct {
 }
 
 type Request struct {
-	ID           uint      `gorm:"primaryKey" json:"id"`
-	Name         string    `gorm:"not null" json:"name"`
-	Description  string    `json:"description"`
-	Method       string    `gorm:"not null" json:"method"`
-	URL                string           `gorm:"not null" json:"url"`
-	Headers            JSONB            `gorm:"type:jsonb;default:'{}';column:headers" json:"headers"`
-	Body               JSONB            `gorm:"type:jsonb;default:'{}';column:body" json:"body"`
-	BodyType           string           `gorm:"column:body_type;default:raw-json" json:"body_type"`
-	AuthConfig         JSONB            `gorm:"type:jsonb;default:'{}';column:auth_config" json:"auth_config"`
-	CollectionID uint      `gorm:"not null;column:collection_id" json:"collection_id"`
-	FolderID     *uint     `gorm:"column:folder_id" json:"folder_id"`
-	CreatedByID  *uint     `gorm:"column:created_by" json:"created_by"`
-	OrderIndex         float64   `gorm:"default:0;column:order_index" json:"order_index"`
-	PreRequestScript   string    `gorm:"type:text;column:pre_request_script" json:"pre_request_script"`
-	PostRequestScript  string    `gorm:"type:text;column:post_request_script" json:"post_request_script"`
-	CreatedAt          time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	ID                uint      `gorm:"primaryKey" json:"id"`
+	Name              string    `gorm:"not null" json:"name"`
+	Description       string    `json:"description"`
+	Method            string    `gorm:"not null" json:"method"`
+	URL               string    `gorm:"not null" json:"url"`
+	Headers           JSONB     `gorm:"type:jsonb;default:'{}';column:headers" json:"headers"`
+	Body              JSONB     `gorm:"type:jsonb;default:'{}';column:body" json:"body"`
+	BodyType          string    `gorm:"column:body_type;default:raw-json" json:"body_type"`
+	AuthConfig        JSONB     `gorm:"type:jsonb;default:'{}';column:auth_config" json:"auth_config"`
+	FieldValidations  JSONB     `gorm:"type:jsonb;default:'{}';column:field_validations" json:"field_validations"`
+	CollectionID      uint      `gorm:"not null;column:collection_id" json:"collection_id"`
+	FolderID          *uint     `gorm:"column:folder_id" json:"folder_id"`
+	CreatedByID       *uint     `gorm:"column:created_by" json:"created_by"`
+	OrderIndex        float64   `gorm:"default:0;column:order_index" json:"order_index"`
+	PreRequestScript  string    `gorm:"type:text;column:pre_request_script" json:"pre_request_script"`
+	PostRequestScript string    `gorm:"type:text;column:post_request_script" json:"post_request_script"`
+	CreatedAt         time.Time `json:"created_at"`
+	UpdatedAt         time.Time `json:"updated_at"`
 
 	Collection *Collection      `gorm:"foreignKey:CollectionID" json:"-"`
 	Folder     *Folder          `gorm:"foreignKey:FolderID" json:"-"`

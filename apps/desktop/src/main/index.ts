@@ -48,6 +48,7 @@ ipcMain.handle('wapbolt:delete-token', async () => {
 })
 
 // ─── IPC: HTTP Request via Main Process (bebas CORS) ───────────────────────
+
 interface IpcRequestConfig {
   method: string
   url: string
@@ -67,6 +68,8 @@ ipcMain.handle('wapbolt:request', async (_event, config: IpcRequestConfig): Prom
   const startTime = Date.now()
   try {
     let requestData: any = config.body
+
+    // Use raw headers directly since validation is now stored in field_validations
     const finalHeaders: Record<string, string> = { ...(config.headers || {}) }
 
     // Serialize body based on body_type
@@ -74,7 +77,7 @@ ipcMain.handle('wapbolt:request', async (_event, config: IpcRequestConfig): Prom
       const form = new FormData()
       config.body.forEach((item: any) => {
         if (item.enabled && item.key) {
-          form.append(item.key, item.value || '')
+          form.append(item.key, String(item.value || ''))
         }
       })
       requestData = form
@@ -87,7 +90,7 @@ ipcMain.handle('wapbolt:request', async (_event, config: IpcRequestConfig): Prom
       const params = new URLSearchParams()
       config.body.forEach((item: any) => {
         if (item.enabled && item.key) {
-          params.append(item.key, item.value || '')
+          params.append(item.key, String(item.value || ''))
         }
       })
       requestData = params // Pass object directly, Axios handles serialization and Content-Type
@@ -95,7 +98,7 @@ ipcMain.handle('wapbolt:request', async (_event, config: IpcRequestConfig): Prom
       // If user hasn't set Content-Type, or it's wrong, we force it or let Axios handle it
       // Standard practice: if we pass URLSearchParams, Axios sets application/x-www-form-urlencoded
     } else if (config.body_type?.startsWith('raw-')) {
-       // Just use string data directly
+      // Body is stored as a JSON string in raw mode, use as is since validation is separated.
     }
 
     const response = await axios({

@@ -1,0 +1,1 @@
+ALTER TABLE requests ADD COLUMN IF NOT EXISTS field_validations JSONB NOT NULL DEFAULT '{}';

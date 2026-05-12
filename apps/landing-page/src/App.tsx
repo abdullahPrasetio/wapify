@@ -30,7 +30,9 @@ import {
   Send,
   User,
   MessageSquare,
-  FileUp
+  FileUp,
+  Search,
+  Bell
 } from 'lucide-react';
 
 const GithubIcon = ({ size = 20 }: { size?: number }) => (
@@ -177,7 +179,9 @@ export default function App() {
                {[
                  { icon: Sparkles, title: "Dynamic Logic", desc: "Automated response matching based on Body, Headers, or Query params." },
                  { icon: FileUp, title: "Binary Power", desc: "Return real PDF, Images, or any binary files from your mock endpoints." },
-                 { icon: Terminal, title: "Smart cURL", desc: "One-click copy that auto-injects all data required to trigger specific scenarios." },
+                 { icon: Search, title: "Global Omnibar", desc: "Instant sub-millisecond search across workspaces with Cmd+K (Spotlight-style)." },
+                 { icon: Bell, title: "Smart Notifications", desc: "Real-time team activity updates with deep-linking to specific requests." },
+                 { icon: Sun, title: "Dynamic Themes", desc: "Beautiful Light, Dark, and System themes that adapt to your environment." },
                  { icon: Workflow, title: "Precise D&D", desc: "Intuitive horizontal-split drag & drop for organizing folders and priority." }
                ].map((feat, i) => (
                  <div key={i} className="flex gap-5">
@@ -263,7 +267,7 @@ export default function App() {
             <div className="absolute top-0 right-0 p-12 opacity-10 rotate-45"><Rocket size={150}/></div>
             <h3 className="text-4xl md:text-5xl font-black mb-12 italic uppercase tracking-tighter text-white">Wapbolt (Upgrade)</h3>
             <ul className="space-y-8 relative z-10">
-              {["Ultra-light Go Core", "Dynamic Mocking Pro", "Smart cURL Injector", "Real-time Collaboration"].map((item, i) => (
+              {["Ultra-light Go Core", "Omnibar Search (Cmd+K)", "Smart Deep Linking", "Real-time Team Sync"].map((item, i) => (
                 <li key={i} className="flex items-center gap-6 font-black text-xl md:text-2xl tracking-tight text-white">
                   <div className="w-10 h-10 rounded-2xl bg-white text-primary flex items-center justify-center shrink-0 shadow-xl"><CheckCircle2 size={24} strokeWidth={4} /></div>
                   {item}

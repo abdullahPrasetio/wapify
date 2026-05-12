@@ -10,7 +10,8 @@ import type {
   RequestExample,
   Environment,
   IpcResponse,
-  RequestHistory
+  RequestHistory,
+  FieldValidations
 } from '../types'
 import { toast } from 'sonner'
 import moment from 'moment'
@@ -87,6 +88,8 @@ export interface WorkingRequest {
   auth_config: AuthConfig
   pre_request_script: string
   post_request_script: string
+  /** Validation metadata per field — stored separately, never sent to target API */
+  field_validations: FieldValidations
 }
 
 export interface LogEntry {
@@ -596,7 +599,8 @@ export const useDataStore = create<DataState>()(
               body_type: normalizedRequest.body_type,
               auth_config: (normalizedRequest.auth_config as AuthConfig) || { type: 'No Auth' },
               pre_request_script: normalizedRequest.pre_request_script || '',
-              post_request_script: normalizedRequest.post_request_script || ''
+              post_request_script: normalizedRequest.post_request_script || '',
+              field_validations: (normalizedRequest.field_validations as FieldValidations) || { headers: {}, body: {} }
             },
             lastResponse: null,
             isSending: false,
@@ -625,7 +629,8 @@ export const useDataStore = create<DataState>()(
               body_type: initialData.body_type || 'raw-json',
               auth_config: (initialData.auth_config as AuthConfig) || { type: 'No Auth' },
               pre_request_script: initialData.pre_request_script || '',
-              post_request_script: initialData.post_request_script || ''
+              post_request_script: initialData.post_request_script || '',
+              field_validations: { headers: {}, body: {} }
             }, lastResponse: null,
             isSending: false,
             isDirty: true,
@@ -660,7 +665,8 @@ export const useDataStore = create<DataState>()(
               body_type: 'raw-json',
               auth_config: { type: 'No Auth' },
               pre_request_script: '',
-              post_request_script: ''
+              post_request_script: '',
+              field_validations: { headers: {}, body: {} }
             },
             lastResponse: {
               status: example.response_status,
@@ -786,7 +792,8 @@ export const useDataStore = create<DataState>()(
               body: bodyObj,
               auth_config: workingRequest.auth_config,
               pre_request_script: workingRequest.pre_request_script,
-              post_request_script: workingRequest.post_request_script
+              post_request_script: workingRequest.post_request_script,
+              field_validations: workingRequest.field_validations || { headers: {}, body: {} }
             })
 
             if (response.status === 200) {
@@ -919,7 +926,8 @@ export const useDataStore = create<DataState>()(
                         body_type: normalizedReq.body_type,
                         auth_config: (normalizedReq.auth_config as AuthConfig) || { type: 'No Auth' },
                         pre_request_script: normalizedReq.pre_request_script || '',
-                        post_request_script: normalizedReq.post_request_script || ''
+                        post_request_script: normalizedReq.post_request_script || '',
+                        field_validations: (normalizedReq.field_validations as FieldValidations) || { headers: {}, body: {} }
                       },
                       isDirty: false
                     }
@@ -941,7 +949,8 @@ export const useDataStore = create<DataState>()(
                     body_type: normalizedReq.body_type,
                     auth_config: (normalizedReq.auth_config as AuthConfig) || { type: 'No Auth' },
                     pre_request_script: normalizedReq.pre_request_script || '',
-                    post_request_script: normalizedReq.post_request_script || ''
+                    post_request_script: normalizedReq.post_request_script || '',
+                    field_validations: (normalizedReq.field_validations as FieldValidations) || { headers: {}, body: {} }
                   },
                   lastResponse: null,
                   isSending: false,

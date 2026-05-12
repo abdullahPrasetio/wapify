@@ -1,25 +1,41 @@
-# Release Notes — Wapbolt v1.5.0
+# Wapbolt Release v1.5.1
 
-## What's New 🚀
-Rilis ini membawa pembaruan besar pada sistem kolaborasi tim dengan pengenalan **Real-Time Notifications** dan perbaikan stabilitas fundamental.
-
-### 🔔 Real-Time Notification System
-- **Live Collaboration**: Dapatkan notifikasi instan saat rekan tim membuat, mengubah, atau memindahkan request/koleksi di workspace yang sama.
-- **Heartbeat Protocol**: Implementasi koneksi WebSocket yang lebih stabil dengan mekanisme *heartbeat* untuk mencegah pemutusan koneksi yang tidak diinginkan.
-- **Activity Center**: Halaman "Activity Log" baru untuk melacak riwayat kolaborasi secara mendalam.
-- **Deep Linking**: Klik pada notifikasi akan otomatis membuka sidebar, mengekspansi koleksi, dan memuat request yang relevan.
-
-### 🧹 Auto-Retention & Cleanup
-- **30-Day Retention**: Backend sekarang otomatis menghapus notifikasi lama (>30 hari) setiap 24 jam untuk menjaga performa database.
-- **Manual Clear**: Tombol "Clear Activities" di halaman Log untuk menghapus seluruh riwayat aktivitas secara instan.
-
-### 🔑 Login UX Improvements
-- **Input Persistence**: Memperbaiki bug yang menghapus input Email jika password salah. Sekarang Anda hanya perlu membetulkan password tanpa mengetik ulang email.
-
-### 🔧 Fixes & Stability
-- **Backend Hub Fix**: Memperbaiki *panic error* pada WebSocket Hub yang sebelumnya bisa menyebabkan server crash saat user disconnect.
-- **Search Integration**: Menambahkan navigasi "Activity Log" ke dalam Global Search (`Cmd+K`).
-- **Notification Dropdown**: Tampilan lonceng yang lebih bersih, hanya menampilkan 5 aktivitas terbaru dengan akses cepat ke log penuh.
+**Tanggal:** 12 Mei 2026
+**Status:** Stable Release
 
 ---
-*Dibuat oleh Antigravity pada 11 Mei 2026*
+
+## 🚀 Apa yang Baru?
+
+### 🛡️ Structured API Validation System (V2)
+Kami telah memigrasikan sistem validasi API dari pendekatan berbasis komentar inline (`//`) ke sistem metadata terstruktur. Ini memberikan stabilitas penuh dan menghilangkan risiko bug pada URL atau nilai string yang mengandung karakter serupa komentar.
+
+*   **Tab Validation Baru:** Antarmuka khusus di Request Builder untuk mengatur aturan validasi (Headers & Body).
+*   **Auto-Sync Fields:** Baris validasi digenerate otomatis berdasarkan field yang ada di Headers dan JSON Body Anda.
+*   **Penyimpanan JSONB:** Semua aturan validasi sekarang disimpan dalam kolom `field_validations` di database PostgreSQL.
+
+---
+
+## 📄 Peningkatan Dokumentasi
+
+Dokumentasi API sekarang jauh lebih profesional dan informatif:
+*   **Tampilan Terstruktur:** Validasi (Required, Email, Min/Max) ditampilkan sebagai badge yang bersih.
+*   **Kolom Deskripsi Terpisah:** Kami menambahkan kolom **Description** khusus agar penjelasan field lebih mudah dibaca tanpa berdesakan dengan rule validasi.
+*   **Ukuran Teks Optimal:** Penyesuaian ukuran font dan lebar kolom untuk kenyamanan membaca dokumentasi teknis yang panjang.
+
+---
+
+## 🛠️ Perbaikan & Optimasi
+
+*   **Cleanup Legacy Logic:** Menghapus seluruh logika `stripInlineComments` di Main Process yang sebelumnya memperlambat eksekusi request.
+*   **Fix TypeScript Integrity:** Pembersihan tipe data pada Store dan Main Area untuk memastikan build aplikasi lebih stabil.
+*   **CORS-Free Execution:** Pengoptimalan eksekusi request via Electron Main Process tanpa gangguan parsing komentar.
+
+---
+
+## 📦 Cara Update
+1. Jalankan migrasi database di backend: `make migrate-up`.
+2. Lakukan build ulang aplikasi desktop atau jalankan di mode development.
+
+---
+*Dibuat dengan ❤️ oleh tim WapBolt.*

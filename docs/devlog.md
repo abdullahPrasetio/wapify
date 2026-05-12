@@ -1,5 +1,37 @@
-# Wapify — Development Log
- 
+
+## [2026-05-12] — Structured API Validation & v1.5.1
+**Fase:** Fase 3 — Dokumentasi & Mock Server (Enhancement)
+**Dikerjakan oleh:** Antigravity
+**Status:** ✅ Selesai
+
+### Yang Dikerjakan
+- **Version Bump**: Menaikkan versi aplikasi ke **1.5.1**.
+- **Structured API Validation System (V2)**:
+    - Migrasi sistem validasi dari inline comments (`//`) ke metadata terstruktur menggunakan kolom JSONB.
+    - Penambahan tab **"Validation"** pada Request Builder untuk mengelola aturan (Required, Email, Length, dll) secara visual.
+    - Implementasi auto-generation field validation berdasarkan header dan body yang aktif.
+    - Sinkronisasi otomatis antara UI Validation dengan database backend.
+- **Documentation Overhaul**:
+    - Panel Dokumentasi kini merender metadata validasi secara dinamis tanpa parsing teks.
+    - Penambahan kolom **Description** khusus pada tabel dokumentasi untuk meningkatkan keterbacaan.
+    - Optimasi layout tabel (lebar kolom & ukuran font) agar lebih nyaman dibaca pada dokumentasi yang kompleks.
+- **Codebase Cleanup**:
+    - Penghapusan seluruh logika *legacy* `stripInlineComments` di Main Process dan `parseAnnotations` di Frontend.
+    - Perbaikan bug sinkronisasi state `workingRequest` pada fitur `openExample` dan `createRequest`.
+
+### Perubahan File
+- `apps/desktop/package.json` — Version 1.5.1.
+- `release.md` — Ringkasan rilis untuk pengguna.
+- `backend/migrations/000018_add_field_validations_to_requests.up.sql` — Kolom JSONB baru.
+- `apps/desktop/src/renderer/src/components/layout/DocumentationPanel.tsx` — UI dokumentasi baru.
+- `apps/desktop/src/main/index.ts` — Pembersihan legacy logic.
+- `apps/desktop/src/renderer/src/store/useDataStore.ts` — Integrasi field_validations ke store.
+
+### Keputusan & Catatan
+- Memutuskan memisahkan kolom deskripsi dari kolom validasi di dokumentasi agar informasi penting tidak terpotong (truncated).
+- Menggunakan pendekatan JSONB di PostgreSQL untuk fleksibilitas aturan validasi di masa depan tanpa perlu migrasi skema berulang kali.
+
+---
 +## [2026-05-11] — Real-Time Notifications, Deep Linking & v1.5.0
 +**Fase:** Fase 7 — Kolaborasi Lanjutan
 +**Dikerjakan oleh:** Antigravity

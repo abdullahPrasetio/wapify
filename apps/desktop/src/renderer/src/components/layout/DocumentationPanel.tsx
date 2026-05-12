@@ -41,6 +41,70 @@ function parseVariables(text: string): string[] {
   return found
 }
 
+// (Legacy annotation parsing removed, now handled by field_validations metadata)
+
+// ─── Validation Badge Colors ──────────────────────────────────────────────────
+
+const RULE_STYLES: Record<string, string> = {
+  required: 'bg-rose-500/15 text-rose-400 border-rose-500/25',
+  nullable: 'bg-slate-500/15 text-slate-400 border-slate-500/25',
+  email: 'bg-violet-500/15 text-violet-400 border-violet-500/25',
+  url: 'bg-violet-500/15 text-violet-400 border-violet-500/25',
+  unique: 'bg-amber-500/15 text-amber-400 border-amber-500/25',
+  boolean: 'bg-cyan-500/15 text-cyan-400 border-cyan-500/25',
+  numeric: 'bg-cyan-500/15 text-cyan-400 border-cyan-500/25',
+  integer: 'bg-cyan-500/15 text-cyan-400 border-cyan-500/25',
+  string: 'bg-sky-500/15 text-sky-400 border-sky-500/25',
+  array: 'bg-sky-500/15 text-sky-400 border-sky-500/25',
+  object: 'bg-sky-500/15 text-sky-400 border-sky-500/25',
+}
+
+function getRuleStyle(rule: string): string {
+  const base = rule.split(':')[0].toLowerCase()
+  return RULE_STYLES[base] ?? 'bg-primary/10 text-primary border-primary/20'
+}
+
+// ─── Validation Badges Component ─────────────────────────────────────────────
+
+import type { FieldValidationRule } from '../../types'
+
+interface ValidationBadgesProps {
+  rule?: FieldValidationRule | null
+}
+
+const ValidationBadges: React.FC<ValidationBadgesProps> = ({ rule }) => {
+  if (!rule || (rule.rules.length === 0 && !rule.description && rule.min === 0 && rule.max === 0)) return null
+  
+  return (
+    <span className="inline-flex flex-wrap items-center gap-1 ml-2">
+      {rule.rules.map((r) => (
+        <span
+          key={r}
+          className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide border ${
+            getRuleStyle(r)
+          }`}
+        >
+          {r}
+        </span>
+      ))}
+      
+      {rule.min > 0 && (
+        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold border bg-slate-500/10 text-slate-400 border-slate-500/20">
+          Min: {rule.min}
+        </span>
+      )}
+      
+      {rule.max > 0 && (
+        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold border bg-slate-500/10 text-slate-400 border-slate-500/20">
+          Max: {rule.max}
+        </span>
+      )}
+
+    </span>
+  )
+}
+
+
 function collectAllVariables(doc: CollectionDocs): string[] {
   const vars = new Set<string>()
   const collectFromRequest = (req: DocRequest) => {
@@ -598,23 +662,34 @@ const RequestDetail: React.FC<{
             <table className="w-full text-xs">
               <thead>
                 <tr className="bg-white/5 border-b border-border">
-                  <th className="text-left px-4 py-2.5 font-medium text-muted">Key</th>
-                  <th className="text-left px-4 py-2.5 font-medium text-muted">Value</th>
+                  <th className="text-left px-4 py-2.5 font-medium text-muted w-[20%]">Key</th>
+                  <th className="text-left px-4 py-2.5 font-medium text-muted w-[25%]">Value</th>
+                  <th className="text-left px-4 py-2.5 font-medium text-muted w-[20%]">Validation</th>
+                  <th className="text-left px-4 py-2.5 font-medium text-muted w-[35%]">Description</th>
                 </tr>
               </thead>
               <tbody>
-                {Object.entries(request.headers).map(([k, v]) => (
-                  <tr key={k} className="border-b border-white/5 last:border-0">
-                    <td className="px-4 py-2.5 font-mono text-text/90">{k}</td>
-                    <td className="px-4 py-2.5 font-mono">
-                      <VarHighlight
-                        text={String(v)}
-                        envVars={envVars}
-                        onSetVar={onSetVar}
-                      />
-                    </td>
-                  </tr>
-                ))}
+                {Object.entries(request.headers).map(([k, v]) => {
+                  const rule = request.field_validations?.headers?.[k]
+                  return (
+                    <tr key={k} className="border-b border-white/5 last:border-0">
+                      <td className="px-4 py-2.5 font-mono text-text/90">{k}</td>
+                      <td className="px-4 py-2.5 font-mono">
+                        <VarHighlight
+                          text={String(v)}
+                          envVars={envVars}
+                          onSetVar={onSetVar}
+                        />
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <ValidationBadges rule={rule} />
+                      </td>
+                      <td className="px-4 py-2.5 text-sm text-text/90 leading-relaxed">
+                        {rule?.description || <span className="text-muted/30 text-xs italic">—</span>}
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
@@ -645,15 +720,62 @@ const RequestDetail: React.FC<{
               )}
             </button>
           </div>
-          <div className="bg-background/80 shadow-inner border border-border rounded-lg p-4 overflow-x-auto">
-            <pre className="text-xs text-text/90 font-mono whitespace-pre-wrap leading-relaxed">
-              <VarHighlight
-                text={JSON.stringify(request.body, null, 2)}
-                envVars={envVars}
-                onSetVar={onSetVar}
-              />
-            </pre>
-          </div>
+          {/* Render body as annotated field table */}
+          {request.body && typeof request.body === 'object' && !Array.isArray(request.body) ? (
+            <div className="border border-border rounded-lg overflow-hidden">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="bg-white/5 border-b border-border">
+                    <th className="text-left px-4 py-2.5 font-medium text-muted w-[20%]">Field</th>
+                    <th className="text-left px-4 py-2.5 font-medium text-muted w-[25%]">Value</th>
+                    <th className="text-left px-4 py-2.5 font-medium text-muted w-[20%]">Validation</th>
+                    <th className="text-left px-4 py-2.5 font-medium text-muted w-[35%]">Description</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Object.entries(request.body).map(([field, val]) => {
+                    const rawStr = typeof val === 'string' ? val : JSON.stringify(val)
+                    const rule = request.field_validations?.body?.[field]
+                    const hasAnnotations = rule && (rule.rules.length > 0 || rule.description || rule.min > 0 || rule.max > 0)
+                    
+                    return (
+                      <tr key={field} className="border-b border-white/5 last:border-0">
+                        <td className="px-4 py-2.5 font-mono text-text/90 font-medium">{field}</td>
+                        <td className="px-4 py-2.5 font-mono text-text/70">
+                          <VarHighlight
+                            text={rawStr}
+                            envVars={envVars}
+                            onSetVar={onSetVar}
+                          />
+                        </td>
+                        <td className="px-4 py-2.5">
+                          {hasAnnotations ? (
+                            <ValidationBadges rule={rule} />
+                          ) : (
+                            <span className="text-muted/40 text-[10px] italic">—</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-2.5 text-sm text-text/90 leading-relaxed">
+                          {rule?.description || <span className="text-muted/30 text-xs italic">—</span>}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            // Fallback: raw JSON view (for arrays or primitive bodies)
+            <div className="bg-background/80 shadow-inner border border-border rounded-lg p-4 overflow-x-auto">
+              <pre className="text-xs text-text/90 font-mono whitespace-pre-wrap leading-relaxed">
+                <VarHighlight
+                  text={JSON.stringify(request.body, null, 2)}
+                  envVars={envVars}
+                  onSetVar={onSetVar}
+                />
+              </pre>
+            </div>
+          )}
         </div>
       )}
 
