@@ -99,6 +99,7 @@ func SetupApp() *fiber.App {
 	api.SetupExampleRoutes(app)
 	api.SetupDonationRoutes(app)
 	api.SetupNotificationRoutes(app)
+	api.SetupConfluenceRoutes(app)
 
 	// Default Route
 	app.Get("/", func(c *fiber.Ctx) error {

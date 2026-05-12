@@ -52,6 +52,7 @@ export interface Collection {
   created_by: number
   created_at: string
   updated_at: string
+  confluence_page_id?: string
 }
 
 // ─── Folder Types ─────────────────────────────────────────────────────────────

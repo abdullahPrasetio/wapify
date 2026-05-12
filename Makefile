@@ -4,7 +4,15 @@ BINARY_NAME=wapbolt-server
 BACKEND_DIR=backend
 DESKTOP_DIR=apps/desktop
 
-.PHONY: help build-backend build-client build-docker-client keygen license build-desktop run-client build-landing
+# Load environment variables from backend/.env
+ifneq (,$(wildcard $(BACKEND_DIR)/.env))
+    include $(BACKEND_DIR)/.env
+    export
+endif
+
+DB_URL=postgres://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)?sslmode=disable
+
+.PHONY: help build-backend build-client build-docker-client keygen license build-desktop run-client build-landing migrate-up migrate-down
 
 help:
 	@echo "Wapbolt Commands:"
@@ -73,3 +81,9 @@ create-tag:
 
 push-tag:
 	git push origin $(TAG)
+
+migrate-up:
+	migrate -path $(BACKEND_DIR)/migrations -database "$(DB_URL)" up
+
+migrate-down:
+	migrate -path $(BACKEND_DIR)/migrations -database "$(DB_URL)" down

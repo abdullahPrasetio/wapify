@@ -226,7 +226,8 @@ interface DataState {
 
   // CRUD Actions
   saveActiveRequest: () => Promise<void>
-  createCollection: (name: string) => Promise<void>
+  createCollection: (name: string, description?: string, confluence_page_id?: string) => Promise<void>
+  updateCollection: (id: number, name: string, description: string, confluence_page_id: string) => Promise<void>
   importCollection: (jsonContent: string) => Promise<void>
   createRequest: (
     collectionId: number,
@@ -830,14 +831,15 @@ export const useDataStore = create<DataState>()(
           }
         },
 
-        createCollection: async (name: string) => {
+        createCollection: async (name: string, description: string = '', confluence_page_id: string = '') => {
           const { activeTeamId } = get()
           if (!activeTeamId) return
 
           try {
             const response = await apiClient.post(`/api/v1/teams/${activeTeamId}/collections`, {
               name,
-              description: ''
+              description,
+              confluence_page_id
             })
             if (response.status === 201) {
               const newCol = response.data as Collection
@@ -850,6 +852,25 @@ export const useDataStore = create<DataState>()(
             }
           } catch {
             toast.error('Failed to create collection')
+          }
+        },
+
+        updateCollection: async (id: number, name: string, description: string, confluence_page_id: string) => {
+          try {
+            const response = await apiClient.put(`/api/v1/collections/${id}`, {
+              name,
+              description,
+              confluence_page_id
+            })
+            if (response.status === 200) {
+              const updated = response.data as Collection
+              set((state) => ({
+                collections: state.collections.map(c => c.id === id ? updated : c)
+              }))
+              toast.success('Collection updated')
+            }
+          } catch {
+            toast.error('Failed to update collection')
           }
         },
 

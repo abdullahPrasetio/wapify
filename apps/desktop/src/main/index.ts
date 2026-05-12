@@ -94,7 +94,7 @@ ipcMain.handle('wapbolt:request', async (_event, config: IpcRequestConfig): Prom
         }
       })
       requestData = params // Pass object directly, Axios handles serialization and Content-Type
-      
+
       // If user hasn't set Content-Type, or it's wrong, we force it or let Axios handle it
       // Standard practice: if we pass URLSearchParams, Axios sets application/x-www-form-urlencoded
     } else if (config.body_type?.startsWith('raw-')) {
@@ -120,7 +120,7 @@ ipcMain.handle('wapbolt:request', async (_event, config: IpcRequestConfig): Prom
     console.log(`[Main Process] <<< RESPONSE STATUS: ${response.status}\n`)
 
     const timing = Date.now() - startTime
-    
+
     // Normalize headers to Record<string, string[]>
     const normalizedHeaders: Record<string, string[]> = {}
     Object.entries(response.headers).forEach(([key, value]) => {
@@ -138,11 +138,138 @@ ipcMain.handle('wapbolt:request', async (_event, config: IpcRequestConfig): Prom
     return {
       status: error.response?.status || 0,
       headers: {},
-      data: { 
+      data: {
         error: error.message,
-        details: error.response?.data 
+        details: error.response?.data
       },
       timing
+    }
+  }
+})
+
+// ─── IPC: Confluence Integration ───────────────────────────────────────────
+
+ipcMain.handle('confluence:get-page', async (_event, config: {
+  baseUrl: string,
+  email?: string,
+  pat?: string,
+  apiToken?: string,
+  authMethod?: 'pat' | 'cloud',
+  pageId: string
+}) => {
+  try {
+    const url = `${config.baseUrl}/wiki/rest/api/content/${config.pageId}?expand=version`
+    let authHeader = ''
+    if (config.authMethod === 'pat') {
+      authHeader = `Bearer ${config.pat}`
+      console.log(`[Confluence] Auth: Using PAT (Bearer)`)
+    } else {
+      const credentials = Buffer.from(`${config.email}:${config.apiToken}`).toString('base64')
+      authHeader = `Basic ${credentials}`
+      console.log(`[Confluence] Auth: Using Email + API Token (Basic)`)
+    }
+
+    if (!authHeader) {
+      throw new Error('No authentication configured. Set either PAT or Email + API Token.')
+    }
+
+    console.log(`[Confluence] Fetching: ${url}`)
+
+    const response = await axios({
+      method: 'GET',
+      url,
+      headers: {
+        'Authorization': authHeader,
+        'Accept': 'application/json',
+        'User-Agent': 'Wapbolt'
+      },
+      timeout: 10000
+    })
+
+    console.log(`[Confluence] Response: ${response.status}`)
+    return { success: true, data: response.data }
+  } catch (error: any) {
+    console.error(`[Confluence] Error: ${error.message}`)
+    if (error.response) {
+      console.error(`[Confluence] Status: ${error.response.status}`)
+      console.error(`[Confluence] Data:`, error.response.data)
+    }
+    return {
+      success: false,
+      error: error.message,
+      details: error.response?.data
+    }
+  }
+})
+
+ipcMain.handle('confluence:update-page', async (_event, config: {
+  baseUrl: string,
+  email?: string,
+  pat?: string,
+  apiToken?: string,
+  authMethod?: 'pat' | 'cloud',
+  pageId: string,
+  title: string,
+  content: string,
+  version: number
+}) => {
+  try {
+    const url = `${config.baseUrl}/wiki/rest/api/content/${config.pageId}`
+
+    let authHeader = ''
+    if (config.authMethod === 'pat') {
+      authHeader = `Bearer ${config.pat}`
+      console.log(`[Confluence] Auth: Using PAT (Bearer)`)
+    } else {
+      const credentials = Buffer.from(`${config.email}:${config.apiToken}`).toString('base64')
+      authHeader = `Basic ${credentials}`
+      console.log(`[Confluence] Auth: Using Email + API Token (Basic)`)
+    }
+
+    if (!authHeader) {
+      throw new Error('No authentication configured. Set either PAT or Email + API Token.')
+    }
+
+    console.log(`[Confluence] Updating: ${url}`)
+
+    const response = await axios({
+      method: 'PUT',
+      url,
+      headers: {
+        'Authorization': authHeader,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'User-Agent': 'Wapbolt'
+      },
+      timeout: 10000,
+      data: {
+        id: config.pageId,
+        type: 'page',
+        title: config.title,
+        body: {
+          storage: {
+            value: config.content,
+            representation: 'storage'
+          }
+        },
+        version: {
+          number: config.version
+        }
+      }
+    })
+
+    console.log(`[Confluence] Update Response: ${response.status}`)
+    return { success: true, data: response.data }
+  } catch (error: any) {
+    console.error(`[Confluence] Update Error: ${error.message}`)
+    if (error.response) {
+      console.error(`[Confluence] Status: ${error.response.status}`)
+      console.error(`[Confluence] Data:`, error.response.data)
+    }
+    return {
+      success: false,
+      error: error.message,
+      details: error.response?.data
     }
   }
 })

@@ -9,8 +9,9 @@ import (
 )
 
 type CreateCollectionRequest struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
+	Name             string `json:"name"`
+	Description      string `json:"description"`
+	ConfluencePageID string `json:"confluence_page_id"`
 }
 
 // Postman Collection Structs (simplified v2.1)
@@ -182,10 +183,11 @@ func CreateCollection(c *fiber.Ctx) error {
 	tid := parseUint(teamID)
 
 	collection := repository.Collection{
-		Name:        req.Name,
-		Description: req.Description,
-		TeamID:      tid,
-		CreatedByID: &userID,
+		Name:             req.Name,
+		Description:      req.Description,
+		TeamID:           tid,
+		CreatedByID:      &userID,
+		ConfluencePageID: req.ConfluencePageID,
 	}
 
 	if err := repository.DB.Create(&collection).Error; err != nil {
@@ -248,6 +250,8 @@ func UpdateCollection(c *fiber.Ctx) error {
 	if req.Description != "" {
 		collection.Description = req.Description
 	}
+	// Always allow updating page id (even to empty string)
+	collection.ConfluencePageID = req.ConfluencePageID
 
 	if err := repository.DB.Save(&collection).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to update collection", "code": "INTERNAL_SERVER_ERROR"})

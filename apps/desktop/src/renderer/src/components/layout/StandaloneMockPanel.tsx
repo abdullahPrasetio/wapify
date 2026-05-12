@@ -21,6 +21,16 @@ import { ScenariosPanel } from './ScenariosPanel'
 
 const HTTP_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS']
 
+const METHOD_COLOR: Record<string, string> = {
+  GET: 'text-emerald-400',
+  POST: 'text-amber-400',
+  PUT: 'text-blue-400',
+  PATCH: 'text-sky-400',
+  DELETE: 'text-rose-400',
+  HEAD: 'text-purple-400',
+  OPTIONS: 'text-slate-400'
+}
+
 interface StandaloneMockPanelProps {
   teamId: number
   workspaceName: string
@@ -420,10 +430,10 @@ const StandaloneMockEndpointForm: React.FC<StandaloneMockEndpointFormProps> = ({
           <select
             value={method}
             onChange={(e) => setMethod(e.target.value)}
-            className="appearance-none bg-background border border-border rounded-lg px-3 py-2 text-xs font-mono text-text focus:outline-none focus:border-emerald-500/50 pr-7"
+            className={`appearance-none bg-background border border-border rounded-lg px-3 py-2 text-xs font-mono font-bold uppercase ${METHOD_COLOR[method] || 'text-text'} focus:outline-none focus:border-emerald-500/50 pr-7`}
           >
             {HTTP_METHODS.map((m) => (
-              <option key={m} value={m}>
+              <option key={m} value={m} className="text-text font-sans">
                 {m}
               </option>
             ))}

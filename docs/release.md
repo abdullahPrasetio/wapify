@@ -1,3 +1,30 @@
+# Wapbolt v1.6.0 — Confluence Sync & Smart Documentation 📚
+
+Rilis ini membawa integrasi penuh dengan Confluence, memungkinkan Anda untuk mensinkronisasi dokumentasi API langsung dari Wapbolt ke halaman Confluence tim Anda.
+
+### ✨ Apa yang Baru?
+
+#### 📘 Confluence Integration (Cloud & Server/DC)
+Kini Anda bisa membagikan dokumentasi API ke seluruh organisasi dengan sekali klik:
+- **Dual Auth Support**: Mendukung **Atlassian Cloud** (Email + API Token) dan **Confluence Server / Data Center** (Personal Access Token).
+- **Per-User Configuration**: Setiap anggota tim dapat menggunakan kredensial Confluence mereka masing-masing.
+- **Smart Sync Engine**: Sinkronisasi otomatis menyertakan Deskripsi, Endpoint, Headers, Body Validation, dan Contoh Respons (Examples).
+- **Table of Contents (TOC)**: Dokumentasi yang dihasilkan di Confluence otomatis menyertakan navigasi TOC yang interaktif.
+
+#### 🎨 Visual Consistency & Parity
+Penyelarasan estetika di seluruh penjuru aplikasi:
+- **Standardized Method Colors**: Pewarnaan method HTTP kini mengikuti standar industri (GET Hijau, POST Oranye, PUT/PATCH Biru, DELETE Merah).
+- **UI/UX Parity**: Warna method yang konsisten di Documentation Panel, Mock Server, dan Main Request Builder.
+- **Neutral Validation Badges**: Aturan validasi (Required, Email, Numeric, dll) kini tampil lebih bersih dengan skema warna netral (*slate*).
+
+#### 🛠️ Developer Utilities
+Peningkatan alat bantu untuk mempercepat alur kerja:
+- **Auto-Generated cURL**: Dokumentasi kini otomatis menyediakan perintah cURL untuk setiap endpoint, siap untuk di-*copy* dan dijalankan.
+- **Improved Response Preview**: Batas tinggi maksimal pada blok kode respons dengan *custom scrollbar* untuk navigasi dokumentasi yang lebih nyaman.
+- **Robust IPC Handlers**: Komunikasi antara Renderer dan Main Process yang lebih stabil untuk penanganan request lintas origin (CORS-free).
+
+---
+
 # Wapbolt v1.4.6 — Enterprise Resilience & Smart Collaboration 🚀
 
 Rilis ini fokus pada kesiapan aplikasi untuk lingkungan internal/enterprise (OCP) dan peningkatan signifikan pada fitur kolaborasi real-time.

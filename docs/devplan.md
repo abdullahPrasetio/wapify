@@ -88,10 +88,11 @@
 
 - [x] Generate dokumentasi HTML + Markdown + OpenAPI 3.0
 - [x] Documentation viewer + export
+- [x] Confluence Sync Integration (Cloud & Server/DC) ✅ v1.6.0
 - [x] Mock server engine: conditional response, delay, path wildcard, per-collection
 - [x] Mock server UI: CRUD endpoints, quick-mock, toggle aktif
 
-**Milestone ✅:** User bisa export dokumentasi dan aktifkan mock server.
+**Milestone ✅:** User bisa export dokumentasi, sync ke Confluence, dan aktifkan mock server.
 
 ---
 

@@ -89,6 +89,8 @@ type Collection struct {
 
 	Team      *Team `gorm:"foreignKey:TeamID" json:"-"`
 	CreatedBy *User `gorm:"foreignKey:CreatedByID;references:ID" json:"-"`
+
+	ConfluencePageID string `gorm:"column:confluence_page_id" json:"confluence_page_id"`
 }
 
 type Folder struct {
@@ -279,5 +281,18 @@ type Notification struct {
 
 	User   *User `gorm:"foreignKey:UserID" json:"-"`
 	Sender *User `gorm:"foreignKey:SenderID" json:"sender,omitempty"`
+}
+
+type UserConfluenceSetting struct {
+	UserID             uint      `gorm:"primaryKey;column:user_id" json:"user_id"`
+	BaseURL            string    `gorm:"column:base_url" json:"base_url"`
+	ConfluenceEmail    string    `gorm:"column:confluence_email" json:"confluence_email"`
+	ConfluencePAT      string    `gorm:"column:confluence_pat" json:"confluence_pat"`
+	ConfluenceAPIToken string    `gorm:"column:confluence_api_token" json:"confluence_api_token"`
+	SpaceKey           string    `gorm:"column:space_key" json:"space_key"`
+	AuthMethod         string    `gorm:"column:auth_method;default:cloud" json:"auth_method"`
+	UpdatedAt          time.Time `gorm:"column:updated_at" json:"updated_at"`
+
+	User *User `gorm:"foreignKey:UserID" json:"-"`
 }
 

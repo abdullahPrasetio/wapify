@@ -64,11 +64,13 @@ monaco.languages.registerHoverProvider('html', createVarHoverProvider('html'))
 const REQUEST_TABS = ['Params', 'Auth', 'Headers', 'Body', 'Pre-request', 'Tests', 'Validation'] as const
 
 const METHOD_COLOR: Record<string, string> = {
-  GET: 'text-success',
-  POST: 'text-warning',
-  PUT: 'text-info',
-  PATCH: 'text-secondary',
-  DELETE: 'text-danger'
+  GET: 'text-emerald-400',
+  POST: 'text-amber-400',
+  PUT: 'text-blue-400',
+  PATCH: 'text-sky-400',
+  DELETE: 'text-rose-400',
+  HEAD: 'text-purple-400',
+  OPTIONS: 'text-slate-400'
 }
 
 interface RequestFormProps {

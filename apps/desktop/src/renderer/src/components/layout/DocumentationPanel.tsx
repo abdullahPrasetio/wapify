@@ -14,7 +14,9 @@ import {
   AlertCircle,
   PlusCircle,
   Play,
-  Trash2
+  Trash2,
+  Cloud,
+  Loader2
 } from 'lucide-react'
 import { apiClient } from '../../api/client'
 import type { CollectionDocs, DocRequest } from '../../types'
@@ -46,17 +48,17 @@ function parseVariables(text: string): string[] {
 // ─── Validation Badge Colors ──────────────────────────────────────────────────
 
 const RULE_STYLES: Record<string, string> = {
-  required: 'bg-rose-500/15 text-rose-400 border-rose-500/25',
-  nullable: 'bg-slate-500/15 text-slate-400 border-slate-500/25',
-  email: 'bg-violet-500/15 text-violet-400 border-violet-500/25',
-  url: 'bg-violet-500/15 text-violet-400 border-violet-500/25',
-  unique: 'bg-amber-500/15 text-amber-400 border-amber-500/25',
-  boolean: 'bg-cyan-500/15 text-cyan-400 border-cyan-500/25',
-  numeric: 'bg-cyan-500/15 text-cyan-400 border-cyan-500/25',
-  integer: 'bg-cyan-500/15 text-cyan-400 border-cyan-500/25',
-  string: 'bg-sky-500/15 text-sky-400 border-sky-500/25',
-  array: 'bg-sky-500/15 text-sky-400 border-sky-500/25',
-  object: 'bg-sky-500/15 text-sky-400 border-sky-500/25',
+  required: 'bg-slate-500/10 text-slate-400 border-slate-500/20',
+  nullable: 'bg-slate-500/10 text-slate-400 border-slate-500/20',
+  email: 'bg-slate-500/10 text-slate-400 border-slate-500/20',
+  url: 'bg-slate-500/10 text-slate-400 border-slate-500/20',
+  unique: 'bg-slate-500/10 text-slate-400 border-slate-500/20',
+  boolean: 'bg-slate-500/10 text-slate-400 border-slate-500/20',
+  numeric: 'bg-slate-500/10 text-slate-400 border-slate-500/20',
+  integer: 'bg-slate-500/10 text-slate-400 border-slate-500/20',
+  string: 'bg-slate-500/10 text-slate-400 border-slate-500/20',
+  array: 'bg-slate-500/10 text-slate-400 border-slate-500/20',
+  object: 'bg-slate-500/10 text-slate-400 border-slate-500/20',
 }
 
 function getRuleStyle(rule: string): string {
@@ -300,6 +302,7 @@ export const DocumentationPanel: React.FC<DocumentationPanelProps> = ({
   const [expandedFolders, setExpandedFolders] = useState<Set<number>>(new Set())
   const [copiedField, setCopiedField] = useState<string | null>(null)
   const [settingVar, setSettingVar] = useState<string | null>(null)
+  const [isSyncing, setIsSyncing] = useState(false)
 
   useEffect(() => {
     const fetchDocs = async () => {
@@ -361,6 +364,223 @@ export const DocumentationPanel: React.FC<DocumentationPanelProps> = ({
       toast.success('OpenAPI 3.0 exported successfully')
     } catch {
       toast.error('Failed to export Swagger')
+    }
+  }
+
+  const handleSyncToConfluence = async () => {
+    setIsSyncing(true)
+    try {
+      // 1. Get Confluence Config from Backend
+      const configRes = await apiClient.get('/api/v1/confluence/config')
+      const configData = configRes.data as any
+      if (configRes.status !== 200 || !configData.enabled) {
+        toast.error('Confluence integration is disabled by admin')
+        return
+      }
+
+      const { base_url, confluence_email, confluence_pat, confluence_api_token, auth_method } = configData
+      
+      // 2. Get Collection details (for confluence_page_id)
+      const collRes = await apiClient.get(`/api/v1/collections/${collectionId}`)
+      const collection = (collRes.data as any).collection
+      const pageId = collection.confluence_page_id
+
+      if (!pageId) {
+        toast.error('Confluence Page ID not set for this collection. Set it in Collection Settings.')
+        return
+      }
+
+      // 3. Get Current Page to get version
+      const pageData = await window.api.getConfluencePage({ 
+        baseUrl: base_url, 
+        email: confluence_email,
+        pat: confluence_pat,
+        apiToken: confluence_api_token,
+        authMethod: auth_method,
+        pageId 
+      })
+      if (!pageData.success) {
+        toast.error(`Failed to fetch Confluence page: ${pageData.error}`)
+        return
+      }
+
+      const currentVersion = pageData.data.version.number
+      const nextVersion = currentVersion + 1
+
+      // 4. Generate Content (Storage Format)
+      const generateContent = () => {
+        if (!docs) return ''
+        
+        let html = `<h1>${docs.collection_name || collectionName || 'API Documentation'}</h1>`
+        if (docs.description) html += `<p>${docs.description}</p>`
+        
+        // Add Table of Contents Macro
+        html += `<ac:structured-macro ac:name="toc" ac:schema-version="1">`
+        html += `<ac:parameter ac:name="outline">true</ac:parameter>`
+        html += `<ac:parameter ac:name="maxLevel">3</ac:parameter>`
+        html += `</ac:structured-macro>`
+        
+        const renderValidation = (rule: any) => {
+          if (!rule) return ''
+          const badges: string[] = []
+          
+          if (rule.rules && Array.isArray(rule.rules)) {
+            rule.rules.forEach((r: string) => {
+              const color = '#42526e' // neutral slate for all rules
+              badges.push(`<strong><span style="color: ${color};">[${r.toUpperCase()}]</span></strong>`)
+            })
+          }
+          
+          if (rule.min && rule.min > 0) badges.push(`<strong><span style="color: #42526e;">[MIN:${rule.min}]</span></strong>`)
+          if (rule.max && rule.max > 0) badges.push(`<strong><span style="color: #42526e;">[MAX:${rule.max}]</span></strong>`)
+          
+          return badges.join(' ')
+        }
+
+        const renderRequest = (req: DocRequest) => {
+          if (!req) return ''
+          
+          const getMethodColor = (m: string) => {
+            switch((m || 'GET').toUpperCase()) {
+              case 'GET': return '#10b981' // emerald-500
+              case 'POST': return '#f59e0b' // amber-500
+              case 'PUT': return '#3b82f6' // blue-500
+              case 'PATCH': return '#0ea5e9' // sky-500
+              case 'DELETE': return '#f43f5e' // rose-500
+              case 'HEAD': return '#a855f7' // purple-500
+              case 'OPTIONS': return '#64748b' // slate-500
+              default: return '#64748b'
+            }
+          }
+          const methodColor = getMethodColor(req.method)
+
+          let reqHtml = `<hr/>`
+          reqHtml += `<h2><strong><span style="color: ${methodColor};">${req.method || 'GET'}</span></strong> ${req.name || 'Untitled Request'}</h2>`
+          reqHtml += `<p><code>${req.url || ''}</code></p>`
+          
+          if (req.description) reqHtml += `<p><em>${req.description}</em></p>`
+
+          // Generate cURL Example
+          const generateCurl = (r: DocRequest) => {
+            let curl = `curl -X ${r.method || 'GET'} "${r.url || ''}"`
+            if (r.headers && Object.keys(r.headers).length > 0) {
+              Object.entries(r.headers).forEach(([k, v]) => {
+                curl += ` \\\n  -H "${k}: ${v}"`
+              })
+            }
+            if (r.body && Object.keys(r.body).length > 0) {
+              curl += ` \\\n  -d '${JSON.stringify(r.body)}'`
+            }
+            return curl
+          }
+          
+          // Render cURL
+          reqHtml += '<h4>cURL Example</h4>'
+          reqHtml += `<ac:structured-macro ac:name="code" ac:schema-version="1">`
+          reqHtml += `<ac:parameter ac:name="language">bash</ac:parameter>`
+          reqHtml += `<ac:parameter ac:name="theme">Emacs</ac:parameter>`
+          reqHtml += `<ac:plain-text-body><![CDATA[\n${generateCurl(req)}\n]]></ac:plain-text-body>`
+          reqHtml += `</ac:structured-macro>`
+          
+          // Headers Table
+          if (req.headers && Object.keys(req.headers).length > 0) {
+            reqHtml += '<h3>Headers</h3>'
+            reqHtml += '<table><tbody><tr><th>Key</th><th>Value</th><th>Validation</th><th>Description</th></tr>'
+            Object.entries(req.headers).forEach(([k, v]) => {
+              const rule = req.field_validations?.headers?.[k]
+              reqHtml += `<tr><td><strong>${k}</strong></td><td><code>${v}</code></td><td>${renderValidation(rule)}</td><td>${rule?.description || ''}</td></tr>`
+            })
+            reqHtml += '</tbody></table>'
+          }
+          
+          // Body Table
+          if (req.body && Object.keys(req.body).length > 0) {
+            reqHtml += '<h3>Request Body</h3>'
+            reqHtml += '<table><tbody><tr><th>Field</th><th>Value</th><th>Validation</th><th>Description</th></tr>'
+            Object.entries(req.body).forEach(([k, v]) => {
+              const rule = req.field_validations?.body?.[k]
+              const valStr = typeof v === 'object' ? JSON.stringify(v) : String(v)
+              reqHtml += `<tr><td><strong>${k}</strong></td><td><code>${valStr}</code></td><td>${renderValidation(rule)}</td><td>${rule?.description || ''}</td></tr>`
+            })
+            reqHtml += '</tbody></table>'
+          }
+
+          // Examples
+          if (req.examples && req.examples.length > 0) {
+            reqHtml += '<h3>Responses &amp; Examples</h3>'
+            req.examples.forEach(ex => {
+              reqHtml += `<h4>${ex.response_status || 200} - ${ex.name || 'Example'}</h4>`
+              
+              // Format JSON string to be pretty printed
+              let formattedJson = ex.response_body || ''
+              try {
+                if (formattedJson && typeof formattedJson === 'string') {
+                  const parsed = JSON.parse(formattedJson)
+                  formattedJson = JSON.stringify(parsed, null, 2)
+                }
+              } catch (e) {
+                // If not valid JSON, leave it as is
+              }
+
+              // Confluence Native Code Block Macro
+              reqHtml += `<ac:structured-macro ac:name="code" ac:schema-version="1">`
+              reqHtml += `<ac:parameter ac:name="language">json</ac:parameter>`
+              reqHtml += `<ac:parameter ac:name="theme">Emacs</ac:parameter>` // Adds a nice dark theme
+              reqHtml += `<ac:parameter ac:name="collapse">true</ac:parameter>` // Collapses long responses
+              reqHtml += `<ac:plain-text-body><![CDATA[\n${formattedJson}\n]]></ac:plain-text-body>`
+              reqHtml += `</ac:structured-macro>`
+            })
+          }
+          
+          return reqHtml
+        }
+
+        // Root Requests
+        docs.root_requests?.forEach(req => {
+          html += renderRequest(req)
+        })
+
+        // Folder Requests
+        docs.folders?.forEach(folder => {
+          if (!folder.name) return
+          html += `<br/>`
+          html += `<ac:structured-macro ac:name="info" ac:schema-version="1">`
+          html += `<ac:rich-text-body><p><strong>Folder: ${folder.name}</strong></p></ac:rich-text-body>`
+          html += `</ac:structured-macro>`
+          
+          folder.requests?.forEach(req => {
+            html += renderRequest(req)
+          })
+        })
+
+        return html
+      }
+
+      const content = generateContent()
+
+      // 5. Update Page
+      const updateRes = await window.api.updateConfluencePage({
+        baseUrl: base_url,
+        email: confluence_email,
+        pat: confluence_pat,
+        apiToken: confluence_api_token,
+        authMethod: auth_method,
+        pageId,
+        title: docs?.collection_name || collectionName,
+        content,
+        version: nextVersion
+      })
+
+      if (updateRes.success) {
+        toast.success('Documentation synced to Confluence successfully!')
+      } else {
+        toast.error(`Failed to sync to Confluence: ${updateRes.error}`)
+      }
+    } catch (err: any) {
+      toast.error('An error occurred during Confluence sync')
+      console.error(err)
+    } finally {
+      setIsSyncing(false)
     }
   }
 
@@ -432,6 +652,14 @@ export const DocumentationPanel: React.FC<DocumentationPanelProps> = ({
             >
               <Code size={13} />
               OpenAPI 3.0
+            </button>
+            <button
+              onClick={handleSyncToConfluence}
+              disabled={isSyncing}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20 hover:bg-blue-500/20 transition-all disabled:opacity-50"
+            >
+              {isSyncing ? <Loader2 size={13} className="animate-spin" /> : <Cloud size={13} />}
+              Sync to Confluence
             </button>
             <button
               onClick={onClose}
@@ -617,6 +845,21 @@ const RequestDetail: React.FC<{
     })
   }
 
+  const generateCurl = () => {
+    let curl = `curl -X ${request.method || 'GET'} "${resolveText(request.url || '')}"`
+    if (request.headers && Object.keys(request.headers).length > 0) {
+      Object.entries(request.headers).forEach(([k, v]) => {
+        curl += ` \\\n  -H "${k}: ${resolveText(String(v))}"`
+      })
+    }
+    if (request.body && Object.keys(request.body).length > 0) {
+      let bodyStr = JSON.stringify(request.body)
+      bodyStr = resolveText(bodyStr)
+      curl += ` \\\n  -d '${bodyStr}'`
+    }
+    return curl
+  }
+
   return (
     <div className="p-8 max-w-3xl">
       {/* Method + URL */}
@@ -651,6 +894,36 @@ const RequestDetail: React.FC<{
           <p className="text-sm text-text/80 leading-relaxed">{request.description}</p>
         </div>
       )}
+
+      {/* cURL Example */}
+      <div className="mb-6">
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-xs font-semibold text-muted uppercase tracking-widest">
+            cURL Example
+          </h3>
+          <button
+            onClick={() => onCopy(generateCurl(), 'curl')}
+            className="flex items-center gap-1 px-2 py-1 rounded text-xs text-muted hover:text-text border border-border hover:border-white/20 transition-all"
+          >
+            {copiedField === 'curl' ? (
+              <>
+                <Check size={11} className="text-success" />
+                <span className="text-success">Copied</span>
+              </>
+            ) : (
+              <>
+                <Copy size={11} />
+                Copy
+              </>
+            )}
+          </button>
+        </div>
+        <div className="bg-background/80 shadow-inner border border-border rounded-lg p-4 overflow-x-auto custom-scrollbar">
+          <pre className="text-xs text-text/90 font-mono whitespace-pre-wrap leading-relaxed">
+            {generateCurl()}
+          </pre>
+        </div>
+      </div>
 
       {/* Headers */}
       {hasHeaders && (
@@ -836,7 +1109,7 @@ const RequestDetail: React.FC<{
                   </div>
                 </div>
                 {Boolean(ex.response_body) && (
-                  <div className="bg-background/80 shadow-inner p-4 overflow-x-auto">
+                  <div className="bg-background/80 shadow-inner p-4 overflow-auto max-h-96 custom-scrollbar">
                     <pre className="text-[11px] text-text/80 font-mono whitespace-pre-wrap leading-relaxed">
                       {(() => {
                         try {

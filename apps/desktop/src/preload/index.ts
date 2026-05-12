@@ -44,6 +44,27 @@ const api = {
   },
   parseCurl: (curlCommand: string): Promise<any> => {
     return ipcRenderer.invoke('wapbolt:parse-curl', curlCommand)
+  },
+  getConfluencePage: (config: { 
+    baseUrl: string, 
+    email?: string, 
+    pat?: string,
+    apiToken?: string,
+    pageId: string 
+  }): Promise<any> => {
+    return ipcRenderer.invoke('confluence:get-page', config)
+  },
+  updateConfluencePage: (config: { 
+    baseUrl: string, 
+    email?: string, 
+    pat?: string,
+    apiToken?: string,
+    pageId: string, 
+    title: string, 
+    content: string, 
+    version: number 
+  }): Promise<any> => {
+    return ipcRenderer.invoke('confluence:update-page', config)
   }
 }
 

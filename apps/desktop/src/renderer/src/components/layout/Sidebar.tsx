@@ -23,7 +23,8 @@ import {
   Download,
   Copy,
   GripVertical, Key, DatabaseZap,
-  Zap, Heart, ListTree
+  Zap, Heart, ListTree,
+  Cloud
 } from 'lucide-react'
 import { useState, useEffect, useLayoutEffect, useMemo } from 'react'
 import {
@@ -52,10 +53,13 @@ import { EnvironmentModal } from '../modals/EnvironmentModal'
 import { ServerSettingsModal } from '../modals/ServerSettingsModal'
 import { ChangePasswordModal } from "../modals/ChangePasswordModal"
 import { StandaloneMockPanel } from "./StandaloneMockPanel"
+import { ConfluenceSettingsModal } from '../modals/ConfluenceSettingsModal'
+import { UserConfluenceSettingsModal } from '../modals/UserConfluenceSettingsModal'
+import { CollectionModal } from '../modals/CollectionModal'
+import type { ApiRequest, Collection, Folder, RequestExample } from '../../types'
 import { DocumentationPanel } from './DocumentationPanel'
 import { MockServerPanel } from './MockServerPanel'
 import { NotificationBell } from './NotificationBell'
-import type { ApiRequest, Collection, Folder, RequestExample } from '../../types'
 
 const METHOD_COLORS: Record<string, string> = {
   GET: 'text-success',
@@ -494,7 +498,8 @@ const CollectionItem = ({ collection }: { collection: Collection }): React.JSX.E
     deleteRequest,
     duplicateRequest,
     exportCollection,
-    runCollection
+    runCollection,
+    updateCollection
   } = useDataStore()
   const { setActiveView } = useAppStore()
 
@@ -504,6 +509,7 @@ const CollectionItem = ({ collection }: { collection: Collection }): React.JSX.E
   const [showDocs, setShowDocs] = useState(false)
   const [showMockServer, setShowMockServer] = useState(false)
   const [showRunner, setShowRunner] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
   const [runnerState, setRunnerState] = useState<'idle' | 'running' | 'finished'>('idle')
   const [runResults, setRunResults] = useState<any[]>([])
 
@@ -576,6 +582,7 @@ const CollectionItem = ({ collection }: { collection: Collection }): React.JSX.E
             { label: 'Run Collection', icon: PlayCircle, onClick: (): void => setShowRunner(true) },
             { label: 'View Documentation', icon: BookOpen, onClick: (): void => setShowDocs(true) },
             { label: 'Mock Server', icon: Server, onClick: (): void => setShowMockServer(true) },
+            { label: 'Collection Settings', icon: Settings, onClick: (): void => setShowSettings(true) },
             { label: 'Export Collection', icon: Download, onClick: (): Promise<void> => exportCollection(collection.id) },
             { label: 'Delete Collection', icon: Trash2, onClick: handleDeleteCollection, variant: 'danger' }
           ]}
@@ -623,6 +630,21 @@ const CollectionItem = ({ collection }: { collection: Collection }): React.JSX.E
         </div>
       )}
 
+      {showSettings && (
+        <CollectionModal
+          isOpen={showSettings}
+          onClose={() => setShowSettings(false)}
+          title="Collection Settings"
+          submitText="Save Changes"
+          initialData={{
+            name: collection.name,
+            description: collection.description,
+            confluence_page_id: collection.confluence_page_id || ''
+          }}
+          onSubmit={(data) => updateCollection(collection.id, data.name, data.description, data.confluence_page_id)}
+        />
+      )}
+
       <PromptModal
         isOpen={promptType !== null}
         title={promptType === 'request' ? 'New Request' : 'New Folder'}
@@ -651,8 +673,10 @@ const CollectionItem = ({ collection }: { collection: Collection }): React.JSX.E
 export const Sidebar = (): React.JSX.Element => {
   const { user, logout } = useAuthStore()
   const [showServerSettings, setShowServerSettings] = useState(false)
+  const [showUserConfluence, setShowUserConfluence] = useState(false)
   const [showChangePassword, setShowChangePassword] = useState(false)
   const [showStandaloneMock, setShowStandaloneMock] = useState(false)
+  const [showConfluenceSettings, setShowConfluenceSettings] = useState(false)
   const [appVersion, setAppVersion] = useState<string>('')
 
   const {
@@ -883,6 +907,9 @@ export const Sidebar = (): React.JSX.Element => {
                   <div onClick={() => setActiveView('admin-donations')} className={`flex items-center gap-2 px-2 py-1.5 rounded text-xs cursor-pointer ${activeView === 'admin-donations' ? 'bg-primary/10 text-primary' : 'text-text hover:bg-background'}`}>
                     <Heart size={12} /> Donation Settings
                   </div>
+                  <div onClick={() => setShowConfluenceSettings(true)} className={`flex items-center gap-2 px-2 py-1.5 rounded text-xs cursor-pointer text-text hover:bg-background`}>
+                    <Cloud size={12} className="text-blue-500" /> Confluence Sync
+                  </div>
                 </div>
               )}
             </div>
@@ -914,9 +941,9 @@ export const Sidebar = (): React.JSX.Element => {
               <div onClick={() => setSidebarTab('collections')} className={`pb-2 text-xs font-bold uppercase tracking-wider cursor-pointer border-b-2 transition-all ${sidebarTab === 'collections' ? 'border-primary text-primary' : 'border-transparent text-muted hover:text-text'}`}>Collections</div>
               <div onClick={() => setSidebarTab('history')} className={`pb-2 text-xs font-bold uppercase tracking-wider cursor-pointer border-b-2 transition-all ${sidebarTab === 'history' ? 'border-primary text-primary' : 'border-transparent text-muted hover:text-text'}`}>History</div>
             </div>
-            
+
             {sidebarTab === 'collections' && (
-              <button 
+              <button
                 onClick={collapseAll}
                 title="Collapse All"
                 className="mb-2 p-1 rounded hover:bg-background text-muted hover:text-text transition-colors"
@@ -988,6 +1015,7 @@ export const Sidebar = (): React.JSX.Element => {
               </div>
               <div className="flex items-center gap-1.5 shrink-0 ml-2">
                 <NotificationBell />
+                <button onClick={() => setShowUserConfluence(true)} title="Confluence Personal Settings" className="text-muted hover:text-blue-400"><Cloud size={14} /></button>
                 <button onClick={() => setShowChangePassword(true)} title="Change Password" className="text-muted hover:text-text"><Key size={14} /></button>
                 <button onClick={() => setShowServerSettings(true)} className="text-muted hover:text-text"><Settings size={14} /></button>
                 <button onClick={logout} className="text-muted hover:text-danger"><LogOut size={14} /></button>
@@ -997,6 +1025,8 @@ export const Sidebar = (): React.JSX.Element => {
         </div>
 
         {showServerSettings && <ServerSettingsModal onClose={() => setShowServerSettings(false)} />}
+        {showConfluenceSettings && <ConfluenceSettingsModal onClose={() => setShowConfluenceSettings(false)} />}
+        {showUserConfluence && <UserConfluenceSettingsModal onClose={() => setShowUserConfluence(false)} />}
         {showChangePassword && <ChangePasswordModal isOpen={showChangePassword} onClose={() => setShowChangePassword(false)} />}
         {showStandaloneMock && activeTeam && (
           <StandaloneMockPanel
@@ -1007,12 +1037,12 @@ export const Sidebar = (): React.JSX.Element => {
         )}
 
         {isNewCollectionModalOpen && (
-          <PromptModal
+          <CollectionModal
             title="New Collection"
-            placeholder="Collection name..."
+            submitText="Create"
             isOpen={isNewCollectionModalOpen}
             onClose={() => setIsNewCollectionModalOpen(false)}
-            onSubmit={(val) => { createCollection(val) }}
+            onSubmit={(data) => { createCollection(data.name, data.description, data.confluence_page_id) }}
           />
         )}
       </div>

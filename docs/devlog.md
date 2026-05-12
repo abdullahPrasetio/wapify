@@ -1,4 +1,43 @@
 
+## [2026-05-12] — Confluence Sync Integration & v1.6.0
+**Fase:** Fase 3 — Dokumentasi & Mock Server (Advanced)
+**Dikerjakan oleh:** Antigravity
+**Status:** ✅ Selesai
+
+### Yang Dikerjakan
+- **Version Bump**: Menaikkan versi aplikasi ke **1.6.0**.
+- **Full Confluence Integration**:
+    - Implementasi sinkronisasi dokumentasi API langsung ke Confluence (Cloud & Server/DC).
+    - Dukungan autentikasi ganda: **Personal Access Token (PAT)** dan **Atlassian Cloud API Token**.
+    - Penambahan sistem *Auth Method Switcher* yang menyimpan preferensi autentikasi per-user di database.
+    - Sinkronisasi otomatis menyertakan: Metadata (Deskripsi), Navigasi (TOC), Request Body Validation, dan Contoh Respons (Examples).
+- **UI/UX Consistency**:
+    - Standarisasi warna Method HTTP di seluruh aplikasi (GET: Emerald, POST: Amber, PUT: Blue, PATCH: Sky, DELETE: Rose).
+    - Penyesuaian warna method pada Documentation Panel, Mock Server, dan Main Request Builder.
+    - Pembersihan visual pada label validasi (Validation Rules) menjadi warna netral (*slate*) untuk keterbacaan yang lebih baik.
+- **Developer Utilities**:
+    - Penambahan fitur **Auto-generated cURL** pada panel dokumentasi aplikasi.
+    - Optimasi performa rendering dokumentasi dengan batas tinggi (max-height) pada blok respons JSON.
+- **TypeScript & Stability**:
+    - Perbaikan 16+ error TypeScript terkait penanganan data `unknown` dari API.
+    - Sinkronisasi tipe data antara Electron Main Process (IPC) dengan Renderer untuk fitur Confluence.
+
+### Perubahan File
+- `apps/desktop/package.json` — Version 1.6.0.
+- `docs/release.md` — Log rilis kumulatif diperbarui.
+- `docs/releases/v1.6.0.md` — Detail rilis v1.6.0 dibuat.
+- `backend/migrations/000019..000025` — Migrasi skema Confluence (Global & User settings).
+- `apps/desktop/src/renderer/src/components/layout/DocumentationPanel.tsx` — UI dokumentasi & sync engine.
+- `apps/desktop/src/renderer/src/components/modals/UserConfluenceSettingsModal.tsx` — Modal settings user baru.
+- `apps/desktop/src/main/index.ts` — IPC handler untuk Confluence.
+- `apps/desktop/src/renderer/src/env.d.ts` — Type definitions untuk IPC bridge.
+
+### Keputusan & Catatan
+- Memilih untuk mempertahankan data kredensial (Email/PAT/Token) di database meskipun user berpindah metode autentikasi, guna memudahkan user saat ingin berganti kembali tanpa input ulang.
+- Menggunakan pendekatan *switch* eksplisit di UI daripada deteksi otomatis field kosong untuk menghindari ambiguitas autentikasi.
+
+---
+
 ## [2026-05-12] — Structured API Validation & v1.5.1
 **Fase:** Fase 3 — Dokumentasi & Mock Server (Enhancement)
 **Dikerjakan oleh:** Antigravity
