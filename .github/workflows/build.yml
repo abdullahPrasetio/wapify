@@ -46,7 +46,7 @@ jobs:
           repository: abdullahPrasetio/wapify-desktop-releases
           package_root: apps/desktop
           release: true
-          # Build Mac Universal, Windows (x64 & ARM64), dan Linux (x64 & ARM64)
-          args: --mac --universal --win --x64 --arm64 --linux --x64 --arm64 --publish always
+          # Hanya tambahkan flag arsitektur tambahan
+          args: --universal --win --x64 --arm64 --linux --x64 --arm64
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
