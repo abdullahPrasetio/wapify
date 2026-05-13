@@ -38,9 +38,9 @@ func TestListEnvironments(t *testing.T) {
 			WithArgs(teamID, userID, 1).
 			WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(1))
 
-		mock.ExpectQuery("^SELECT \\* FROM \"environments\" WHERE team_id = \\$1").
-			WithArgs("1").
-			WillReturnRows(sqlmock.NewRows([]string{"id", "name", "team_id"}).AddRow(1, "Prod", teamID))
+		mock.ExpectQuery("^SELECT \\* FROM \"environments\" WHERE team_id = \\$1 OR is_global = \\$2").
+			WithArgs("1", true).
+			WillReturnRows(sqlmock.NewRows([]string{"id", "name", "team_id", "is_global"}).AddRow(1, "Prod", teamID, false))
 
 		req := httptest.NewRequest("GET", "/api/v1/teams/1/environments", nil)
 		resp, err := app.Test(req)
@@ -135,6 +135,42 @@ func TestCreateEnvironment(t *testing.T) {
 	})
 }
 
+func TestCreateGlobalEnvironment(t *testing.T) {
+	mock, cleanup := repository.SetupTestDB()
+	defer cleanup()
+
+	app := fiber.New()
+	app.Post("/api/v1/environments/global", func(c *fiber.Ctx) error {
+		// Provide mock locals
+		c.Locals("is_super_admin", c.Get("X-Super-Admin") == "true")
+		return CreateGlobalEnvironment(c)
+	})
+
+	t.Run("Success", func(t *testing.T) {
+		mock.ExpectBegin()
+		mock.ExpectQuery("^INSERT INTO \"environments\"").
+			WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(2))
+		mock.ExpectCommit()
+
+		reqBody := CreateEnvironmentRequest{Name: "Global Env"}
+		body, _ := json.Marshal(reqBody)
+		req := httptest.NewRequest("POST", "/api/v1/environments/global", bytes.NewBuffer(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("X-Super-Admin", "true")
+
+		resp, err := app.Test(req, -1)
+		assert.NoError(t, err)
+		assert.Equal(t, http.StatusCreated, resp.StatusCode)
+	})
+
+	t.Run("Forbidden", func(t *testing.T) {
+		req := httptest.NewRequest("POST", "/api/v1/environments/global", nil)
+		req.Header.Set("X-Super-Admin", "false")
+		resp, _ := app.Test(req)
+		assert.Equal(t, http.StatusForbidden, resp.StatusCode)
+	})
+}
+
 func TestGetEnvironment(t *testing.T) {
 	mock, cleanup := repository.SetupTestDB()
 	defer cleanup()
@@ -149,7 +185,7 @@ func TestGetEnvironment(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		mock.ExpectQuery("^SELECT \\* FROM \"environments\"").
 			WithArgs("1", 1).
-			WillReturnRows(sqlmock.NewRows([]string{"id", "team_id"}).AddRow(1, 10))
+			WillReturnRows(sqlmock.NewRows([]string{"id", "team_id", "is_global"}).AddRow(1, 10, false))
 
 		mock.ExpectQuery("^SELECT \\* FROM \"team_members\"").
 			WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(1))
@@ -168,7 +204,7 @@ func TestGetEnvironment(t *testing.T) {
 
 	t.Run("Forbidden", func(t *testing.T) {
 		mock.ExpectQuery("^SELECT \\* FROM \"environments\"").
-			WillReturnRows(sqlmock.NewRows([]string{"id", "team_id"}).AddRow(1, 10))
+			WillReturnRows(sqlmock.NewRows([]string{"id", "team_id", "is_global"}).AddRow(1, 10, false))
 		mock.ExpectQuery("^SELECT \\* FROM \"team_members\"").WillReturnRows(sqlmock.NewRows([]string{"id"}))
 
 		req := httptest.NewRequest("GET", "/api/v1/environments/1", nil)
@@ -190,7 +226,7 @@ func TestUpdateEnvironment(t *testing.T) {
 
 	t.Run("Success", func(t *testing.T) {
 		mock.ExpectQuery("^SELECT \\* FROM \"environments\"").
-			WillReturnRows(sqlmock.NewRows([]string{"id", "team_id", "name"}).AddRow(1, 10, "Old Name"))
+			WillReturnRows(sqlmock.NewRows([]string{"id", "team_id", "name", "is_global"}).AddRow(1, 10, "Old Name", false))
 
 		mock.ExpectQuery("^SELECT \\* FROM \"team_members\"").
 			WillReturnRows(sqlmock.NewRows([]string{"id", "role"}).AddRow(1, "Editor"))
@@ -220,7 +256,7 @@ func TestUpdateEnvironment(t *testing.T) {
 
 	t.Run("Forbidden", func(t *testing.T) {
 		mock.ExpectQuery("^SELECT \\* FROM \"environments\"").
-			WillReturnRows(sqlmock.NewRows([]string{"id", "team_id"}).AddRow(1, 10))
+			WillReturnRows(sqlmock.NewRows([]string{"id", "team_id", "is_global"}).AddRow(1, 10, false))
 		mock.ExpectQuery("^SELECT \\* FROM \"team_members\"").WillReturnRows(sqlmock.NewRows([]string{"id"}))
 
 		req := httptest.NewRequest("PUT", "/api/v1/environments/1", nil)
@@ -230,7 +266,7 @@ func TestUpdateEnvironment(t *testing.T) {
 
 	t.Run("Invalid Body", func(t *testing.T) {
 		mock.ExpectQuery("^SELECT \\* FROM \"environments\"").
-			WillReturnRows(sqlmock.NewRows([]string{"id", "team_id"}).AddRow(1, 10))
+			WillReturnRows(sqlmock.NewRows([]string{"id", "team_id", "is_global"}).AddRow(1, 10, false))
 		mock.ExpectQuery("^SELECT \\* FROM \"team_members\"").
 			WillReturnRows(sqlmock.NewRows([]string{"id", "role"}).AddRow(1, "Editor"))
 
@@ -242,7 +278,7 @@ func TestUpdateEnvironment(t *testing.T) {
 
 	t.Run("Save Error", func(t *testing.T) {
 		mock.ExpectQuery("^SELECT \\* FROM \"environments\"").
-			WillReturnRows(sqlmock.NewRows([]string{"id", "team_id"}).AddRow(1, 10))
+			WillReturnRows(sqlmock.NewRows([]string{"id", "team_id", "is_global"}).AddRow(1, 10, false))
 		mock.ExpectQuery("^SELECT \\* FROM \"team_members\"").
 			WillReturnRows(sqlmock.NewRows([]string{"id", "role"}).AddRow(1, "Editor"))
 
@@ -275,7 +311,7 @@ func TestDeleteEnvironment(t *testing.T) {
 		teamID := uint(10)
 
 		mock.ExpectQuery("^SELECT \\* FROM \"environments\"").
-			WillReturnRows(sqlmock.NewRows([]string{"id", "team_id"}).AddRow(envID, teamID))
+			WillReturnRows(sqlmock.NewRows([]string{"id", "team_id", "is_global"}).AddRow(envID, teamID, false))
 
 		mock.ExpectQuery("^SELECT \\* FROM \"team_members\"").
 			WillReturnRows(sqlmock.NewRows([]string{"id", "role"}).AddRow(1, "Admin"))
@@ -302,7 +338,7 @@ func TestDeleteEnvironment(t *testing.T) {
 
 	t.Run("Forbidden", func(t *testing.T) {
 		mock.ExpectQuery("^SELECT \\* FROM \"environments\"").
-			WillReturnRows(sqlmock.NewRows([]string{"id", "team_id"}).AddRow(1, 10))
+			WillReturnRows(sqlmock.NewRows([]string{"id", "team_id", "is_global"}).AddRow(1, 10, false))
 		mock.ExpectQuery("^SELECT \\* FROM \"team_members\"").WillReturnRows(sqlmock.NewRows([]string{"id"}))
 
 		req := httptest.NewRequest("DELETE", "/api/v1/environments/1", nil)
@@ -312,7 +348,7 @@ func TestDeleteEnvironment(t *testing.T) {
 
 	t.Run("Delete Error", func(t *testing.T) {
 		mock.ExpectQuery("^SELECT \\* FROM \"environments\"").
-			WillReturnRows(sqlmock.NewRows([]string{"id", "team_id"}).AddRow(1, 10))
+			WillReturnRows(sqlmock.NewRows([]string{"id", "team_id", "is_global"}).AddRow(1, 10, false))
 		mock.ExpectQuery("^SELECT \\* FROM \"team_members\"").
 			WillReturnRows(sqlmock.NewRows([]string{"id", "role"}).AddRow(1, "Admin"))
 

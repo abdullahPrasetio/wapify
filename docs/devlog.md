@@ -1,4 +1,57 @@
 
+## [2026-05-13] — Shared Environment Lintas Workspace
+**Fase:** Fase 7 — Kolaborasi Lanjutan & Mock Pro
+**Dikerjakan oleh:** Antigravity
+**Status:** ✅ Selesai
+
+### Yang Dikerjakan
+- **Database Schema**: Menambahkan kolom `is_global BOOLEAN DEFAULT FALSE` pada tabel `environments` dan membuat kolom `team_id` menjadi *nullable* untuk membedakan antara environment milik workspace tertentu dan environment global.
+- **Backend API**: Memodifikasi rute REST API agar query `ListEnvironments` juga mengembalikan environment global, dan menambahkan rute eksklusif `POST /api/v1/environments/global` yang hanya bisa diakses oleh Super Admin. Mengimplementasi logika autorisasi (*role-based*) di fungsi edit dan delete untuk mencegah pengguna biasa mengubah global environment.
+- **Backend Tests**: Memperbarui dan menyelaraskan puluhan unit tests terkait manipulasi *environments* (`environment_test.go`) guna memastikan coverage 100% dan regresi keamanan yang ketat.
+- **State Store (Frontend)**: Meng-update metode pada `useDataStore.ts` untuk menangani format respon baru dan menambahkan fungsionalitas `createGlobalEnvironment`.
+- **UI/UX Enhancement**: Memodifikasi `EnvironmentModal.tsx` agar visualisasi daftar environment dibagi menjadi dua kategori secara eksplisit (**🌍 Global Environments** dan **🏢 Workspace Environments**). Menambahkan proteksi *read-only* bagi environment global apabila yang mengakses adalah user biasa. Memberikan opsi checkbox 'Shared/Global' bagi Super Admin saat menambahkan environment baru. Mengatur layout dropdown `Sidebar` agar menampilkan grup (*optgroups*) dengan rapi.
+
+### Perubahan File
+- `backend/migrations/000026_support_shared_environments.up.sql` & `.down.sql` — Database migration script.
+- `backend/internal/repository/models.go` — Update struktur data `Environment`.
+- `backend/internal/api/environment.go` & `environment_test.go` — Backend core logic dan tes.
+- `apps/desktop/src/renderer/src/store/useDataStore.ts` — Manajemen state untuk memfasilitasi pembuatan global environment.
+- `apps/desktop/src/renderer/src/components/modals/EnvironmentModal.tsx` — Peningkatan UI modal pengelolaan environment.
+- `apps/desktop/src/renderer/src/components/layout/Sidebar.tsx` — Pengelompokkan menu *dropdown select*.
+- `apps/desktop/src/renderer/src/types/index.ts` — Pembaruan Type definisi Typescript.
+
+### Keputusan & Catatan
+- Memutuskan untuk membuat rute eksklusif `/api/v1/environments/global` dibanding mengeksploitasi endpoint per-tim (meskipun secara fungsi sama) agar API architecture tetap rapi dan *semantic*.
+- Super Admin secara default menjadi satu-satunya entitas yang memiliki hak akses C-U-D (Create, Update, Delete) untuk Global Environment. User lain hanya berhak menggunakan dan membaca (R).
+
+### Langkah Selanjutnya
+- Melanjutkan fitur tersisa di Fase 7: Diff Viewer, Thread Diskusi, dan Mention (`@nama`).
+
+---
+
+## [2026-05-13] — User Profile Dropdown Menu Redesign
+**Fase:** Fase 6 — UX & Power Features
+**Dikerjakan oleh:** Antigravity
+**Status:** ✅ Selesai
+
+### Yang Dikerjakan
+- **UI Redesign**: Merombak tampilan menu profil pengguna di pojok kiri bawah `Sidebar`.
+- **Dropdown Menu**: Memindahkan tombol akses (Confluence Settings, App Settings, Change Password, Logout) ke dalam `DropdownMenu` menggunakan komponen dari Radix UI untuk membuat tampilan sidebar lebih minimalis dan elegan.
+- **User Avatar**: Mengganti tampilan nama dan email teks murni dengan komponen avatar inisial (mengambil 2 huruf pertama dari nama) sebagai *trigger* untuk membuka dropdown menu.
+- **Layout Adjustments**: Memastikan komponen Notification Bell tetap berada di luar dropdown agar pengguna tetap dapat melihat notifikasi masuk dengan cepat.
+
+### Perubahan File
+- `apps/desktop/src/renderer/src/components/layout/Sidebar.tsx` — Implementasi Radix UI `DropdownMenu` dan perombakan struktur menu pengguna.
+
+### Keputusan & Catatan
+- Memutuskan untuk menggunakan komponen DropdownMenu dari `@radix-ui/react-dropdown-menu` yang sudah ada di dependensi (*package.json*) demi memastikan konsistensi interaksi dengan elemen UI lain di Wapbolt.
+- Memisahkan komponen Notifikasi sesuai spesifikasi agar urgensinya tetap tinggi.
+
+### Langkah Selanjutnya
+- Melanjutkan perbaikan atau pengembangan fitur lain di Fase 7.
+
+---
+
 ## [2026-05-12] — Confluence Sync Integration & v1.6.0
 **Fase:** Fase 3 — Dokumentasi & Mock Server (Advanced)
 **Dikerjakan oleh:** Antigravity

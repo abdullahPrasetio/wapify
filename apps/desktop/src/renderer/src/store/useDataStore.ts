@@ -241,7 +241,8 @@ interface DataState {
   fetchEnvironments: (teamId: number) => Promise<void>
   setActiveEnvironment: (envId: number | null) => void
   createEnvironment: (name: string) => Promise<void>
-  updateEnvironment: (id: number, name: string, variables: Record<string, string>) => Promise<void>
+  createGlobalEnvironment: (name: string) => Promise<void>
+  updateEnvironment: (id: number, name: string, variables: Record<string, string>, isGlobal?: boolean, teamId?: number | null) => Promise<void>
   deleteEnvironment: (id: number) => Promise<void>
 
   // History Actions
@@ -1074,15 +1075,33 @@ export const useDataStore = create<DataState>()(
           }
         },
 
-        updateEnvironment: async (id: number, name: string, variables: Record<string, string>) => {
+        createGlobalEnvironment: async (name: string) => {
+          const { activeTeamId } = get()
+          try {
+            const response = await apiClient.post(`/api/v1/environments/global`, {
+              name,
+              variables: {}
+            })
+            if (response.status === 201) {
+              if (activeTeamId) await get().fetchEnvironments(activeTeamId)
+              toast.success('Global environment created')
+            }
+          } catch {
+            toast.error('Failed to create global environment')
+          }
+        },
+
+        updateEnvironment: async (id: number, name: string, variables: Record<string, string>, isGlobal?: boolean, teamId?: number | null) => {
           const { activeTeamId } = get()
           if (!activeTeamId) return
 
           try {
-            console.log(`[Store] Updating environment ${id}...`, variables)
+            console.log(`[Store] Updating environment ${id}...`, { name, variables, isGlobal, teamId })
             const response = await apiClient.put(`/api/v1/environments/${id}`, {
               name,
-              variables
+              variables,
+              is_global: isGlobal,
+              team_id: teamId
             })
             if (response.status === 200) {
               await get().fetchEnvironments(activeTeamId)

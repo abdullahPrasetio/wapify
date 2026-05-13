@@ -169,7 +169,8 @@ export interface Environment {
   id: number
   name: string
   variables: Record<string, string>
-  team_id: number
+  team_id: number | null
+  is_global: boolean
   created_at: string
 }
 

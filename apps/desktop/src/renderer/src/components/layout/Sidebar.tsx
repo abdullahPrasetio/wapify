@@ -42,6 +42,7 @@ import {
   useSortable
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 
 import { useAuthStore } from '../../store/useAuthStore'
 import { useDataStore } from '../../store/useDataStore'
@@ -1005,25 +1006,80 @@ export const Sidebar = (): React.JSX.Element => {
               <div className="flex items-center gap-1"><Hash size={11} /> Environment</div>
               <EnvironmentModal />
             </div>
-            <select value={activeEnvironmentId ?? ''} onChange={(e) => setActiveEnvironment(e.target.value === '' ? null : Number(e.target.value))} className="w-full bg-background border border-border rounded text-xs px-2 py-1.5 text-text focus:border-primary">
+            <select value={activeEnvironmentId ?? ''} onChange={(e) => setActiveEnvironment(e.target.value === '' ? null : Number(e.target.value))} className="w-full bg-background border border-border rounded text-xs px-2 py-1.5 text-text focus:border-primary outline-none">
               <option value="">No Environment</option>
-              {environments.map((env) => <option key={env.id} value={env.id}>{env.name}</option>)}
+              {environments.filter(e => e.is_global).length > 0 && (
+                <optgroup label="🌍 Global Environments">
+                  {environments.filter(e => e.is_global).map((env) => <option key={env.id} value={env.id}>{env.name}</option>)}
+                </optgroup>
+              )}
+              {environments.filter(e => !e.is_global).length > 0 && (
+                <optgroup label="🏢 Workspace Environments">
+                  {environments.filter(e => !e.is_global).map((env) => <option key={env.id} value={env.id}>{env.name}</option>)}
+                </optgroup>
+              )}
             </select>
           </div>
 
           <div className="px-3 py-2 flex flex-col gap-1 border-t border-border/50 bg-background/50">
             {appVersion && <div className="px-1 text-[9px] font-black uppercase tracking-[0.2em] text-muted/70 mb-1 text-center">Wapbolt v{appVersion}</div>}
-            <div className="flex items-center justify-between min-w-0">
-              <div className="min-w-0 flex-1">
-                <div className="text-xs font-bold text-text truncate">{user?.name}</div>
-                <div className="text-[10px] text-muted truncate">{user?.email}</div>
-              </div>
-              <div className="flex items-center gap-1.5 shrink-0 ml-2">
+            <div className="flex items-center justify-between min-w-0 px-1">
+              <DropdownMenu.Root>
+                <DropdownMenu.Trigger asChild>
+                  <button className="flex flex-1 items-center gap-2 min-w-0 p-1 rounded-lg hover:bg-background text-left transition-colors focus:outline-none">
+                    <div className="flex items-center justify-center w-7 h-7 rounded-full bg-primary/20 text-primary font-bold text-xs shrink-0 ring-1 ring-primary/20">
+                      {user?.name?.substring(0, 2).toUpperCase() || 'U'}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-xs font-bold text-text truncate">{user?.name}</div>
+                      <div className="text-[10px] text-muted truncate">{user?.email}</div>
+                    </div>
+                  </button>
+                </DropdownMenu.Trigger>
+                <DropdownMenu.Portal>
+                  <DropdownMenu.Content
+                    className="min-w-[200px] bg-surface border border-border rounded-lg shadow-xl p-1 z-[100] text-sm font-sans"
+                    sideOffset={5}
+                    side="top"
+                    align="start"
+                  >
+                    <DropdownMenu.Item
+                      onClick={() => setShowUserConfluence(true)}
+                      className="flex items-center px-2 py-1.5 text-xs text-text hover:bg-background hover:text-text rounded cursor-pointer outline-none data-[highlighted]:bg-background"
+                    >
+                      <Cloud size={14} className="mr-2 text-blue-400" />
+                      Confluence Settings
+                    </DropdownMenu.Item>
+                    <DropdownMenu.Item
+                      onClick={() => setShowChangePassword(true)}
+                      className="flex items-center px-2 py-1.5 text-xs text-text hover:bg-background hover:text-text rounded cursor-pointer outline-none data-[highlighted]:bg-background"
+                    >
+                      <Key size={14} className="mr-2" />
+                      Change Password
+                    </DropdownMenu.Item>
+                    <DropdownMenu.Item
+                      onClick={() => setShowServerSettings(true)}
+                      className="flex items-center px-2 py-1.5 text-xs text-text hover:bg-background hover:text-text rounded cursor-pointer outline-none data-[highlighted]:bg-background"
+                    >
+                      <Settings size={14} className="mr-2" />
+                      App Settings
+                    </DropdownMenu.Item>
+                    
+                    <DropdownMenu.Separator className="h-px bg-border my-1" />
+                    
+                    <DropdownMenu.Item
+                      onClick={logout}
+                      className="flex items-center px-2 py-1.5 text-xs text-danger hover:bg-danger/10 hover:text-danger rounded cursor-pointer outline-none data-[highlighted]:bg-danger/10"
+                    >
+                      <LogOut size={14} className="mr-2" />
+                      Logout
+                    </DropdownMenu.Item>
+                  </DropdownMenu.Content>
+                </DropdownMenu.Portal>
+              </DropdownMenu.Root>
+              
+              <div className="flex items-center shrink-0 ml-1">
                 <NotificationBell />
-                <button onClick={() => setShowUserConfluence(true)} title="Confluence Personal Settings" className="text-muted hover:text-blue-400"><Cloud size={14} /></button>
-                <button onClick={() => setShowChangePassword(true)} title="Change Password" className="text-muted hover:text-text"><Key size={14} /></button>
-                <button onClick={() => setShowServerSettings(true)} className="text-muted hover:text-text"><Settings size={14} /></button>
-                <button onClick={logout} className="text-muted hover:text-danger"><LogOut size={14} /></button>
               </div>
             </div>
           </div>

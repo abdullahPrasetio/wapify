@@ -151,7 +151,8 @@ type Environment struct {
 	ID        uint      `gorm:"primaryKey" json:"id"`
 	Name      string    `gorm:"not null" json:"name"`
 	Variables JSONB     `gorm:"type:jsonb;default:'{}'" json:"variables"`
-	TeamID    uint      `gorm:"not null" json:"team_id"`
+	TeamID    *uint     `gorm:"column:team_id" json:"team_id"`
+	IsGlobal  bool      `gorm:"column:is_global;default:false" json:"is_global"`
 	CreatedAt time.Time `json:"created_at"`
 
 	Team *Team `gorm:"foreignKey:TeamID" json:"-"`

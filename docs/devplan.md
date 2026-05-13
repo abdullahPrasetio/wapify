@@ -263,7 +263,7 @@ Beberapa fitur yang direncanakan di Fase 6 telah disesuaikan prioritasnya dan un
 - [x] **Activity Dashboard**: Halaman khusus riwayat aktivitas tim.
 - [x] **Data Retention**: Background job pembersihan notifikasi otomatis (30 hari).
 - [ ] Diff viewer visual yang lebih baik untuk versioning
-- [ ] Shared environment lintas workspace
+- [x] Shared environment lintas workspace
 - [ ] Thread diskusi pada komentar (reply)
 - [ ] Mention anggota (`@nama`) di komentar
 
