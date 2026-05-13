@@ -45,3 +45,4 @@ jobs:
           args: --universal --win --x64 --arm64 --linux --x64 --arm64
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          CXXFLAGS: "-std=c++20"
