@@ -87,3 +87,9 @@ migrate-up:
 
 migrate-down:
 	migrate -path $(BACKEND_DIR)/migrations -database "$(DB_URL)" down
+
+docker-tag-bri:
+	docker tag abdullahprasetio/wapbolt-backend-client:$(TAG) new-nexus.bri.co.id/mcp/base/wapbolt-ocp:v$(TAG)
+
+docker-push-bri:
+	docker push new-nexus.bri.co.id/mcp/base/wapbolt-ocp:v$(TAG)
