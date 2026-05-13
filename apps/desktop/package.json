@@ -8,10 +8,6 @@
     "email": "temancode@gmail.com"
   },
   "homepage": "https://wapbolt.temancode.my.id",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/abdullahPrasetio/wapbolt-desktop-releases.git"
-  },
   "scripts": {
     "format": "prettier --write .",
     "lint": "eslint --cache .",
@@ -49,25 +45,6 @@
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.5.0",
     "zustand": "^5.0.12"
-  },
-  "build": {
-    "mac": {
-      "target": {
-        "target": "default",
-        "arch": [
-          "universal"
-        ]
-      },
-      "type": "distribution",
-      "hardenedRuntime": true,
-      "gatekeeperAssess": false,
-      "entitlements": "build/entitlements.mac.plist",
-      "entitlementsInherit": "build/entitlements.mac.plist",
-      "extendInfo": {
-        "NSAppleEventsUsageDescription": "Please let me use Apple Events."
-      },
-      "x64ArchFiles": "**/*.node"
-    }
   },
   "devDependencies": {
     "@electron-toolkit/eslint-config-prettier": "^3.0.0",

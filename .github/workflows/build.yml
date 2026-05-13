@@ -7,8 +7,11 @@ on:
 
 jobs:
   release:
-    # Menggunakan runner milik sendiri (Mac/STB) agar 100% GRATIS
-    runs-on: self-hosted
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
 
     steps:
       - name: Checkout Code
@@ -24,8 +27,15 @@ jobs:
       - name: Install Dependencies
         run: |
           cd apps/desktop
+          # Standard install, ignoring postinstall to avoid automatic rebuild
           npm install --ignore-scripts
 
+      - name: Rebuild Native Modules
+        run: |
+          cd apps/desktop
+          # Only rebuild the modules we actually use in Electron
+          npx @electron/rebuild --only keytar
+        shell: bash
 
       - name: Build Application
         run: |
@@ -37,12 +47,14 @@ jobs:
       - name: Publish Release to Public Repo
         uses: samuelmeuli/action-electron-builder@v1
         with:
+          # Gunakan RELEASE_TOKEN untuk bisa upload ke repo lain
           github_token: ${{ secrets.RELEASE_TOKEN }}
           repository: abdullahPrasetio/wapify-desktop-releases
           package_root: apps/desktop
+          # Tambahkan ini agar sinkron dengan GitHub Release
           release: true
-          # Hanya tambahkan flag arsitektur tambahan
-          args: --universal --win --x64 --arm64 --linux --x64 --arm64
+          # Build hanya untuk OS yang sedang berjalan di matrix
+          args: --${{ matrix.os == 'ubuntu-latest' && 'linux' || (matrix.os == 'windows-latest' && 'win' || 'mac') }} --publish always
         env:
+          # Memberitahu electron-builder untuk upload ke repo publik
           GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
-          CXXFLAGS: "-std=c++20"
