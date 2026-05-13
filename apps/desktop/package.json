@@ -61,10 +61,10 @@
       "entitlementsInherit": "build/entitlements.mac.plist",
       "extendInfo": {
         "NSAppleEventsUsageDescription": "Please let me use Apple Events."
+      },
+      "universalOptions": {
+        "x64ArchFiles": "**/keytar.node"
       }
-    },
-    "universalOptions": {
-      "x64ArchFiles": "**/keytar.node"
     }
   },
   "devDependencies": {
