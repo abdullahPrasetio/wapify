@@ -22,7 +22,10 @@ help:
 	@echo "  make build-landing        - Build landing page docker image (needs TAG)"
 	@echo "  make keygen               - Generate keypair"
 	@echo "  make license              - Generate license (needs NAME, EMAIL, DURATION)"
-	@echo "  make build-desktop        - Build Electron app"
+	@echo "  make build-desktop        - Build Electron app (All platforms)"
+	@echo "  make build-desktop-win    - Build Windows app (x64 & arm64)"
+	@echo "  make build-desktop-linux  - Build Linux app (x64 & arm64)"
+	@echo "  make build-desktop-mac    - Build Mac app (Universal)"
 	@echo "  make run-client           - Run client in docker (needs TAG, LICENSE_KEY, DB_HOST)"
 
 build-backend:
@@ -93,3 +96,19 @@ docker-tag-bri:
 
 docker-push-bri:
 	docker push new-nexus.bri.co.id/mcp/base/wapbolt-ocp:v$(TAG)
+
+build-all-platforms: build-desktop
+
+build-desktop-win:
+	cp $(DESKTOP_DIR)/resources/icon.png $(DESKTOP_DIR)/build/icon.png
+	cp $(DESKTOP_DIR)/resources/icon.ico $(DESKTOP_DIR)/build/icon.ico
+	cd $(DESKTOP_DIR) && npm run build && npx electron-builder --win --x64 --arm64
+
+build-desktop-linux:
+	cd $(DESKTOP_DIR) && npm run build && npx electron-builder --linux --x64 --arm64
+
+build-desktop-mac:
+	cd $(DESKTOP_DIR) && npm run build && npx electron-builder --mac --universal
+
+build-desktop-full:
+	cd $(DESKTOP_DIR) && npm install && npm run build && npx electron-builder -mwl --x64 --arm64
