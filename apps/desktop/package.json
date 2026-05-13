@@ -46,6 +46,27 @@
     "tailwind-merge": "^3.5.0",
     "zustand": "^5.0.12"
   },
+  "build": {
+    "mac": {
+      "target": {
+        "target": "default",
+        "arch": [
+          "universal"
+        ]
+      },
+      "type": "distribution",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "extendInfo": {
+        "NSAppleEventsUsageDescription": "Please let me use Apple Events."
+      }
+    },
+    "universalOptions": {
+      "x64ArchFiles": "**/keytar.node"
+    }
+  },
   "devDependencies": {
     "@electron-toolkit/eslint-config-prettier": "^3.0.0",
     "@electron-toolkit/eslint-config-ts": "^3.1.0",

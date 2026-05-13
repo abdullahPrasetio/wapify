@@ -26,11 +26,6 @@ jobs:
           cd apps/desktop
           npm install --ignore-scripts
 
-      - name: Rebuild Native Modules
-        run: |
-          cd apps/desktop
-          npx @electron/rebuild --only keytar
-        shell: bash
 
       - name: Build Application
         run: |
