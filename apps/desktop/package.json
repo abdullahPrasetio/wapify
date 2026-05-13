@@ -62,7 +62,7 @@
       "extendInfo": {
         "NSAppleEventsUsageDescription": "Please let me use Apple Events."
       },
-      "x64ArchFiles": "**/keytar.node"
+      "x64ArchFiles": "**/*.node"
     }
   },
   "devDependencies": {
