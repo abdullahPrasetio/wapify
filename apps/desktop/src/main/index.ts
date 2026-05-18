@@ -158,7 +158,8 @@ ipcMain.handle('confluence:get-page', async (_event, config: {
   pageId: string
 }) => {
   try {
-    const url = `${config.baseUrl}/wiki/rest/api/content/${config.pageId}?expand=version`
+    const cleanBaseUrl = config.baseUrl.replace(/\/+$/, '')
+    const url = `${cleanBaseUrl}/rest/api/content/${config.pageId}?expand=version`
     let authHeader = ''
     if (config.authMethod === 'pat') {
       authHeader = `Bearer ${config.pat}`
@@ -187,6 +188,13 @@ ipcMain.handle('confluence:get-page', async (_event, config: {
     })
 
     console.log(`[Confluence] Response: ${response.status}`)
+    // console.log(`[Confluence] GET Data Sample:`, JSON.stringify(response.data).substring(0, 200))
+    
+    if (typeof response.data === 'string' && response.data.includes('<html')) {
+      console.error('[Confluence] Received HTML instead of JSON. Authentication might have failed or been redirected.')
+      return { success: false, error: 'Received HTML response (possible SSO redirect). Check your Base URL and Credentials.' }
+    }
+
     return { success: true, data: response.data }
   } catch (error: any) {
     console.error(`[Confluence] Error: ${error.message}`)
@@ -214,7 +222,8 @@ ipcMain.handle('confluence:update-page', async (_event, config: {
   version: number
 }) => {
   try {
-    const url = `${config.baseUrl}/wiki/rest/api/content/${config.pageId}`
+    const cleanBaseUrl = config.baseUrl.replace(/\/+$/, '')
+    const url = `${cleanBaseUrl}/rest/api/content/${config.pageId}`
 
     let authHeader = ''
     if (config.authMethod === 'pat') {
@@ -239,6 +248,7 @@ ipcMain.handle('confluence:update-page', async (_event, config: {
         'Authorization': authHeader,
         'Content-Type': 'application/json',
         'Accept': 'application/json',
+        'X-Atlassian-Token': 'no-check',
         'User-Agent': 'Wapbolt'
       },
       timeout: 10000,
@@ -258,7 +268,9 @@ ipcMain.handle('confluence:update-page', async (_event, config: {
       }
     })
 
-    console.log(`[Confluence] Update Response: ${response.status}`)
+    console.log(`[Confluence] Update Response Status: ${response.status}`)
+    console.log(`[Confluence] Update Response Data:`, JSON.stringify(response.data).substring(0, 500) + '...')
+    
     return { success: true, data: response.data }
   } catch (error: any) {
     console.error(`[Confluence] Update Error: ${error.message}`)

@@ -76,26 +76,25 @@ interface ValidationBadgesProps {
 
 const ValidationBadges: React.FC<ValidationBadgesProps> = ({ rule }) => {
   if (!rule || (rule.rules.length === 0 && !rule.description && rule.min === 0 && rule.max === 0)) return null
-  
+
   return (
     <span className="inline-flex flex-wrap items-center gap-1 ml-2">
       {rule.rules.map((r) => (
         <span
           key={r}
-          className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide border ${
-            getRuleStyle(r)
-          }`}
+          className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide border ${getRuleStyle(r)
+            }`}
         >
           {r}
         </span>
       ))}
-      
+
       {rule.min > 0 && (
         <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold border bg-slate-500/10 text-slate-400 border-slate-500/20">
           Min: {rule.min}
         </span>
       )}
-      
+
       {rule.max > 0 && (
         <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold border bg-slate-500/10 text-slate-400 border-slate-500/20">
           Max: {rule.max}
@@ -116,7 +115,7 @@ function collectAllVariables(doc: CollectionDocs): string[] {
     })
     try {
       parseVariables(JSON.stringify(req.body)).forEach((v) => vars.add(v))
-    } catch {}
+    } catch { }
   }
   doc.root_requests?.forEach(collectFromRequest)
   doc.folders?.forEach((f) => f.requests?.forEach(collectFromRequest))
@@ -243,9 +242,8 @@ const VarPopup: React.FC<VarPopupProps> = ({ varName, value, isSet, onSetVar }) 
         ) : (
           <AlertCircle size={12} className="text-warning flex-shrink-0" />
         )}
-        <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded ${
-          isSet ? 'bg-emerald-500/10 text-success' : 'bg-amber-500/10 text-warning'
-        }`}>
+        <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded ${isSet ? 'bg-emerald-500/10 text-success' : 'bg-amber-500/10 text-warning'
+          }`}>
           {`{{${varName}}}`}
         </span>
       </div>
@@ -259,7 +257,7 @@ const VarPopup: React.FC<VarPopupProps> = ({ varName, value, isSet, onSetVar }) 
             </div>
           </div>
         )}
-        
+
         {!isSet && (
           <p className="text-[10px] text-warning/80 leading-relaxed">
             This variable is not set in the active environment.
@@ -268,11 +266,10 @@ const VarPopup: React.FC<VarPopupProps> = ({ varName, value, isSet, onSetVar }) 
 
         <button
           onClick={() => onSetVar(varName)}
-          className={`w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium border transition-all ${
-            isSet 
-              ? 'bg-white/5 text-muted hover:bg-white/10 border-border' 
-              : 'bg-amber-500/10 text-warning border-amber-500/20 hover:bg-amber-500/20'
-          }`}
+          className={`w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium border transition-all ${isSet
+            ? 'bg-white/5 text-muted hover:bg-white/10 border-border'
+            : 'bg-amber-500/10 text-warning border-amber-500/20 hover:bg-amber-500/20'
+            }`}
         >
           {isSet ? <PlusCircle size={12} /> : <AlertCircle size={12} />}
           {isSet ? 'Change Value' : `Set "${varName}"`}
@@ -379,7 +376,7 @@ export const DocumentationPanel: React.FC<DocumentationPanelProps> = ({
       }
 
       const { base_url, confluence_email, confluence_pat, confluence_api_token, auth_method } = configData
-      
+
       // 2. Get Collection details (for confluence_page_id)
       const collRes = await apiClient.get(`/api/v1/collections/${collectionId}`)
       const collection = (collRes.data as any).collection
@@ -391,57 +388,66 @@ export const DocumentationPanel: React.FC<DocumentationPanelProps> = ({
       }
 
       // 3. Get Current Page to get version
-      const pageData = await window.api.getConfluencePage({ 
-        baseUrl: base_url, 
+      const pageData = await window.api.getConfluencePage({
+        baseUrl: base_url,
         email: confluence_email,
         pat: confluence_pat,
         apiToken: confluence_api_token,
         authMethod: auth_method,
-        pageId 
+        pageId
       })
       if (!pageData.success) {
         toast.error(`Failed to fetch Confluence page: ${pageData.error}`)
         return
       }
 
-      const currentVersion = pageData.data.version.number
+      const currentVersion = pageData.data?.version?.number || 0
       const nextVersion = currentVersion + 1
+
+      // Helper to resolve variables {{var}} -> value
+      const resolveText = (text: string): string => {
+        if (!text) return ''
+        return text.replace(/\{\{([^}]+)\}\}/g, (_, key) => {
+          const k = key.trim()
+          return envVars[k] ?? envVars[k.toLowerCase()] ?? `{{${k}}}`
+        })
+      }
 
       // 4. Generate Content (Storage Format)
       const generateContent = () => {
         if (!docs) return ''
-        
+
         let html = `<h1>${docs.collection_name || collectionName || 'API Documentation'}</h1>`
-        if (docs.description) html += `<p>${docs.description}</p>`
-        
+        if (docs.description) html += `<p>${resolveText(docs.description)}</p>`
+
         // Add Table of Contents Macro
         html += `<ac:structured-macro ac:name="toc" ac:schema-version="1">`
         html += `<ac:parameter ac:name="outline">true</ac:parameter>`
         html += `<ac:parameter ac:name="maxLevel">3</ac:parameter>`
         html += `</ac:structured-macro>`
-        
+
         const renderValidation = (rule: any) => {
           if (!rule) return ''
           const badges: string[] = []
-          
+
           if (rule.rules && Array.isArray(rule.rules)) {
             rule.rules.forEach((r: string) => {
               const color = '#42526e' // neutral slate for all rules
               badges.push(`<strong><span style="color: ${color};">[${r.toUpperCase()}]</span></strong>`)
             })
           }
-          
+
           if (rule.min && rule.min > 0) badges.push(`<strong><span style="color: #42526e;">[MIN:${rule.min}]</span></strong>`)
           if (rule.max && rule.max > 0) badges.push(`<strong><span style="color: #42526e;">[MAX:${rule.max}]</span></strong>`)
-          
+
           return badges.join(' ')
         }
 
         const renderRequest = (req: DocRequest) => {
           if (!req) return ''
-          
+
           const getMethodColor = (m: string) => {
-            switch((m || 'GET').toUpperCase()) {
+            switch ((m || 'GET').toUpperCase()) {
               case 'GET': return '#10b981' // emerald-500
               case 'POST': return '#f59e0b' // amber-500
               case 'PUT': return '#3b82f6' // blue-500
@@ -456,24 +462,26 @@ export const DocumentationPanel: React.FC<DocumentationPanelProps> = ({
 
           let reqHtml = `<hr/>`
           reqHtml += `<h2><strong><span style="color: ${methodColor};">${req.method || 'GET'}</span></strong> ${req.name || 'Untitled Request'}</h2>`
-          reqHtml += `<p><code>${req.url || ''}</code></p>`
-          
-          if (req.description) reqHtml += `<p><em>${req.description}</em></p>`
+          reqHtml += `<p><code>${resolveText(req.url || '')}</code></p>`
+
+          if (req.description) reqHtml += `<p><em>${resolveText(req.description)}</em></p>`
 
           // Generate cURL Example
           const generateCurl = (r: DocRequest) => {
-            let curl = `curl -X ${r.method || 'GET'} "${r.url || ''}"`
+            let curl = `curl -X ${r.method || 'GET'} "${resolveText(r.url || '')}"`
             if (r.headers && Object.keys(r.headers).length > 0) {
               Object.entries(r.headers).forEach(([k, v]) => {
-                curl += ` \\\n  -H "${k}: ${v}"`
+                curl += ` \\\n  -H "${k}: ${resolveText(String(v))}"`
               })
             }
             if (r.body && Object.keys(r.body).length > 0) {
-              curl += ` \\\n  -d '${JSON.stringify(r.body)}'`
+              let bodyStr = JSON.stringify(r.body)
+              bodyStr = resolveText(bodyStr)
+              curl += ` \\\n  -d '${bodyStr}'`
             }
             return curl
           }
-          
+
           // Render cURL
           reqHtml += '<h4>cURL Example</h4>'
           reqHtml += `<ac:structured-macro ac:name="code" ac:schema-version="1">`
@@ -481,18 +489,18 @@ export const DocumentationPanel: React.FC<DocumentationPanelProps> = ({
           reqHtml += `<ac:parameter ac:name="theme">Emacs</ac:parameter>`
           reqHtml += `<ac:plain-text-body><![CDATA[\n${generateCurl(req)}\n]]></ac:plain-text-body>`
           reqHtml += `</ac:structured-macro>`
-          
+
           // Headers Table
           if (req.headers && Object.keys(req.headers).length > 0) {
             reqHtml += '<h3>Headers</h3>'
             reqHtml += '<table><tbody><tr><th>Key</th><th>Value</th><th>Validation</th><th>Description</th></tr>'
             Object.entries(req.headers).forEach(([k, v]) => {
               const rule = req.field_validations?.headers?.[k]
-              reqHtml += `<tr><td><strong>${k}</strong></td><td><code>${v}</code></td><td>${renderValidation(rule)}</td><td>${rule?.description || ''}</td></tr>`
+              reqHtml += `<tr><td><strong>${k}</strong></td><td><code>${resolveText(String(v))}</code></td><td>${renderValidation(rule)}</td><td>${rule?.description || ''}</td></tr>`
             })
             reqHtml += '</tbody></table>'
           }
-          
+
           // Body Table
           if (req.body && Object.keys(req.body).length > 0) {
             reqHtml += '<h3>Request Body</h3>'
@@ -500,7 +508,7 @@ export const DocumentationPanel: React.FC<DocumentationPanelProps> = ({
             Object.entries(req.body).forEach(([k, v]) => {
               const rule = req.field_validations?.body?.[k]
               const valStr = typeof v === 'object' ? JSON.stringify(v) : String(v)
-              reqHtml += `<tr><td><strong>${k}</strong></td><td><code>${valStr}</code></td><td>${renderValidation(rule)}</td><td>${rule?.description || ''}</td></tr>`
+              reqHtml += `<tr><td><strong>${k}</strong></td><td><code>${resolveText(valStr)}</code></td><td>${renderValidation(rule)}</td><td>${rule?.description || ''}</td></tr>`
             })
             reqHtml += '</tbody></table>'
           }
@@ -510,7 +518,7 @@ export const DocumentationPanel: React.FC<DocumentationPanelProps> = ({
             reqHtml += '<h3>Responses &amp; Examples</h3>'
             req.examples.forEach(ex => {
               reqHtml += `<h4>${ex.response_status || 200} - ${ex.name || 'Example'}</h4>`
-              
+
               // Format JSON string to be pretty printed
               let formattedJson = ex.response_body || ''
               try {
@@ -531,7 +539,7 @@ export const DocumentationPanel: React.FC<DocumentationPanelProps> = ({
               reqHtml += `</ac:structured-macro>`
             })
           }
-          
+
           return reqHtml
         }
 
@@ -547,7 +555,7 @@ export const DocumentationPanel: React.FC<DocumentationPanelProps> = ({
           html += `<ac:structured-macro ac:name="info" ac:schema-version="1">`
           html += `<ac:rich-text-body><p><strong>Folder: ${folder.name}</strong></p></ac:rich-text-body>`
           html += `</ac:structured-macro>`
-          
+
           folder.requests?.forEach(req => {
             html += renderRequest(req)
           })
@@ -814,11 +822,10 @@ const SidebarRequestItem: React.FC<{
 }> = ({ request, isSelected, onClick }) => (
   <button
     onClick={onClick}
-    className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs transition-all ${
-      isSelected
-        ? 'bg-primary/15 text-text'
-        : 'text-muted hover:text-text hover:bg-white/5'
-    }`}
+    className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs transition-all ${isSelected
+      ? 'bg-primary/15 text-text'
+      : 'text-muted hover:text-text hover:bg-white/5'
+      }`}
   >
     <MethodBadge method={request.method} size="sm" />
     <span className="truncate text-left">{request.name}</span>
@@ -850,156 +857,81 @@ const RequestDetail: React.FC<{
   onClose,
   refreshDocs
 }) => {
-  const hasHeaders = request.headers && Object.keys(request.headers).length > 0
-  const hasBody =
-    request.body &&
-    Object.keys(request.body).length > 0 &&
-    !Object.values(request.body).every((v) => v === '' || v === null || v === undefined)
+    const hasHeaders = request.headers && Object.keys(request.headers).length > 0
+    const hasBody =
+      request.body &&
+      Object.keys(request.body).length > 0 &&
+      !Object.values(request.body).every((v) => v === '' || v === null || v === undefined)
 
-  // Resolve a string: replace {{var}} with value if available
-  const resolveText = (text: string): string => {
-    return text.replace(/\{\{([^}]+)\}\}/g, (_, key) => {
-      const k = key.trim()
-      return envVars[k] ?? envVars[k.toLowerCase()] ?? `{{${k}}}`
-    })
-  }
-
-  const generateCurl = () => {
-    let curl = `curl -X ${request.method || 'GET'} "${resolveText(request.url || '')}"`
-    if (request.headers && Object.keys(request.headers).length > 0) {
-      Object.entries(request.headers).forEach(([k, v]) => {
-        curl += ` \\\n  -H "${k}: ${resolveText(String(v))}"`
+    // Resolve a string: replace {{var}} with value if available
+    const resolveText = (text: string): string => {
+      return text.replace(/\{\{([^}]+)\}\}/g, (_, key) => {
+        const k = key.trim()
+        return envVars[k] ?? envVars[k.toLowerCase()] ?? `{{${k}}}`
       })
     }
-    if (request.body && Object.keys(request.body).length > 0) {
-      let bodyStr = JSON.stringify(request.body)
-      bodyStr = resolveText(bodyStr)
-      curl += ` \\\n  -d '${bodyStr}'`
+
+    const generateCurl = () => {
+      let curl = `curl -X ${request.method || 'GET'} "${resolveText(request.url || '')}"`
+      if (request.headers && Object.keys(request.headers).length > 0) {
+        Object.entries(request.headers).forEach(([k, v]) => {
+          curl += ` \\\n  -H "${k}: ${resolveText(String(v))}"`
+        })
+      }
+      if (request.body && Object.keys(request.body).length > 0) {
+        let bodyStr = JSON.stringify(request.body)
+        bodyStr = resolveText(bodyStr)
+        curl += ` \\\n  -d '${bodyStr}'`
+      }
+      return curl
     }
-    return curl
-  }
 
-  return (
-    <div className="p-8 max-w-3xl">
-      {/* Method + URL */}
-      <div className="mb-6">
-        <div className="flex items-center gap-3 mb-3">
-          <MethodBadge method={request.method} size="md" />
-          <h1 className="text-xl font-semibold text-text">{request.name}</h1>
-        </div>
-        <div className="flex items-center gap-2 bg-background/30 border border-border rounded-lg px-4 py-2.5">
-          <code className="flex-1 text-sm text-text/90 font-mono break-all leading-relaxed">
-            <VarHighlight text={request.url} envVars={envVars} onSetVar={onSetVar} />
-          </code>
-          <button
-            onClick={() => onCopy(resolveText(request.url), 'url')}
-            className="flex-shrink-0 p-1 rounded text-muted hover:text-text transition-colors"
-          >
-            {copiedField === 'url' ? (
-              <Check size={14} className="text-success" />
-            ) : (
-              <Copy size={14} />
-            )}
-          </button>
-        </div>
-      </div>
-
-      {/* Description */}
-      {request.description && (
+    return (
+      <div className="p-8 max-w-3xl">
+        {/* Method + URL */}
         <div className="mb-6">
-          <h3 className="text-xs font-semibold text-muted uppercase tracking-widest mb-2">
-            Description
-          </h3>
-          <p className="text-sm text-text/80 leading-relaxed">{request.description}</p>
-        </div>
-      )}
-
-      {/* cURL Example */}
-      <div className="mb-6">
-        <div className="flex items-center justify-between mb-2">
-          <h3 className="text-xs font-semibold text-muted uppercase tracking-widest">
-            cURL Example
-          </h3>
-          <button
-            onClick={() => onCopy(generateCurl(), 'curl')}
-            className="flex items-center gap-1 px-2 py-1 rounded text-xs text-muted hover:text-text border border-border hover:border-white/20 transition-all"
-          >
-            {copiedField === 'curl' ? (
-              <>
-                <Check size={11} className="text-success" />
-                <span className="text-success">Copied</span>
-              </>
-            ) : (
-              <>
-                <Copy size={11} />
-                Copy
-              </>
-            )}
-          </button>
-        </div>
-        <div className="bg-background/80 shadow-inner border border-border rounded-lg p-4 overflow-x-auto custom-scrollbar">
-          <pre className="text-xs text-text/90 font-mono whitespace-pre-wrap leading-relaxed">
-            {generateCurl()}
-          </pre>
-        </div>
-      </div>
-
-      {/* Headers */}
-      {hasHeaders && (
-        <div className="mb-6">
-          <h3 className="text-xs font-semibold text-muted uppercase tracking-widest mb-3">
-            Headers
-          </h3>
-          <div className="border border-border rounded-lg overflow-hidden">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="bg-white/5 border-b border-border">
-                  <th className="text-left px-4 py-2.5 font-medium text-muted w-[20%]">Key</th>
-                  <th className="text-left px-4 py-2.5 font-medium text-muted w-[25%]">Value</th>
-                  <th className="text-left px-4 py-2.5 font-medium text-muted w-[20%]">Validation</th>
-                  <th className="text-left px-4 py-2.5 font-medium text-muted w-[35%]">Description</th>
-                </tr>
-              </thead>
-              <tbody>
-                {Object.entries(request.headers).map(([k, v]) => {
-                  const rule = request.field_validations?.headers?.[k]
-                  return (
-                    <tr key={k} className="border-b border-white/5 last:border-0">
-                      <td className="px-4 py-2.5 font-mono text-text/90">{k}</td>
-                      <td className="px-4 py-2.5 font-mono">
-                        <VarHighlight
-                          text={String(v)}
-                          envVars={envVars}
-                          onSetVar={onSetVar}
-                        />
-                      </td>
-                      <td className="px-4 py-2.5">
-                        <ValidationBadges rule={rule} />
-                      </td>
-                      <td className="px-4 py-2.5 text-sm text-text/90 leading-relaxed">
-                        {rule?.description || <span className="text-muted/30 text-xs italic">—</span>}
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+          <div className="flex items-center gap-3 mb-3">
+            <MethodBadge method={request.method} size="md" />
+            <h1 className="text-xl font-semibold text-text">{request.name}</h1>
+          </div>
+          <div className="flex items-center gap-2 bg-background/30 border border-border rounded-lg px-4 py-2.5">
+            <code className="flex-1 text-sm text-text/90 font-mono break-all leading-relaxed">
+              <VarHighlight text={request.url} envVars={envVars} onSetVar={onSetVar} />
+            </code>
+            <button
+              onClick={() => onCopy(resolveText(request.url), 'url')}
+              className="flex-shrink-0 p-1 rounded text-muted hover:text-text transition-colors"
+            >
+              {copiedField === 'url' ? (
+                <Check size={14} className="text-success" />
+              ) : (
+                <Copy size={14} />
+              )}
+            </button>
           </div>
         </div>
-      )}
 
-      {/* Body */}
-      {hasBody && (
+        {/* Description */}
+        {request.description && (
+          <div className="mb-6">
+            <h3 className="text-xs font-semibold text-muted uppercase tracking-widest mb-2">
+              Description
+            </h3>
+            <p className="text-sm text-text/80 leading-relaxed">{request.description}</p>
+          </div>
+        )}
+
+        {/* cURL Example */}
         <div className="mb-6">
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center justify-between mb-2">
             <h3 className="text-xs font-semibold text-muted uppercase tracking-widest">
-              Request Body
+              cURL Example
             </h3>
             <button
-              onClick={() => onCopy(JSON.stringify(request.body, null, 2), 'body')}
+              onClick={() => onCopy(generateCurl(), 'curl')}
               className="flex items-center gap-1 px-2 py-1 rounded text-xs text-muted hover:text-text border border-border hover:border-white/20 transition-all"
             >
-              {copiedField === 'body' ? (
+              {copiedField === 'curl' ? (
                 <>
                   <Check size={11} className="text-success" />
                   <span className="text-success">Copied</span>
@@ -1012,40 +944,44 @@ const RequestDetail: React.FC<{
               )}
             </button>
           </div>
-          {/* Render body as annotated field table */}
-          {request.body && typeof request.body === 'object' && !Array.isArray(request.body) ? (
+          <div className="bg-background/80 shadow-inner border border-border rounded-lg p-4 overflow-x-auto custom-scrollbar">
+            <pre className="text-xs text-text/90 font-mono whitespace-pre-wrap leading-relaxed">
+              {generateCurl()}
+            </pre>
+          </div>
+        </div>
+
+        {/* Headers */}
+        {hasHeaders && (
+          <div className="mb-6">
+            <h3 className="text-xs font-semibold text-muted uppercase tracking-widest mb-3">
+              Headers
+            </h3>
             <div className="border border-border rounded-lg overflow-hidden">
               <table className="w-full text-xs">
                 <thead>
                   <tr className="bg-white/5 border-b border-border">
-                    <th className="text-left px-4 py-2.5 font-medium text-muted w-[20%]">Field</th>
+                    <th className="text-left px-4 py-2.5 font-medium text-muted w-[20%]">Key</th>
                     <th className="text-left px-4 py-2.5 font-medium text-muted w-[25%]">Value</th>
                     <th className="text-left px-4 py-2.5 font-medium text-muted w-[20%]">Validation</th>
                     <th className="text-left px-4 py-2.5 font-medium text-muted w-[35%]">Description</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {Object.entries(request.body).map(([field, val]) => {
-                    const rawStr = typeof val === 'string' ? val : JSON.stringify(val)
-                    const rule = request.field_validations?.body?.[field]
-                    const hasAnnotations = rule && (rule.rules.length > 0 || rule.description || rule.min > 0 || rule.max > 0)
-                    
+                  {Object.entries(request.headers).map(([k, v]) => {
+                    const rule = request.field_validations?.headers?.[k]
                     return (
-                      <tr key={field} className="border-b border-white/5 last:border-0">
-                        <td className="px-4 py-2.5 font-mono text-text/90 font-medium">{field}</td>
-                        <td className="px-4 py-2.5 font-mono text-text/70">
+                      <tr key={k} className="border-b border-white/5 last:border-0">
+                        <td className="px-4 py-2.5 font-mono text-text/90">{k}</td>
+                        <td className="px-4 py-2.5 font-mono">
                           <VarHighlight
-                            text={rawStr}
+                            text={String(v)}
                             envVars={envVars}
                             onSetVar={onSetVar}
                           />
                         </td>
                         <td className="px-4 py-2.5">
-                          {hasAnnotations ? (
-                            <ValidationBadges rule={rule} />
-                          ) : (
-                            <span className="text-muted/40 text-[10px] italic">—</span>
-                          )}
+                          <ValidationBadges rule={rule} />
                         </td>
                         <td className="px-4 py-2.5 text-sm text-text/90 leading-relaxed">
                           {rule?.description || <span className="text-muted/30 text-xs italic">—</span>}
@@ -1056,105 +992,176 @@ const RequestDetail: React.FC<{
                 </tbody>
               </table>
             </div>
+          </div>
+        )}
+
+        {/* Body */}
+        {hasBody && (
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-xs font-semibold text-muted uppercase tracking-widest">
+                Request Body
+              </h3>
+              <button
+                onClick={() => onCopy(JSON.stringify(request.body, null, 2), 'body')}
+                className="flex items-center gap-1 px-2 py-1 rounded text-xs text-muted hover:text-text border border-border hover:border-white/20 transition-all"
+              >
+                {copiedField === 'body' ? (
+                  <>
+                    <Check size={11} className="text-success" />
+                    <span className="text-success">Copied</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy size={11} />
+                    Copy
+                  </>
+                )}
+              </button>
+            </div>
+            {/* Render body as annotated field table */}
+            {request.body && typeof request.body === 'object' && !Array.isArray(request.body) ? (
+              <div className="border border-border rounded-lg overflow-hidden">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="bg-white/5 border-b border-border">
+                      <th className="text-left px-4 py-2.5 font-medium text-muted w-[20%]">Field</th>
+                      <th className="text-left px-4 py-2.5 font-medium text-muted w-[25%]">Value</th>
+                      <th className="text-left px-4 py-2.5 font-medium text-muted w-[20%]">Validation</th>
+                      <th className="text-left px-4 py-2.5 font-medium text-muted w-[35%]">Description</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Object.entries(request.body).map(([field, val]) => {
+                      const rawStr = typeof val === 'string' ? val : JSON.stringify(val)
+                      const rule = request.field_validations?.body?.[field]
+                      const hasAnnotations = rule && (rule.rules.length > 0 || rule.description || rule.min > 0 || rule.max > 0)
+
+                      return (
+                        <tr key={field} className="border-b border-white/5 last:border-0">
+                          <td className="px-4 py-2.5 font-mono text-text/90 font-medium">{field}</td>
+                          <td className="px-4 py-2.5 font-mono text-text/70">
+                            <VarHighlight
+                              text={rawStr}
+                              envVars={envVars}
+                              onSetVar={onSetVar}
+                            />
+                          </td>
+                          <td className="px-4 py-2.5">
+                            {hasAnnotations ? (
+                              <ValidationBadges rule={rule} />
+                            ) : (
+                              <span className="text-muted/40 text-[10px] italic">—</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-2.5 text-sm text-text/90 leading-relaxed">
+                            {rule?.description || <span className="text-muted/30 text-xs italic">—</span>}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              // Fallback: raw JSON view (for arrays or primitive bodies)
+              <div className="bg-background/80 shadow-inner border border-border rounded-lg p-4 overflow-x-auto">
+                <pre className="text-xs text-text/90 font-mono whitespace-pre-wrap leading-relaxed">
+                  <VarHighlight
+                    text={JSON.stringify(request.body, null, 2)}
+                    envVars={envVars}
+                    onSetVar={onSetVar}
+                  />
+                </pre>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Responses & Examples */}
+        <div>
+          <h3 className="text-xs font-semibold text-muted uppercase tracking-widest mb-3">
+            Responses & Examples
+          </h3>
+
+          {request.examples && request.examples.length > 0 ? (
+            <div className="space-y-4">
+              {request.examples.map((ex) => (
+                <div key={ex.id} className="border border-border rounded-lg overflow-hidden">
+                  <div className="flex items-center justify-between px-4 py-3 bg-white/5 border-b border-white/5">
+                    <div className="flex items-center gap-3">
+                      <span className={`text-xs font-mono font-bold ${ex.response_status >= 200 && ex.response_status < 300 ? 'text-success' : 'text-warning'}`}>{ex.response_status}</span>
+                      <span className="text-xs text-text font-medium">{ex.name}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => {
+                          openExample(ex)
+                          setActiveView('request-builder')
+                          onClose()
+                        }}
+                        className="flex items-center gap-1 px-2 py-1 rounded text-xs text-success hover:text-emerald-300 border border-emerald-500/20 hover:bg-emerald-500/10 transition-all"
+                      >
+                        <Play size={11} fill="currentColor" />
+                        Try
+                      </button>
+                      <button
+                        onClick={() => onCopy(JSON.stringify(ex.response_body, null, 2), `example-${ex.id}`)}
+                        className="flex items-center gap-1 px-2 py-1 rounded text-xs text-muted hover:text-text border border-border hover:border-white/20 transition-all"
+                      >
+                        {copiedField === `example-${ex.id}` ? (
+                          <>
+                            <Check size={11} className="text-success" />
+                            <span className="text-success">Copied</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy size={11} />
+                            Copy
+                          </>
+                        )}
+                      </button>
+                      <button
+                        onClick={async () => {
+                          if (confirm('Are you sure you want to delete this example?')) {
+                            await deleteExample(ex.id)
+                            await refreshDocs()
+                          }
+                        }}
+                        className="flex items-center gap-1 px-2 py-1 rounded text-xs text-rose-400 hover:text-rose-300 border border-rose-500/20 hover:bg-rose-500/10 transition-all"
+                      >
+                        <Trash2 size={11} />
+                      </button>
+                    </div>
+                  </div>
+                  {Boolean(ex.response_body) && (
+                    <div className="bg-background/80 shadow-inner p-4 overflow-auto max-h-96 custom-scrollbar">
+                      <pre className="text-[11px] text-text/80 font-mono whitespace-pre-wrap leading-relaxed">
+                        {(() => {
+                          try {
+                            return JSON.stringify(JSON.parse(ex.response_body), null, 2)
+                          } catch {
+                            return ex.response_body
+                          }
+                        })()}
+                      </pre>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
           ) : (
-            // Fallback: raw JSON view (for arrays or primitive bodies)
-            <div className="bg-background/80 shadow-inner border border-border rounded-lg p-4 overflow-x-auto">
-              <pre className="text-xs text-text/90 font-mono whitespace-pre-wrap leading-relaxed">
-                <VarHighlight
-                  text={JSON.stringify(request.body, null, 2)}
-                  envVars={envVars}
-                  onSetVar={onSetVar}
-                />
-              </pre>
+            <div className="border border-border rounded-lg overflow-hidden">
+              <div className="flex items-center gap-3 px-4 py-3 bg-emerald-500/5 border-b border-white/5">
+                <span className="text-xs font-mono font-bold text-success">200</span>
+                <span className="text-xs text-muted">Success (Default Placeholder)</span>
+              </div>
+              <div className="p-4 text-xs text-muted italic bg-background/50">
+                No saved examples available for this request.
+              </div>
             </div>
           )}
         </div>
-      )}
-
-      {/* Responses & Examples */}
-      <div>
-        <h3 className="text-xs font-semibold text-muted uppercase tracking-widest mb-3">
-          Responses & Examples
-        </h3>
-        
-        {request.examples && request.examples.length > 0 ? (
-          <div className="space-y-4">
-            {request.examples.map((ex) => (
-              <div key={ex.id} className="border border-border rounded-lg overflow-hidden">
-                <div className="flex items-center justify-between px-4 py-3 bg-white/5 border-b border-white/5">
-                  <div className="flex items-center gap-3">
-                    <span className={`text-xs font-mono font-bold ${ex.response_status >= 200 && ex.response_status < 300 ? 'text-success' : 'text-warning'}`}>{ex.response_status}</span>
-                    <span className="text-xs text-text font-medium">{ex.name}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => {
-                        openExample(ex)
-                        setActiveView('request-builder')
-                        onClose()
-                      }}
-                      className="flex items-center gap-1 px-2 py-1 rounded text-xs text-success hover:text-emerald-300 border border-emerald-500/20 hover:bg-emerald-500/10 transition-all"
-                    >
-                      <Play size={11} fill="currentColor" />
-                      Try
-                    </button>
-                    <button
-                      onClick={() => onCopy(JSON.stringify(ex.response_body, null, 2), `example-${ex.id}`)}
-                      className="flex items-center gap-1 px-2 py-1 rounded text-xs text-muted hover:text-text border border-border hover:border-white/20 transition-all"
-                    >
-                      {copiedField === `example-${ex.id}` ? (
-                        <>
-                          <Check size={11} className="text-success" />
-                          <span className="text-success">Copied</span>
-                        </>
-                      ) : (
-                        <>
-                          <Copy size={11} />
-                          Copy
-                        </>
-                      )}
-                    </button>
-                    <button
-                      onClick={async () => {
-                        if (confirm('Are you sure you want to delete this example?')) {
-                          await deleteExample(ex.id)
-                          await refreshDocs()
-                        }
-                      }}
-                      className="flex items-center gap-1 px-2 py-1 rounded text-xs text-rose-400 hover:text-rose-300 border border-rose-500/20 hover:bg-rose-500/10 transition-all"
-                    >
-                      <Trash2 size={11} />
-                    </button>
-                  </div>
-                </div>
-                {Boolean(ex.response_body) && (
-                  <div className="bg-background/80 shadow-inner p-4 overflow-auto max-h-96 custom-scrollbar">
-                    <pre className="text-[11px] text-text/80 font-mono whitespace-pre-wrap leading-relaxed">
-                      {(() => {
-                        try {
-                           return JSON.stringify(JSON.parse(ex.response_body), null, 2)
-                        } catch {
-                           return ex.response_body
-                        }
-                      })()}
-                    </pre>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="border border-border rounded-lg overflow-hidden">
-            <div className="flex items-center gap-3 px-4 py-3 bg-emerald-500/5 border-b border-white/5">
-              <span className="text-xs font-mono font-bold text-success">200</span>
-              <span className="text-xs text-muted">Success (Default Placeholder)</span>
-            </div>
-            <div className="p-4 text-xs text-muted italic bg-background/50">
-              No saved examples available for this request.
-            </div>
-          </div>
-        )}
       </div>
-    </div>
-  )
-}
+    )
+  }

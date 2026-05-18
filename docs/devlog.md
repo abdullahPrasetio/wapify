@@ -8,6 +8,8 @@
 - **Confluence Sync Enhancement**: Menambahkan footer otomatis pada setiap halaman dokumentasi yang di-sinkronisasi ke Confluence.
 - **Branding & Support**: Footer menyertakan teks branding "Generated using aplikasi wapbolt by temancode", link ke Landing Page (`wapbolt.temancode.my.id`), dan tautan ke profil GitHub author (`abdullahPrasetio`) untuk dukungan teknis.
 - **Dynamic Timestamp**: Mengimplementasikan timestamp dinamis menggunakan format lokal Indonesia (`id-ID`) yang mencatat waktu tepat saat sinkronisasi dilakukan.
+- **Environment Variable Resolution**: Kini placeholder variabel `{{variable}}` di URL, Headers, Body, dan Deskripsi otomatis di-resolve menggunakan nilai dari environment yang aktif sebelum dikirim ke Confluence.
+- **Bug Fix**: Memperbaiki `TypeError` saat sinkronisasi Confluence jika data versi halaman tidak ditemukan (penambahan optional chaining pada `pageData.data.version.number`).
 
 ### Perubahan File
 - `apps/desktop/src/renderer/src/components/layout/DocumentationPanel.tsx` — Modifikasi fungsi `generateContent` untuk menyertakan blok HTML footer.
