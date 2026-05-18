@@ -553,6 +553,25 @@ export const DocumentationPanel: React.FC<DocumentationPanelProps> = ({
           })
         })
 
+        // Footer
+        const now = new Date().toLocaleString('id-ID', {
+          day: '2-digit',
+          month: 'long',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          timeZoneName: 'short'
+        })
+
+        html += `<hr/>`
+        html += `<p style="text-align: center; color: #6b7280; font-size: 11px;">`
+        html += `<i>Generated using <strong>aplikasi wapbolt by temancode</strong> pada tanggal: ${now}</i>`
+        html += `<br/>`
+        html += `Landing Page: <a href="https://wapbolt.temancode.my.id">https://wapbolt.temancode.my.id</a> | `
+        html += `Support: <a href="https://github.com/abdullahPrasetio">https://github.com/abdullahPrasetio</a>`
+        html += `</p>`
+
         return html
       }
 
