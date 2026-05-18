@@ -1,4 +1,20 @@
 
+## [2026-05-18] — Go SDK for Wapbolt
+**Fase:** Fase Ekstensi & Ekosistem
+**Dikerjakan oleh:** Gemini
+**Status:** ✅ Selesai
+
+### Yang Dikerjakan
+- **SDK Initialization**: Membuat modul independen `go-wapbolt` di dalam repository baru.
+- **Core Builder**: Mendefinisikan struktur data *Collection* yang kompatibel dengan Wapbolt/Postman import.
+- **Framework Adapters**: Mengimplementasikan *parser* otomatis untuk menarik daftar *routes* dari **Fiber** dan **Gin**.
+- **Generator**: Menambahkan fitur ekspor ke file `.json` yang siap diunggah ke aplikasi Wapbolt.
+
+### Perubahan File
+- Pembuatan folder `go-wapbolt/` dan pendaftarannya di `.gitignore` utama.
+
+---
+
 ## [2026-05-18] — Confluence Documentation Footer Enhancement
 **Fase:** Fase 7 — Kolaborasi Lanjutan & Mock Pro
 **Dikerjakan oleh:** Gemini
