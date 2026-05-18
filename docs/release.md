@@ -1,3 +1,20 @@
+# Wapbolt v1.6.3 — Confluence Resilience & Variable Resolution 🛠️
+
+Rilis ini membawa peningkatan krusial pada ketahanan konektivitas Confluence, terutama untuk lingkungan korporat dengan firewall ketat, serta dukungan penuh untuk variabel environment.
+
+### ✨ Apa yang Baru?
+
+#### 🛡️ Enterprise Connectivity & Firewall Bypass
+- **Method Tunneling Support**: Melewati blokir firewall terhadap metode `PUT` via `POST-as-PUT`.
+- **CSRF Protection Bypass**: Penambahan header `X-Atlassian-Token` untuk Confluence Server/DC.
+- **Flexible URL Construction**: Kontrol penuh jalur API melalui Base URL.
+
+#### 🌍 Full Environment Variable Resolution
+- **Dynamic Content**: Placeholder `{{variable}}` otomatis di-resolve sebelum sinkronisasi.
+- **Support in all fields**: Berlaku untuk URL, Headers, Body, dan Deskripsi.
+
+---
+
 # Wapbolt v1.6.2 — Enhanced Confluence Sync & Branding 🚀
 
 Rilis ini membawa peningkatan pada fitur sinkronisasi Confluence dengan penambahan informasi branding dan timestamp otomatis untuk dokumentasi yang lebih informatif.
@@ -5,8 +22,7 @@ Rilis ini membawa peningkatan pada fitur sinkronisasi Confluence dengan penambah
 ### ✨ Apa yang Baru?
 
 #### 📘 Enhanced Confluence Footer
-Setiap dokumentasi yang di-sinkronisasi ke Confluence kini menyertakan footer informatif di bagian bawah halaman:
-- **Automatic Branding**: Menampilkan teks *"Generated using aplikasi wapbolt by temancode"* untuk memperkuat identitas alat yang digunakan.
+- **Automatic Branding**: Menampilkan teks *"Generated using aplikasi wapbolt by temancode"*.
 - **Dynamic Indonesian Timestamp**: Mencatat waktu sinkronisasi secara presisi dengan format lokal Indonesia.
 - **Quick Links**: Menyertakan tautan langsung ke **Landing Page** resmi dan **GitHub Support**.
 

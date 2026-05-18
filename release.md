@@ -1,9 +1,14 @@
 # Wapbolt Release Notes
 
+## [v1.6.3] — 2026-05-18
+### 🛡️ Confluence Resilience & Variables
+- **Firewall Bypass**: Mendukung Method Tunneling (POST-as-PUT) dan bypass CSRF untuk lingkungan korporat ketat.
+- **Environment Support**: Resolusi otomatis variabel `{{variable}}` pada seluruh konten sinkronisasi.
+- **Improved UX**: Perbaikan bug `TypeError` versi halaman dan sanitasi URL yang lebih cerdas.
+
 ## [v1.6.2] — 2026-05-18
 ### ✨ Enhanced Confluence Sync
 - **Branding Footer**: Menambahkan footer otomatis *"Generated using aplikasi wapbolt by temancode"* pada sinkronisasi Confluence.
-- **Environment Variable Resolution**: Placeholder `{{variable}}` kini di-resolve otomatis menggunakan nilai dari environment yang aktif sebelum dikirim ke Confluence.
 - **Dynamic Timestamp**: Timestamp sinkronisasi menggunakan format lokal Indonesia.
 - **Quick Support Links**: Integrasi link Landing Page dan GitHub Support di setiap halaman dokumentasi.
 
