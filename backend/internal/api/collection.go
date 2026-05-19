@@ -30,7 +30,7 @@ type PostmanItem struct {
 }
 
 type PostmanReq struct {
-	Method string `json:"method"`
+	Method string      `json:"method"`
 	URL    interface{} `json:"url"` // can be string or object
 	Header []struct {
 		Key   string `json:"key"`
@@ -40,6 +40,20 @@ type PostmanReq struct {
 		Mode string `json:"mode"`
 		Raw  string `json:"raw"`
 	} `json:"body"`
+	Description      string                 `json:"description,omitempty"`
+	Responses        []PostmanResponse      `json:"response,omitempty"`
+	FieldValidations map[string]interface{} `json:"field_validations,omitempty"`
+}
+
+type PostmanResponse struct {
+	Name   string `json:"name"`
+	Status string `json:"status"`
+	Code   int    `json:"code"`
+	Header []struct {
+		Key   string `json:"key"`
+		Value string `json:"value"`
+	} `json:"header"`
+	Body string `json:"body"`
 }
 
 func SetupCollectionRoutes(app *fiber.App) {
@@ -69,14 +83,35 @@ func ImportPostman(c *fiber.Ctx) error {
 	tid := parseUint(teamID)
 
 	err := repository.DB.Transaction(func(tx *gorm.DB) error {
-		// 1. Create Collection
-		collection := repository.Collection{
-			Name:        postman.Info.Name,
-			Description: postman.Info.Description,
-			TeamID:      tid,
-			CreatedByID: &userID,
-		}
-		if err := tx.Create(&collection).Error; err != nil {
+		// 1. Check if collection with same name exists in this team
+		var collection repository.Collection
+		err := tx.Where("team_id = ? AND name = ?", tid, postman.Info.Name).First(&collection).Error
+		
+		if err == nil {
+			// Found existing collection, clear its contents first
+			if err := tx.Where("collection_id = ?", collection.ID).Delete(&repository.Folder{}).Error; err != nil {
+				return err
+			}
+			if err := tx.Where("collection_id = ?", collection.ID).Delete(&repository.Request{}).Error; err != nil {
+				return err
+			}
+			// Update description if changed
+			collection.Description = postman.Info.Description
+			if err := tx.Save(&collection).Error; err != nil {
+				return err
+			}
+		} else if errors.Is(err, gorm.ErrRecordNotFound) {
+			// Create new collection
+			collection = repository.Collection{
+				Name:        postman.Info.Name,
+				Description: postman.Info.Description,
+				TeamID:      tid,
+				CreatedByID: &userID,
+			}
+			if err := tx.Create(&collection).Error; err != nil {
+				return err
+			}
+		} else {
 			return err
 		}
 
@@ -90,7 +125,7 @@ func ImportPostman(c *fiber.Ctx) error {
 
 	// Real-time broadcast
 	WSHub.BroadcastEntityUpdate(tid, "TEAM", tid)
-	LogActivity(repository.DB, tid, userID, "IMPORTED_POSTMAN", "TEAM", tid, map[string]interface{}{"collection_name": postman.Info.Name})
+	LogActivity(repository.DB, tid, userID, "IMPORTED_COLLECTION", "TEAM", tid, map[string]interface{}{"collection_name": postman.Info.Name})
 
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{"message": "Import successful"})
 }
@@ -134,18 +169,43 @@ func processPostmanItems(tx *gorm.DB, items []PostmanItem, collectionID uint, fo
 			}
 
 			request := repository.Request{
-				Name:         item.Name,
-				CollectionID: collectionID,
-				FolderID:     folderID,
-				Method:       item.Request.Method,
-				URL:          urlStr,
-				Headers:      headers,
-				Body:         body,
-				CreatedByID:  &userID,
-				AuthConfig:   repository.JSONB{"type": "No Auth"},
+				Name:             item.Name,
+				CollectionID:     collectionID,
+				FolderID:         folderID,
+				Method:           item.Request.Method,
+				URL:              urlStr,
+				Headers:          headers,
+				Body:             body,
+				Description:      item.Request.Description,
+				FieldValidations: item.Request.FieldValidations,
+				CreatedByID:      &userID,
+				AuthConfig:       repository.JSONB{"type": "No Auth"},
 			}
 			if err := tx.Create(&request).Error; err != nil {
 				return err
+			}
+
+			// 3. Process Examples (Responses)
+			for _, res := range item.Request.Responses {
+				resHeaders := repository.JSONB{}
+				for _, rh := range res.Header {
+					resHeaders[rh.Key] = rh.Value
+				}
+
+				example := repository.RequestExample{
+					RequestID:       request.ID,
+					Name:            res.Name,
+					RequestMethod:   item.Request.Method,
+					RequestURL:      urlStr,
+					RequestHeaders:  headers, // Original request headers
+					RequestBody:     item.Request.Body.Raw,
+					ResponseStatus:  res.Code,
+					ResponseHeaders: resHeaders,
+					ResponseBody:    res.Body,
+				}
+				if err := tx.Create(&example).Error; err != nil {
+					return err
+				}
 			}
 		}
 	}
