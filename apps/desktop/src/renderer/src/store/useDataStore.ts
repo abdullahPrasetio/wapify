@@ -875,16 +875,21 @@ export const useDataStore = create<DataState>()(
           }
         },
 
-        importCollection: async (jsonContent: string) => {
+        importCollection: async (jsonContent: string, mode: 'new' | 'overwrite' = 'new', confirmName?: string) => {
           const { activeTeamId } = get()
           if (!activeTeamId) return
 
           try {
             const data = JSON.parse(jsonContent)
-            const response = await apiClient.post(`/api/v1/teams/${activeTeamId}/import`, data)
-            if (response.status === 201) {
+            let url = `/api/v1/teams/${activeTeamId}/import?mode=${mode}`
+            if (mode === 'overwrite' && confirmName) {
+              url += `&confirm_name=${encodeURIComponent(confirmName)}`
+            }
+
+            const response = await apiClient.post(url, data)
+            if (response.status === 201 || response.status === 200) {
               await get().fetchCollections(activeTeamId)
-              toast.success('Collection imported successfully')
+              toast.success(mode === 'overwrite' ? 'Collection overwritten successfully' : 'Collection imported successfully')
             } else {
               toast.error('Failed to import collection')
             }

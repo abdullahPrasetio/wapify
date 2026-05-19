@@ -6,9 +6,11 @@
 
 ### Yang Dikerjakan
 - **SDK Initialization**: Membuat modul independen `go-wapbolt` di dalam repository baru.
-- **Core Builder**: Mendefinisikan struktur data *Collection* yang kompatibel dengan Wapbolt/Postman import.
-- **Framework Adapters**: Mengimplementasikan *parser* otomatis untuk menarik daftar *routes* dari **Fiber** dan **Gin**.
-- **Generator**: Menambahkan fitur ekspor ke file `.json` yang siap diunggah ke aplikasi Wapbolt.
+- **Zero-Touch Static Analysis**: Mengimplementasikan scanner berbasis AST untuk mendeteksi rute dan struct body secara otomatis tanpa merubah kode bisnis.
+- **Auto-Route Registration**: Menambahkan fungsi `Register()` untuk mempermudah inisialisasi dokumentasi hanya dalam satu baris kode.
+- **Nullable Detection**: Otomatis mendeteksi tag `omitempty` dan mengonversinya menjadi properti `nullable` di Wapbolt.
+- **Auto Sample Body**: Men-generate contoh JSON payload secara otomatis berdasarkan tipe data dan aturan validasi field.
+- **Multi-Package Support**: Mendukung pemindaian rekursif lintas folder (Controllers, Models, Entities).
 
 ### Perubahan File
 - Pembuatan folder `go-wapbolt/` dan pendaftarannya di `.gitignore` utama.

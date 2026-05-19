@@ -2,6 +2,10 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
+	"strings"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/waluyo/wapbolt-backend/internal/middleware"
 	"github.com/waluyo/wapbolt-backend/internal/repository"
@@ -79,29 +83,46 @@ func ImportPostman(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid Postman JSON", "code": "BAD_REQUEST"})
 	}
 
+	// Import Options from Query Params
+	mode := c.Query("mode", "new") // default to 'new' for safety
+	confirmName := c.Query("confirm_name", "")
+
 	userID := uint(c.Locals("user_id").(float64))
 	tid := parseUint(teamID)
 
+	var collection repository.Collection
+
 	err := repository.DB.Transaction(func(tx *gorm.DB) error {
-		// 1. Check if collection with same name exists in this team
-		var collection repository.Collection
-		err := tx.Where("team_id = ? AND name = ?", tid, postman.Info.Name).First(&collection).Error
-		
-		if err == nil {
-			// Found existing collection, clear its contents first
+		if mode == "overwrite" {
+			// 1. Search for collection to overwrite
+			err := tx.Where("team_id = ? AND name = ?", tid, postman.Info.Name).First(&collection).Error
+			if err != nil {
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					return fmt.Errorf("collection '%s' not found for overwrite", postman.Info.Name)
+				}
+				return err
+			}
+
+			// 2. Safety Check: Verify confirmation name matches
+			if confirmName != collection.Name {
+				return fmt.Errorf("confirmation name mismatch: expected '%s', got '%s'", collection.Name, confirmName)
+			}
+
+			// 3. Clear existing contents
 			if err := tx.Where("collection_id = ?", collection.ID).Delete(&repository.Folder{}).Error; err != nil {
 				return err
 			}
 			if err := tx.Where("collection_id = ?", collection.ID).Delete(&repository.Request{}).Error; err != nil {
 				return err
 			}
-			// Update description if changed
+
+			// Update description
 			collection.Description = postman.Info.Description
 			if err := tx.Save(&collection).Error; err != nil {
 				return err
 			}
-		} else if errors.Is(err, gorm.ErrRecordNotFound) {
-			// Create new collection
+		} else {
+			// Create brand new collection (even if name matches, will be a duplicate)
 			collection = repository.Collection{
 				Name:        postman.Info.Name,
 				Description: postman.Info.Description,
@@ -111,8 +132,6 @@ func ImportPostman(c *fiber.Ctx) error {
 			if err := tx.Create(&collection).Error; err != nil {
 				return err
 			}
-		} else {
-			return err
 		}
 
 		// 2. Process Items recursively
@@ -120,14 +139,24 @@ func ImportPostman(c *fiber.Ctx) error {
 	})
 
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error(), "code": "INTERNAL_SERVER_ERROR"})
+		code := "INTERNAL_SERVER_ERROR"
+		status := fiber.StatusInternalServerError
+		if strings.Contains(err.Error(), "not found") || strings.Contains(err.Error(), "mismatch") {
+			code = "BAD_REQUEST"
+			status = fiber.StatusBadRequest
+		}
+		return c.Status(status).JSON(fiber.Map{"error": err.Error(), "code": code})
 	}
 
 	// Real-time broadcast
 	WSHub.BroadcastEntityUpdate(tid, "TEAM", tid)
-	LogActivity(repository.DB, tid, userID, "IMPORTED_COLLECTION", "TEAM", tid, map[string]interface{}{"collection_name": postman.Info.Name})
+	action := "IMPORTED_COLLECTION"
+	if mode == "overwrite" {
+		action = "UPDATED_COLLECTION_VIA_IMPORT"
+	}
+	LogActivity(repository.DB, tid, userID, action, "TEAM", tid, map[string]interface{}{"collection_name": postman.Info.Name})
 
-	return c.Status(fiber.StatusCreated).JSON(fiber.Map{"message": "Import successful"})
+	return c.Status(fiber.StatusCreated).JSON(fiber.Map{"message": "Import successful", "collection_id": collection.ID})
 }
 
 func processPostmanItems(tx *gorm.DB, items []PostmanItem, collectionID uint, folderID *uint, userID uint) error {

@@ -1,18 +1,47 @@
 import * as Dialog from '@radix-ui/react-dialog'
-import { FileDown, X } from 'lucide-react'
-import { useState } from 'react'
+import { FileDown, X, AlertTriangle } from 'lucide-react'
+import { useState, useMemo, useEffect } from 'react'
 import { useDataStore } from '../../store/useDataStore'
+import { toast } from 'sonner'
 
 export const ImportModal = (): React.JSX.Element => {
   const [open, setOpen] = useState(false)
   const [jsonContent, setJsonContent] = useState('')
   const [isImporting, setIsImporting] = useState(false)
-  const { importCollection } = useDataStore()
+  const [importMode, setImportMode] = useState<'new' | 'overwrite'>('new')
+  const [confirmName, setConfirmName] = useState('')
+  
+  const { importCollection, collections } = useDataStore()
+
+  // Detect collection name and collision
+  const { detectedName, isCollision } = useMemo(() => {
+    try {
+      if (!jsonContent.trim()) return { detectedName: '', isCollision: false }
+      const data = JSON.parse(jsonContent)
+      const name = data.info?.name || ''
+      const collision = collections.some(c => c.name === name)
+      return { detectedName: name, isCollision: collision }
+    } catch {
+      return { detectedName: '', isCollision: false }
+    }
+  }, [jsonContent, collections])
+
+  // Reset states when content changes
+  useEffect(() => {
+    setImportMode('new')
+    setConfirmName('')
+  }, [jsonContent])
 
   const handleImport = async (): Promise<void> => {
     if (!jsonContent.trim()) return
+    
+    if (importMode === 'overwrite' && confirmName !== detectedName) {
+      toast.error(`Confirmation mismatch. Please type "${detectedName}" exactly.`)
+      return
+    }
+
     setIsImporting(true)
-    await importCollection(jsonContent)
+    await importCollection(jsonContent, importMode, confirmName)
     setIsImporting(false)
     setJsonContent('')
     setOpen(false)
@@ -53,7 +82,7 @@ export const ImportModal = (): React.JSX.Element => {
                   Import Collection
                 </Dialog.Title>
                 <Dialog.Description className="text-xs text-muted">
-                  Import Postman Collection (v2.1) via JSON file or paste content
+                  Import Wapbolt/Postman Collection (v2.1)
                 </Dialog.Description>
               </div>
             </div>
@@ -62,7 +91,7 @@ export const ImportModal = (): React.JSX.Element => {
             </Dialog.Close>
           </div>
 
-          <div className="space-y-4">
+          <div className="max-h-[60vh] overflow-y-auto pr-1 space-y-4">
             <div>
               <label className="block text-xs font-bold text-muted uppercase tracking-widest mb-2">
                 Upload File
@@ -74,12 +103,12 @@ export const ImportModal = (): React.JSX.Element => {
                   onChange={handleFileUpload}
                   className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                 />
-                <div className="border-2 border-dashed border-border group-hover:border-primary rounded-lg p-8 flex flex-col items-center justify-center transition-colors bg-background/50">
+                <div className="border-2 border-dashed border-border group-hover:border-primary rounded-lg p-6 flex flex-col items-center justify-center transition-colors bg-background/50">
                   <FileDown size={24} className="text-muted group-hover:text-primary mb-2" />
                   <span className="text-sm text-text font-medium">
                     Click to upload or drag & drop
                   </span>
-                  <span className="text-xs text-muted">Postman Collection JSON</span>
+                  <span className="text-xs text-muted">JSON Collection file</span>
                 </div>
               </div>
             </div>
@@ -101,9 +130,61 @@ export const ImportModal = (): React.JSX.Element => {
                 value={jsonContent}
                 onChange={(e): void => setJsonContent(e.target.value)}
                 placeholder='{ "info": { ... }, "item": [ ... ] }'
-                className="w-full h-40 bg-background border border-border rounded-lg p-3 text-xs font-mono text-text placeholder:text-muted focus:outline-none focus:border-primary resize-none"
+                className="w-full h-32 bg-background border border-border rounded-lg p-3 text-xs font-mono text-text placeholder:text-muted focus:outline-none focus:border-primary resize-none"
               />
             </div>
+
+            {/* Collision Detection & Mode Selection */}
+            {isCollision && (
+              <div className="p-4 bg-warning/10 border border-warning/20 rounded-lg space-y-3">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="text-warning shrink-0" size={18} />
+                  <div>
+                    <p className="text-sm font-bold text-warning">Collection Already Exists</p>
+                    <p className="text-xs text-warning/80">
+                      A collection named <strong>"{detectedName}"</strong> already exists in this team.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex gap-4">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      checked={importMode === 'new'}
+                      onChange={() => setImportMode('new')}
+                      className="accent-primary"
+                    />
+                    <span className="text-xs font-medium text-text">Import as New (Duplicate)</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      checked={importMode === 'overwrite'}
+                      onChange={() => setImportMode('overwrite')}
+                      className="accent-warning"
+                    />
+                    <span className="text-xs font-medium text-text">Overwrite Existing</span>
+                  </label>
+                </div>
+
+                {importMode === 'overwrite' && (
+                  <div className="space-y-2 animate-in slide-in-from-top-2 duration-200">
+                    <p className="text-xs text-muted">
+                      All requests and folders in the existing collection will be <strong>replaced</strong>.
+                      To confirm, type the collection name below:
+                    </p>
+                    <input
+                      type="text"
+                      value={confirmName}
+                      onChange={(e) => setConfirmName(e.target.value)}
+                      placeholder={detectedName}
+                      className="w-full bg-background border border-warning/30 rounded-lg p-2 text-xs text-text focus:outline-none focus:border-warning"
+                    />
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="flex justify-end gap-3 mt-8">
@@ -114,10 +195,18 @@ export const ImportModal = (): React.JSX.Element => {
             </Dialog.Close>
             <button
               onClick={handleImport}
-              disabled={isImporting || !jsonContent.trim()}
-              className="px-6 py-2 bg-primary hover:bg-primary-hover text-white text-sm font-bold rounded-lg shadow-lg shadow-primary/20 transition-all disabled:opacity-50 disabled:scale-95 flex items-center gap-2"
+              disabled={
+                isImporting || 
+                !jsonContent.trim() || 
+                (importMode === 'overwrite' && confirmName !== detectedName)
+              }
+              className={`px-6 py-2 text-sm font-bold rounded-lg shadow-lg transition-all disabled:opacity-50 disabled:scale-95 flex items-center gap-2 ${
+                importMode === 'overwrite' 
+                  ? 'bg-warning hover:bg-warning/80 text-white shadow-warning/20' 
+                  : 'bg-primary hover:bg-primary-hover text-white shadow-primary/20'
+              }`}
             >
-              {isImporting ? 'Importing...' : 'Import Now'}
+              {isImporting ? 'Importing...' : importMode === 'overwrite' ? 'Overwrite Now' : 'Import Now'}
             </button>
           </div>
         </Dialog.Content>
