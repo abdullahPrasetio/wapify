@@ -300,6 +300,10 @@ export const DocumentationPanel: React.FC<DocumentationPanelProps> = ({
   const [copiedField, setCopiedField] = useState<string | null>(null)
   const [settingVar, setSettingVar] = useState<string | null>(null)
   const [isSyncing, setIsSyncing] = useState(false)
+  const [showSyncOptions, setShowSyncOptions] = useState(false)
+
+  type SyncContent = 'documentation' | 'openapi' | 'swagger' | 'both'
+  type SyncOrder = 'doc_first' | 'api_first'
 
   useEffect(() => {
     const fetchDocs = async () => {
@@ -364,7 +368,8 @@ export const DocumentationPanel: React.FC<DocumentationPanelProps> = ({
     }
   }
 
-  const handleSyncToConfluence = async () => {
+  const handleSyncToConfluence = async (syncContent: SyncContent = 'documentation', syncOrder: SyncOrder = 'doc_first') => {
+    setShowSyncOptions(false)
     setIsSyncing(true)
     try {
       // 1. Get Confluence Config from Backend
@@ -583,7 +588,88 @@ export const DocumentationPanel: React.FC<DocumentationPanelProps> = ({
         return html
       }
 
-      const content = generateContent()
+      // Fetch & cache OpenAPI spec (used by multiple modes)
+      let swaggerJson = ''
+      const fetchSwaggerSpec = async (): Promise<string> => {
+        if (swaggerJson) return swaggerJson
+        const swaggerRes = await apiClient.get<unknown>(`/api/v1/collections/${collectionId}/docs/swagger`)
+        swaggerJson = JSON.stringify(swaggerRes.data, null, 2)
+        return swaggerJson
+      }
+
+      // Generate OpenAPI section as Confluence code block (raw JSON)
+      const generateOpenAPIContent = async (): Promise<string> => {
+        const spec = await fetchSwaggerSpec()
+        let html = `<h1>OpenAPI 3.0 Specification</h1>`
+        html += `<p>API specification for <strong>${docs?.collection_name || collectionName}</strong> in OpenAPI 3.0 format.</p>`
+        html += `<ac:structured-macro ac:name="code" ac:schema-version="1">`
+        html += `<ac:parameter ac:name="language">json</ac:parameter>`
+        html += `<ac:parameter ac:name="theme">Emacs</ac:parameter>`
+        html += `<ac:parameter ac:name="title">openapi.json</ac:parameter>`
+        html += `<ac:plain-text-body><![CDATA[\n${spec}\n]]></ac:plain-text-body>`
+        html += `</ac:structured-macro>`
+        return html
+      }
+
+      // Generate Swagger UI section: upload spec as attachment + embed viewer macro
+      const generateSwaggerUIContent = async (): Promise<string> => {
+        const spec = await fetchSwaggerSpec()
+        const filename = `${collectionName.replace(/\s+/g, '_')}_openapi.json`
+
+        // Upload spec as page attachment
+        const uploadRes = await window.api.uploadConfluenceAttachment({
+          baseUrl: base_url,
+          email: confluence_email,
+          pat: confluence_pat,
+          apiToken: confluence_api_token,
+          authMethod: auth_method,
+          pageId,
+          filename,
+          content: spec
+        })
+        if (!uploadRes.success) {
+          throw new Error(`Gagal upload attachment: ${uploadRes.error}`)
+        }
+
+        // Try to use "Swagger UI for Confluence" marketplace macro first,
+        // fallback to embedded HTML (works on Server/DC with HTML macro enabled)
+        let html = `<h1>Swagger UI - ${docs?.collection_name || collectionName}</h1>`
+        html += `<p>Interactive API documentation. File spec: <strong>${filename}</strong> (attachment halaman ini).</p>`
+
+        // ac:structured-macro for "Swagger UI for Confluence" app (if installed)
+        // This macro is provided by the "Swagger UI for Confluence" app on Marketplace
+        html += `<ac:structured-macro ac:name="swagger-ui" ac:schema-version="1">`
+        html += `<ac:parameter ac:name="url">/download/attachments/${pageId}/${encodeURIComponent(filename)}</ac:parameter>`
+        html += `</ac:structured-macro>`
+
+        // Fallback note for Cloud users without the app
+        html += `<ac:structured-macro ac:name="info" ac:schema-version="1">`
+        html += `<ac:rich-text-body>`
+        html += `<p><strong>Catatan:</strong> Untuk menampilkan Swagger UI interaktif, pastikan app `
+        html += `<strong>"Swagger UI for Confluence"</strong> sudah terinstall di Confluence (tersedia di Atlassian Marketplace). `
+        html += `File spec OpenAPI sudah di-upload sebagai attachment: <strong>${filename}</strong>.</p>`
+        html += `</ac:rich-text-body>`
+        html += `</ac:structured-macro>`
+
+        return html
+      }
+
+      let content = ''
+      if (syncContent === 'documentation') {
+        content = generateContent()
+      } else if (syncContent === 'openapi') {
+        content = await generateOpenAPIContent()
+      } else if (syncContent === 'swagger') {
+        content = await generateSwaggerUIContent()
+      } else {
+        // both — order determined by syncOrder
+        const docContent = generateContent()
+        const apiContent = await generateOpenAPIContent()
+        const divider = `<hr/><p style="text-align:center;color:#6b7280;font-size:11px;"><em>— Section break —</em></p><hr/>`
+        content = syncOrder === 'doc_first'
+          ? docContent + divider + apiContent
+          : apiContent + divider + docContent
+      }
 
       // 5. Update Page
       const updateRes = await window.api.updateConfluencePage({
@@ -681,12 +767,12 @@ export const DocumentationPanel: React.FC<DocumentationPanelProps> = ({
               OpenAPI 3.0
             </button>
             <button
-              onClick={handleSyncToConfluence}
+              onClick={() => setShowSyncOptions(true)}
               disabled={isSyncing}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20 hover:bg-blue-500/20 transition-all disabled:opacity-50"
             >
               {isSyncing ? <Loader2 size={13} className="animate-spin" /> : <Cloud size={13} />}
-              Sync to Confluence
+              {isSyncing ? 'Syncing...' : 'Sync to Confluence'}
             </button>
             <button
               onClick={onClose}
@@ -809,6 +895,157 @@ export const DocumentationPanel: React.FC<DocumentationPanelProps> = ({
           onClose={() => setSettingVar(null)}
         />
       )}
+
+      {showSyncOptions && (
+        <ConfluenceSyncOptionsModal
+          onSync={handleSyncToConfluence}
+          onClose={() => setShowSyncOptions(false)}
+        />
+      )}
+    </div>
+  )
+}
+
+// ─── Confluence Sync Options Modal ────────────────────────────────────────────
+
+type SyncContent = 'documentation' | 'openapi' | 'swagger' | 'both'
+type SyncOrder = 'doc_first' | 'api_first'
+
+const ConfluenceSyncOptionsModal: React.FC<{
+  onSync: (content: SyncContent, order: SyncOrder) => void
+  onClose: () => void
+}> = ({ onSync, onClose }) => {
+  const [content, setContent] = useState<SyncContent>('documentation')
+  const [order, setOrder] = useState<SyncOrder>('doc_first')
+
+  return (
+    <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <div className="bg-surface border border-border rounded-xl shadow-2xl w-full max-w-md p-6 space-y-5 text-text">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Cloud size={16} className="text-blue-400" />
+            <h3 className="text-sm font-semibold">Opsi Sync ke Confluence</h3>
+          </div>
+          <button onClick={onClose} className="p-1 rounded text-muted hover:text-text transition-colors">
+            <X size={16} />
+          </button>
+        </div>
+
+        {/* Content Type */}
+        <div className="space-y-2">
+          <label className="block text-[10px] font-semibold text-muted uppercase tracking-wider">
+            Yang akan di-sync
+          </label>
+          <div className="space-y-2">
+            {([
+              {
+                value: 'documentation',
+                label: 'Documentation Only',
+                desc: 'Halaman berisi dokumentasi API lengkap (headers, body, examples, cURL)',
+                badge: null
+              },
+              {
+                value: 'openapi',
+                label: 'OpenAPI 3.0 (Raw JSON)',
+                desc: 'Halaman berisi raw OpenAPI/Swagger JSON spec dalam code block',
+                badge: null
+              },
+              {
+                value: 'swagger',
+                label: 'Swagger UI (Interactive)',
+                desc: 'Upload spec sebagai attachment + embed Swagger UI viewer. Butuh app "Swagger UI for Confluence" di Marketplace.',
+                badge: 'Requires App'
+              },
+              {
+                value: 'both',
+                label: 'Documentation + OpenAPI',
+                desc: 'Documentation lengkap + OpenAPI spec dalam satu halaman, bisa pilih urutan',
+                badge: null
+              },
+            ] as { value: SyncContent; label: string; desc: string; badge: string | null }[]).map((opt) => (
+              <button
+                key={opt.value}
+                onClick={() => setContent(opt.value)}
+                className={`w-full flex items-start gap-3 px-3 py-2.5 rounded-lg border text-left transition-all ${
+                  content === opt.value
+                    ? 'bg-blue-500/10 border-blue-500/40 text-blue-300'
+                    : 'border-border text-muted hover:bg-white/5 hover:text-text'
+                }`}
+              >
+                <div className={`mt-0.5 w-3.5 h-3.5 rounded-full border-2 shrink-0 ${content === opt.value ? 'border-blue-400 bg-blue-400' : 'border-border'}`} />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs font-medium">{opt.label}</p>
+                    {opt.badge && (
+                      <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 font-medium shrink-0">
+                        {opt.badge}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[10px] opacity-60 mt-0.5">{opt.desc}</p>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Order (only when 'both') */}
+        {content === 'both' && (
+          <div className="space-y-2">
+            <label className="block text-[10px] font-semibold text-muted uppercase tracking-wider">
+              Urutan konten
+            </label>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setOrder('doc_first')}
+                className={`flex-1 flex flex-col items-center gap-1 py-3 rounded-lg border text-xs font-medium transition-all ${
+                  order === 'doc_first'
+                    ? 'bg-violet-500/10 border-violet-500/40 text-violet-300'
+                    : 'border-border text-muted hover:bg-white/5'
+                }`}
+              >
+                <span className="text-[10px] opacity-70">1</span>
+                <span>Documentation</span>
+                <span className="text-[9px] opacity-50">↓</span>
+                <span className="text-[10px] opacity-70">2</span>
+                <span>OpenAPI</span>
+              </button>
+              <button
+                onClick={() => setOrder('api_first')}
+                className={`flex-1 flex flex-col items-center gap-1 py-3 rounded-lg border text-xs font-medium transition-all ${
+                  order === 'api_first'
+                    ? 'bg-violet-500/10 border-violet-500/40 text-violet-300'
+                    : 'border-border text-muted hover:bg-white/5'
+                }`}
+              >
+                <span className="text-[10px] opacity-70">1</span>
+                <span>OpenAPI</span>
+                <span className="text-[9px] opacity-50">↓</span>
+                <span className="text-[10px] opacity-70">2</span>
+                <span>Documentation</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Actions */}
+        <div className="flex gap-2 pt-1">
+          <button
+            onClick={onClose}
+            className="flex-1 py-2 rounded-lg text-xs text-muted border border-border hover:bg-white/5 transition-colors"
+          >
+            Batal
+          </button>
+          <button
+            onClick={() => onSync(content, order)}
+            className="flex-1 py-2 rounded-lg text-xs font-bold bg-blue-500/80 hover:bg-blue-500 text-white transition-colors flex items-center justify-center gap-1.5"
+          >
+            <Cloud size={13} />
+            Sync Sekarang
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

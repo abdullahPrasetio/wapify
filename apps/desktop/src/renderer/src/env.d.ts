@@ -41,6 +41,16 @@ interface WapboltAPI {
     content: string
     version: number
   }) => Promise<any>
+  uploadConfluenceAttachment: (config: {
+    baseUrl: string
+    email?: string
+    pat?: string
+    apiToken?: string
+    authMethod?: string
+    pageId: string
+    filename: string
+    content: string
+  }) => Promise<any>
 }
 
 declare global {
