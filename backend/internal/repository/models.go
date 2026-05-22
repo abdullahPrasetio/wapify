@@ -224,6 +224,7 @@ type ActivityLog struct {
 
 type MockEndpoint struct {
 	ID               uint      `gorm:"primaryKey" json:"id"`
+	Name             string    `gorm:"column:name" json:"name"`
 	CollectionID     *uint     `gorm:"column:collection_id" json:"collection_id"`
 	TeamID           *uint     `gorm:"column:team_id" json:"team_id"`
 	RequestID        *uint     `gorm:"column:request_id" json:"request_id"`

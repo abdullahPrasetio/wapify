@@ -28,9 +28,10 @@ type PostmanCollection struct {
 }
 
 type PostmanItem struct {
-	Name    string        `json:"name"`
-	Item    []PostmanItem `json:"item,omitempty"` // for folders
-	Request *PostmanReq   `json:"request,omitempty"`
+	Name      string            `json:"name"`
+	Item      []PostmanItem     `json:"item,omitempty"` // for folders
+	Request   *PostmanReq       `json:"request,omitempty"`
+	Responses []PostmanResponse `json:"response,omitempty"` // examples are at item level in Postman v2.1
 }
 
 type PostmanReq struct {
@@ -45,7 +46,6 @@ type PostmanReq struct {
 		Raw  string `json:"raw"`
 	} `json:"body"`
 	Description      string                 `json:"description,omitempty"`
-	Responses        []PostmanResponse      `json:"response,omitempty"`
 	FieldValidations map[string]interface{} `json:"field_validations,omitempty"`
 }
 
@@ -214,8 +214,12 @@ func processPostmanItems(tx *gorm.DB, items []PostmanItem, collectionID uint, fo
 				return err
 			}
 
-			// 3. Process Examples (Responses)
-			for _, res := range item.Request.Responses {
+			// 3. Process Examples (Responses) - responses are at item level in Postman v2.1
+			requestBodyRaw := ""
+			if item.Request.Body != nil {
+				requestBodyRaw = item.Request.Body.Raw
+			}
+			for _, res := range item.Responses {
 				resHeaders := repository.JSONB{}
 				for _, rh := range res.Header {
 					resHeaders[rh.Key] = rh.Value
@@ -226,8 +230,8 @@ func processPostmanItems(tx *gorm.DB, items []PostmanItem, collectionID uint, fo
 					Name:            res.Name,
 					RequestMethod:   item.Request.Method,
 					RequestURL:      urlStr,
-					RequestHeaders:  headers, // Original request headers
-					RequestBody:     item.Request.Body.Raw,
+					RequestHeaders:  headers,
+					RequestBody:     requestBodyRaw,
 					ResponseStatus:  res.Code,
 					ResponseHeaders: resHeaders,
 					ResponseBody:    res.Body,

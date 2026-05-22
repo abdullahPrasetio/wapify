@@ -1,6 +1,6 @@
 # Wapbolt — Development Plan
 
-**Terakhir Diperbarui:** 12 Mei 2026
+**Terakhir Diperbarui:** 22 Mei 2026
 **Status Saat Ini:** ✅ Fase 0-6 Selesai → 🟡 Fase 7 In Progress
 
 ---
@@ -16,7 +16,7 @@
 | 4 | Testing & CI/CD | Collection runner, CLI | ✅ Selesai (CLI pending) |
 | 5 | On-Premise & License | Jual ke client luar | ✅ Selesai |
 | 6 | UX & Power Features | Workspace, body types, export, drag-drop, mock dynamic | ✅ Selesai |
-| 7 | Kolaborasi Lanjutan | Notifikasi, shared env, diff visual | 🟡 Dalam Proses (Notifikasi Selesai) |
+| 7 | Kolaborasi Lanjutan | Notifikasi, shared env, diff visual, Mock Pro | 🟡 Dalam Proses |
 | 8 | SaaS (Opsional) | Cloud hosted di wapbolt.io | ⬜ Belum Mulai |
 
 ---
@@ -256,6 +256,8 @@ Beberapa fitur yang direncanakan di Fase 6 telah disesuaikan prioritasnya dan un
 ### Mock Server Pro
 - [x] **Copy cURL per Scenario**: Generate cURL yang otomatis memenuhi kondisi skenario (inject query/body/header) untuk testing instan.
 - [x] **Binary/PDF Response**: Upload file asli atau simpan base64 sebagai respons mock dengan deteksi otomatis `Content-Type: application/pdf`.
+- [x] **Bulk Transfer Standalone to Collection**: Memindahkan/menyalin banyak mock endpoint sekaligus antar workspace atau koleksi.
+- [x] **Mock Endpoint Naming**: Memberikan nama (label) khusus pada setiap mock endpoint untuk manajemen yang lebih teratur.
 
 ### Kolaborasi & Workflow
 - [x] **Notification System**: In-app notifications saat koleksi diupdate member lain.

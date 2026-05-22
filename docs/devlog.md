@@ -1,4 +1,28 @@
 
+## [2026-05-22] — Mock Server Enhancements & Bulk Transfer
+**Fase:** Fase 7 — Kolaborasi Lanjutan & Mock Pro
+**Dikerjakan oleh:** Waluyo
+**Status:** ✅ Selesai
+
+### Yang Dikerjakan
+- **Mock Endpoint Naming**: Menambahkan field `name` pada `MockEndpoint` untuk memudahkan identifikasi mock (didukung oleh migrasi DB).
+- **Standalone Mock Transfer**: Mengimplementasikan fitur transfer mock endpoint tunggal maupun bulk dari Standalone ke Collection (dan sebaliknya).
+- **Universal Mock Transfer API**: Membuat endpoint API universal untuk menangani perpindahan mock lintas tim, koleksi, maupun standalone.
+- **Postman Import Improvement**: Memperbaiki logika import Postman v2.1 agar contoh respon (responses/examples) pada level item diproses dengan benar.
+- **UI UX Enhancements**:
+    - Auto-scroll ke bawah saat menambahkan mock endpoint baru.
+    - Context menu clamping untuk mencegah overflow pada viewport.
+    - Penanganan reset URL server jika input kosong dan penambahan notifikasi sukses (toast).
+- **Version Bump**: Menaikkan versi aplikasi Desktop ke `1.6.3` dan Landing Page ke `1.1.3`.
+
+### Perubahan File
+- `backend/internal/api/mock_server.go` & `collection.go` — Logic API & Import.
+- `backend/internal/repository/models.go` & `migrations/000027_...` — DB Schema.
+- `apps/desktop/src/renderer/src/...` — Frontend implementation & UI components.
+- `apps/desktop/package.json` & `apps/landing-page/package.json` — Version updates.
+
+---
+
 ## [2026-05-18] — Go SDK for Wapbolt
 **Fase:** Fase Ekstensi & Ekosistem
 **Dikerjakan oleh:** Gemini

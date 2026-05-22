@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { Settings, Globe, X, Check, Type, Sun, Moon, Monitor } from 'lucide-react'
 import { getBaseUrl, setBaseUrl } from '../../api/client'
 import { useAppStore } from '../../store/useAppStore'
+import { toast } from 'sonner'
 
 interface ServerSettingsModalProps {
   onClose: () => void
@@ -12,8 +13,8 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({ onClos
   const { fontSize, setFontSize, theme, setTheme } = useAppStore()
 
   const handleSave = () => {
-    if (!url.trim()) return
-    setBaseUrl(url.trim())
+    setBaseUrl(url)
+    toast.success(url.trim() ? 'Server URL updated' : 'Server URL reset to default')
     onClose()
   }
 
