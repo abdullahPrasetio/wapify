@@ -400,6 +400,15 @@ const FolderItem = ({
           )}
           <FolderIcon size={12} className="text-muted mr-2 shrink-0" />
           <span className="truncate flex-1">{folder.name}</span>
+          <button
+            onClick={(e): void => { e.stopPropagation(); e.preventDefault(); handleContextMenu(e) }}
+            className="opacity-0 group-hover:opacity-100 shrink-0 p-0.5 rounded hover:bg-border text-muted hover:text-text transition-all"
+            title="Folder actions"
+          >
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
+              <circle cx="2" cy="6" r="1.2"/><circle cx="6" cy="6" r="1.2"/><circle cx="10" cy="6" r="1.2"/>
+            </svg>
+          </button>
         </div>
 
         {contextMenu && (
