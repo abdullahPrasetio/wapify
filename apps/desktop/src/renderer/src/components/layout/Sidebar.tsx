@@ -691,7 +691,7 @@ export const Sidebar = (): React.JSX.Element => {
   )
 
   useLayoutEffect(() => {
-    window.api.getAppVersion().then(setAppVersion)
+    window.api?.getAppVersion().then(setAppVersion)
   }, [])
 
   useEffect(() => { fetchTeams() }, [fetchTeams])

@@ -11,7 +11,7 @@ export const LoginPage = (): React.JSX.Element => {
   const [appVersion, setAppVersion] = useState('')
 
   useEffect(() => {
-    window.api.getAppVersion().then(setAppVersion)
+    window.api?.getAppVersion().then(setAppVersion)
   }, [])
 
   useEffect(() => {

@@ -388,6 +388,7 @@ export const DocumentationPanel: React.FC<DocumentationPanelProps> = ({
       }
 
       // 3. Get Current Page to get version
+      if (!window.api) { toast.error('Confluence sync requires the Electron desktop app.'); return }
       const pageData = await window.api.getConfluencePage({
         baseUrl: base_url,
         email: confluence_email,
@@ -586,7 +587,7 @@ export const DocumentationPanel: React.FC<DocumentationPanelProps> = ({
       const content = generateContent()
 
       // 5. Update Page
-      const updateRes = await window.api.updateConfluencePage({
+      const updateRes = await window.api!.updateConfluencePage({
         baseUrl: base_url,
         email: confluence_email,
         pat: confluence_pat,
