@@ -15,6 +15,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/rs/zerolog/log"
 	"github.com/waluyo/wapbolt-backend/internal/repository"
+	"gorm.io/gorm"
 )
 
 // SetupMockServerRoutes registers mock server endpoints
@@ -33,9 +34,14 @@ func SetupMockServerRoutes(app *fiber.App) {
 	teamMock := app.Group("/api/v1/workspaces/:teamId/mock", mockAuthMiddleware)
 	teamMock.Get("/endpoints", listStandaloneEndpoints)
 	teamMock.Post("/endpoints", createStandaloneEndpoint)
-	teamMock.Put("/endpoints/:endpointId", updateMockEndpoint)    // reusing same handler
-	teamMock.Delete("/endpoints/:endpointId", deleteMockEndpoint) // reusing same handler
+	teamMock.Put("/endpoints/:endpointId", updateStandaloneMockEndpoint)
+	teamMock.Delete("/endpoints/:endpointId", deleteMockEndpoint)
 	teamMock.Patch("/endpoints/:endpointId/mode", updateMockMode)
+	teamMock.Post("/endpoints/:endpointId/transfer", transferStandaloneMock)
+	teamMock.Post("/endpoints/transfer-bulk", bulkTransferStandaloneMocks)
+
+	// 3b. Universal single-endpoint transfer (collection ↔ standalone, cross-team)
+	app.Post("/api/v1/mock/endpoints/:endpointId/transfer", mockAuthMiddleware, transferMockEndpoint)
 
 	// 3. Scenario CRUD (Universal)
 	app.Get("/api/v1/mock-endpoints/:endpointId/scenarios", mockAuthMiddleware, listMockScenarios)
@@ -97,6 +103,7 @@ func listMockEndpoints(c *fiber.Ctx) error {
 }
 
 type createMockEndpointInput struct {
+	Name            string                 `json:"name"`
 	Method          string                 `json:"method"`
 	Path            string                 `json:"path"`
 	StatusCode      int                    `json:"status_code"`
@@ -104,6 +111,7 @@ type createMockEndpointInput struct {
 	ResponseBody    string                 `json:"response_body"`
 	DelayMs         int                    `json:"delay_ms"`
 	IsActive        *bool                  `json:"is_active"`
+	CollectionID    *uint                  `json:"collection_id"`
 }
 
 func createMockEndpoint(c *fiber.Ctx) error {
@@ -170,6 +178,9 @@ func updateMockEndpoint(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid body", "code": "INVALID_BODY"})
 	}
 
+	if input.Name != "" {
+		endpoint.Name = input.Name
+	}
 	if input.Method != "" {
 		endpoint.Method = strings.ToUpper(input.Method)
 	}
@@ -194,6 +205,361 @@ func updateMockEndpoint(c *fiber.Ctx) error {
 	}
 
 	return c.JSON(endpoint)
+}
+
+func updateStandaloneMockEndpoint(c *fiber.Ctx) error {
+	teamID := uint(parseUint(c.Params("teamId")))
+	endpointID := c.Params("endpointId")
+
+	var endpoint repository.MockEndpoint
+	if err := repository.DB.First(&endpoint, endpointID).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Endpoint not found", "code": "NOT_FOUND"})
+	}
+	if !canAccessTeam(c, teamID) {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Forbidden", "code": "FORBIDDEN"})
+	}
+
+	var input createMockEndpointInput
+	if err := c.BodyParser(&input); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid body", "code": "INVALID_BODY"})
+	}
+
+	if input.Name != "" {
+		endpoint.Name = input.Name
+	}
+	if input.Method != "" {
+		endpoint.Method = strings.ToUpper(input.Method)
+	}
+	if input.Path != "" {
+		endpoint.Path = normalizePath(input.Path)
+	}
+	if input.StatusCode > 0 {
+		endpoint.StatusCode = input.StatusCode
+	}
+	endpoint.ResponseBody = input.ResponseBody
+	if input.ResponseHeaders != nil {
+		endpoint.ResponseHeaders = repository.JSONB(input.ResponseHeaders)
+	}
+	if input.IsActive != nil {
+		endpoint.IsActive = *input.IsActive
+	}
+	endpoint.DelayMs = input.DelayMs
+	endpoint.UpdatedAt = time.Now()
+
+	if err := repository.DB.Save(&endpoint).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to update", "code": "DB_ERROR"})
+	}
+
+	return c.JSON(endpoint)
+}
+
+type transferMockInput struct {
+	CollectionID uint   `json:"collection_id"`
+	Mode         string `json:"mode"` // "copy" or "move"
+}
+
+func transferStandaloneMock(c *fiber.Ctx) error {
+	teamID := uint(parseUint(c.Params("teamId")))
+	endpointID := c.Params("endpointId")
+
+	if !canAccessTeam(c, teamID) {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Forbidden", "code": "FORBIDDEN"})
+	}
+
+	var input transferMockInput
+	if err := c.BodyParser(&input); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid body", "code": "INVALID_BODY"})
+	}
+	if input.CollectionID == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "collection_id is required", "code": "VALIDATION_ERROR"})
+	}
+	if input.Mode != "copy" && input.Mode != "move" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "mode must be 'copy' or 'move'", "code": "VALIDATION_ERROR"})
+	}
+
+	var col repository.Collection
+	if err := repository.DB.First(&col, input.CollectionID).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Collection not found", "code": "NOT_FOUND"})
+	}
+	if !canAccessTeam(c, col.TeamID) {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Forbidden", "code": "FORBIDDEN"})
+	}
+
+	var src repository.MockEndpoint
+	if err := repository.DB.Preload("Scenarios").First(&src, endpointID).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Endpoint not found", "code": "NOT_FOUND"})
+	}
+
+	var newEndpoint repository.MockEndpoint
+
+	err := repository.DB.Transaction(func(tx *gorm.DB) error {
+		colID := input.CollectionID
+		newEndpoint = repository.MockEndpoint{
+			Name:            src.Name,
+			CollectionID:    &colID,
+			TeamID:          nil,
+			Method:          src.Method,
+			Path:            src.Path,
+			StatusCode:      src.StatusCode,
+			ResponseHeaders: src.ResponseHeaders,
+			ResponseBody:    src.ResponseBody,
+			DelayMs:         src.DelayMs,
+			IsActive:        src.IsActive,
+			EvaluationMode:  src.EvaluationMode,
+		}
+		if err := tx.Create(&newEndpoint).Error; err != nil {
+			return err
+		}
+
+		// Copy scenarios
+		for _, s := range src.Scenarios {
+			scenario := repository.MockScenario{
+				MockEndpointID:  newEndpoint.ID,
+				Name:            s.Name,
+				StatusCode:      s.StatusCode,
+				ResponseHeaders: s.ResponseHeaders,
+				ResponseBody:    s.ResponseBody,
+				Conditions:      s.Conditions,
+				ResponseType:    s.ResponseType,
+				FileName:        s.FileName,
+				FileBase64:      s.FileBase64,
+				IsDefault:       s.IsDefault,
+				OrderIndex:      s.OrderIndex,
+			}
+			if err := tx.Create(&scenario).Error; err != nil {
+				return err
+			}
+		}
+
+		if input.Mode == "move" {
+			return tx.Delete(&repository.MockEndpoint{}, src.ID).Error
+		}
+		return nil
+	})
+
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error(), "code": "DB_ERROR"})
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(newEndpoint)
+}
+
+// transferMockEndpoint is a universal handler: standalone↔collection, cross-team, cross-collection
+type universalTransferInput struct {
+	TargetType string `json:"target_type"` // "standalone" or "collection"
+	TargetID   uint   `json:"target_id"`   // team_id if standalone, collection_id if collection
+	Mode       string `json:"mode"`        // "copy" or "move"
+}
+
+func transferMockEndpoint(c *fiber.Ctx) error {
+	endpointID := c.Params("endpointId")
+
+	var input universalTransferInput
+	if err := c.BodyParser(&input); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid body", "code": "INVALID_BODY"})
+	}
+	if input.TargetType != "standalone" && input.TargetType != "collection" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "target_type must be 'standalone' or 'collection'", "code": "VALIDATION_ERROR"})
+	}
+	if input.TargetID == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "target_id is required", "code": "VALIDATION_ERROR"})
+	}
+	if input.Mode != "copy" && input.Mode != "move" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "mode must be 'copy' or 'move'", "code": "VALIDATION_ERROR"})
+	}
+
+	if input.TargetType == "collection" {
+		var col repository.Collection
+		if err := repository.DB.First(&col, input.TargetID).Error; err != nil {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Collection not found", "code": "NOT_FOUND"})
+		}
+		if !canAccessTeam(c, col.TeamID) {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Forbidden", "code": "FORBIDDEN"})
+		}
+	} else {
+		if !canAccessTeam(c, input.TargetID) {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Forbidden", "code": "FORBIDDEN"})
+		}
+	}
+
+	var src repository.MockEndpoint
+	if err := repository.DB.Preload("Scenarios").First(&src, endpointID).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Endpoint not found", "code": "NOT_FOUND"})
+	}
+
+	var newEndpoint repository.MockEndpoint
+	err := repository.DB.Transaction(func(tx *gorm.DB) error {
+		newEndpoint = repository.MockEndpoint{
+			Name:           src.Name,
+			Method:         src.Method,
+			Path:           src.Path,
+			StatusCode:     src.StatusCode,
+			ResponseHeaders: src.ResponseHeaders,
+			ResponseBody:   src.ResponseBody,
+			DelayMs:        src.DelayMs,
+			IsActive:       src.IsActive,
+			EvaluationMode: src.EvaluationMode,
+		}
+		if input.TargetType == "collection" {
+			colID := input.TargetID
+			newEndpoint.CollectionID = &colID
+			newEndpoint.TeamID = nil
+		} else {
+			tid := input.TargetID
+			newEndpoint.TeamID = &tid
+			newEndpoint.CollectionID = nil
+		}
+		if err := tx.Create(&newEndpoint).Error; err != nil {
+			return err
+		}
+		for _, s := range src.Scenarios {
+			scenario := repository.MockScenario{
+				MockEndpointID:  newEndpoint.ID,
+				Name:            s.Name,
+				StatusCode:      s.StatusCode,
+				ResponseHeaders: s.ResponseHeaders,
+				ResponseBody:    s.ResponseBody,
+				Conditions:      s.Conditions,
+				ResponseType:    s.ResponseType,
+				FileName:        s.FileName,
+				FileBase64:      s.FileBase64,
+				IsDefault:       s.IsDefault,
+				OrderIndex:      s.OrderIndex,
+			}
+			if err := tx.Create(&scenario).Error; err != nil {
+				return err
+			}
+		}
+		if input.Mode == "move" {
+			if err := tx.Where("mock_endpoint_id = ?", src.ID).Delete(&repository.MockScenario{}).Error; err != nil {
+				return err
+			}
+			return tx.Delete(&repository.MockEndpoint{}, src.ID).Error
+		}
+		return nil
+	})
+
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error(), "code": "DB_ERROR"})
+	}
+	return c.Status(fiber.StatusCreated).JSON(newEndpoint)
+}
+
+type bulkTransferInput struct {
+	EndpointIDs []uint `json:"endpoint_ids"` // empty = all standalone in team
+	TargetType  string `json:"target_type"`  // "standalone" or "collection"
+	TargetID    uint   `json:"target_id"`
+	Mode        string `json:"mode"` // "copy" or "move"
+}
+
+func bulkTransferStandaloneMocks(c *fiber.Ctx) error {
+	teamID := uint(parseUint(c.Params("teamId")))
+	if !canAccessTeam(c, teamID) {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Forbidden", "code": "FORBIDDEN"})
+	}
+
+	var input bulkTransferInput
+	if err := c.BodyParser(&input); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid body", "code": "INVALID_BODY"})
+	}
+	if input.TargetType != "standalone" && input.TargetType != "collection" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid target_type", "code": "VALIDATION_ERROR"})
+	}
+	if input.TargetID == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "target_id is required", "code": "VALIDATION_ERROR"})
+	}
+	if input.Mode != "copy" && input.Mode != "move" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "mode must be 'copy' or 'move'", "code": "VALIDATION_ERROR"})
+	}
+
+	if input.TargetType == "collection" {
+		var col repository.Collection
+		if err := repository.DB.First(&col, input.TargetID).Error; err != nil {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Collection not found", "code": "NOT_FOUND"})
+		}
+		if !canAccessTeam(c, col.TeamID) {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Forbidden", "code": "FORBIDDEN"})
+		}
+	} else {
+		if !canAccessTeam(c, input.TargetID) {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Forbidden", "code": "FORBIDDEN"})
+		}
+	}
+
+	var endpoints []repository.MockEndpoint
+	query := repository.DB.Preload("Scenarios").Where("team_id = ? AND collection_id IS NULL", teamID)
+	if len(input.EndpointIDs) > 0 {
+		query = query.Where("id IN ?", input.EndpointIDs)
+	}
+	query.Find(&endpoints)
+
+	if len(endpoints) == 0 {
+		return c.JSON(fiber.Map{"message": "No endpoints to transfer", "count": 0})
+	}
+
+	count := 0
+	err := repository.DB.Transaction(func(tx *gorm.DB) error {
+		for _, src := range endpoints {
+			newEp := repository.MockEndpoint{
+				Name:           src.Name,
+				Method:         src.Method,
+				Path:           src.Path,
+				StatusCode:     src.StatusCode,
+				ResponseHeaders: src.ResponseHeaders,
+				ResponseBody:   src.ResponseBody,
+				DelayMs:        src.DelayMs,
+				IsActive:       src.IsActive,
+				EvaluationMode: src.EvaluationMode,
+			}
+			if input.TargetType == "collection" {
+				colID := input.TargetID
+				newEp.CollectionID = &colID
+				newEp.TeamID = nil
+			} else {
+				tid := input.TargetID
+				newEp.TeamID = &tid
+				newEp.CollectionID = nil
+			}
+			if err := tx.Create(&newEp).Error; err != nil {
+				return err
+			}
+			for _, s := range src.Scenarios {
+				scenario := repository.MockScenario{
+					MockEndpointID:  newEp.ID,
+					Name:            s.Name,
+					StatusCode:      s.StatusCode,
+					ResponseHeaders: s.ResponseHeaders,
+					ResponseBody:    s.ResponseBody,
+					Conditions:      s.Conditions,
+					ResponseType:    s.ResponseType,
+					FileName:        s.FileName,
+					FileBase64:      s.FileBase64,
+					IsDefault:       s.IsDefault,
+					OrderIndex:      s.OrderIndex,
+				}
+				if err := tx.Create(&scenario).Error; err != nil {
+					return err
+				}
+			}
+			count++
+		}
+		if input.Mode == "move" {
+			ids := make([]uint, len(endpoints))
+			for i, e := range endpoints {
+				ids[i] = e.ID
+			}
+			if err := tx.Where("mock_endpoint_id IN ?", ids).Delete(&repository.MockScenario{}).Error; err != nil {
+				return err
+			}
+			return tx.Where("id IN ?", ids).Delete(&repository.MockEndpoint{}).Error
+		}
+		return nil
+	})
+
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error(), "code": "DB_ERROR"})
+	}
+	return c.JSON(fiber.Map{"message": fmt.Sprintf("Transferred %d endpoints", count), "count": count})
 }
 
 func deleteMockEndpoint(c *fiber.Ctx) error {
@@ -643,6 +1009,7 @@ func createStandaloneEndpoint(c *fiber.Ctx) error {
 	}
 
 	endpoint := repository.MockEndpoint{
+		Name:            input.Name,
 		TeamID:          &teamID,
 		CollectionID:    nil,
 		Method:          strings.ToUpper(input.Method),

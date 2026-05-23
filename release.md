@@ -1,41 +1,36 @@
-# Wapbolt Release v1.5.1
+# Wapbolt Release Notes
 
-**Tanggal:** 12 Mei 2026
-**Status:** Stable Release
+## [v1.6.4] — 2026-05-22
+### 🚀 Sidebar Refactor & Improved Save Flow
+- **DND Refactor**: Menggunakan `closestCenter` dan Drag Ghost Overlay untuk pengaturan koleksi yang lebih presisi.
+- **Recursive Save Location**: Modal penyimpanan request kini mendukung pemilihan folder via hierarchical tree.
+- **Advanced Tab Management**: Fitur baru "Close Other Tabs", "Duplicate Tab", dan "Force Close".
+- **Backend Robustness**: Konversi data ke JSONB yang lebih aman untuk mencegah panic.
 
----
+## [v1.6.3] — 2026-05-18
+### 🛡️ Confluence Resilience & Variables
+- **Firewall Bypass**: Mendukung Method Tunneling (POST-as-PUT) dan bypass CSRF untuk lingkungan korporat ketat.
+- **Environment Support**: Resolusi otomatis variabel `{{variable}}` pada seluruh konten sinkronisasi.
+- **Improved UX**: Perbaikan bug `TypeError` versi halaman dan sanitasi URL yang lebih cerdas.
 
-## 🚀 Apa yang Baru?
+## [v1.6.2] — 2026-05-18
+### ✨ Enhanced Confluence Sync
+- **Branding Footer**: Menambahkan footer otomatis *"Generated using aplikasi wapbolt by temancode"* pada sinkronisasi Confluence.
+- **Dynamic Timestamp**: Timestamp sinkronisasi menggunakan format lokal Indonesia.
+- **Quick Support Links**: Integrasi link Landing Page dan GitHub Support di setiap halaman dokumentasi.
 
-### 🛡️ Structured API Validation System (V2)
-Kami telah memigrasikan sistem validasi API dari pendekatan berbasis komentar inline (`//`) ke sistem metadata terstruktur. Ini memberikan stabilitas penuh dan menghilangkan risiko bug pada URL atau nilai string yang mengandung karakter serupa komentar.
+## [v1.6.1] — 2026-05-13
+### 🌍 Shared Environments
+- **Global Variables**: Dukungan environment yang dapat dibagikan di seluruh workspace.
+- **UI Redesign**: Profil user baru dengan Avatar Dropdown dan pengelompokkan menu yang lebih rapi.
+- **Security**: Proteksi read-only untuk environment global bagi pengguna non-admin.
 
-*   **Tab Validation Baru:** Antarmuka khusus di Request Builder untuk mengatur aturan validasi (Headers & Body).
-*   **Auto-Sync Fields:** Baris validasi digenerate otomatis berdasarkan field yang ada di Headers dan JSON Body Anda.
-*   **Penyimpanan JSONB:** Semua aturan validasi sekarang disimpan dalam kolom `field_validations` di database PostgreSQL.
-
----
-
-## 📄 Peningkatan Dokumentasi
-
-Dokumentasi API sekarang jauh lebih profesional dan informatif:
-*   **Tampilan Terstruktur:** Validasi (Required, Email, Min/Max) ditampilkan sebagai badge yang bersih.
-*   **Kolom Deskripsi Terpisah:** Kami menambahkan kolom **Description** khusus agar penjelasan field lebih mudah dibaca tanpa berdesakan dengan rule validasi.
-*   **Ukuran Teks Optimal:** Penyesuaian ukuran font dan lebar kolom untuk kenyamanan membaca dokumentasi teknis yang panjang.
-
----
-
-## 🛠️ Perbaikan & Optimasi
-
-*   **Cleanup Legacy Logic:** Menghapus seluruh logika `stripInlineComments` di Main Process yang sebelumnya memperlambat eksekusi request.
-*   **Fix TypeScript Integrity:** Pembersihan tipe data pada Store dan Main Area untuk memastikan build aplikasi lebih stabil.
-*   **CORS-Free Execution:** Pengoptimalan eksekusi request via Electron Main Process tanpa gangguan parsing komentar.
-
----
-
-## 📦 Cara Update
-1. Jalankan migrasi database di backend: `make migrate-up`.
-2. Lakukan build ulang aplikasi desktop atau jalankan di mode development.
+## [v1.6.0] — 2026-05-12
+### 📚 Confluence Integration
+- **Full Sync**: Sinkronisasi dokumentasi API langsung ke Confluence (Cloud & Server).
+- **Authentication**: Mendukung Personal Access Token dan Atlassian API Token.
+- **Auto-Documentation**: Otomatis generate TOC, HTTP Method colors, dan cURL examples.
 
 ---
-*Dibuat dengan ❤️ oleh tim WapBolt.*
+**Wapbolt — API Testing, Built for Teams.**
+[https://wapbolt.temancode.my.id](https://wapbolt.temancode.my.id)

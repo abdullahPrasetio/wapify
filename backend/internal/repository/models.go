@@ -89,6 +89,8 @@ type Collection struct {
 
 	Team      *Team `gorm:"foreignKey:TeamID" json:"-"`
 	CreatedBy *User `gorm:"foreignKey:CreatedByID;references:ID" json:"-"`
+
+	ConfluencePageID string `gorm:"column:confluence_page_id" json:"confluence_page_id"`
 }
 
 type Folder struct {
@@ -149,7 +151,8 @@ type Environment struct {
 	ID        uint      `gorm:"primaryKey" json:"id"`
 	Name      string    `gorm:"not null" json:"name"`
 	Variables JSONB     `gorm:"type:jsonb;default:'{}'" json:"variables"`
-	TeamID    uint      `gorm:"not null" json:"team_id"`
+	TeamID    *uint     `gorm:"column:team_id" json:"team_id"`
+	IsGlobal  bool      `gorm:"column:is_global;default:false" json:"is_global"`
 	CreatedAt time.Time `json:"created_at"`
 
 	Team *Team `gorm:"foreignKey:TeamID" json:"-"`
@@ -221,6 +224,7 @@ type ActivityLog struct {
 
 type MockEndpoint struct {
 	ID               uint      `gorm:"primaryKey" json:"id"`
+	Name             string    `gorm:"column:name" json:"name"`
 	CollectionID     *uint     `gorm:"column:collection_id" json:"collection_id"`
 	TeamID           *uint     `gorm:"column:team_id" json:"team_id"`
 	RequestID        *uint     `gorm:"column:request_id" json:"request_id"`
@@ -279,5 +283,18 @@ type Notification struct {
 
 	User   *User `gorm:"foreignKey:UserID" json:"-"`
 	Sender *User `gorm:"foreignKey:SenderID" json:"sender,omitempty"`
+}
+
+type UserConfluenceSetting struct {
+	UserID             uint      `gorm:"primaryKey;column:user_id" json:"user_id"`
+	BaseURL            string    `gorm:"column:base_url" json:"base_url"`
+	ConfluenceEmail    string    `gorm:"column:confluence_email" json:"confluence_email"`
+	ConfluencePAT      string    `gorm:"column:confluence_pat" json:"confluence_pat"`
+	ConfluenceAPIToken string    `gorm:"column:confluence_api_token" json:"confluence_api_token"`
+	SpaceKey           string    `gorm:"column:space_key" json:"space_key"`
+	AuthMethod         string    `gorm:"column:auth_method;default:cloud" json:"auth_method"`
+	UpdatedAt          time.Time `gorm:"column:updated_at" json:"updated_at"`
+
+	User *User `gorm:"foreignKey:UserID" json:"-"`
 }
 

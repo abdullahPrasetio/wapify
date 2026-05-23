@@ -22,6 +22,25 @@ interface WapboltAPI {
   deleteToken: () => Promise<void>
   getAppVersion: () => Promise<string>
   parseCurl: (curlCommand: string) => Promise<any>
+  getConfluencePage: (config: { 
+    baseUrl: string, 
+    email?: string, 
+    pat?: string,
+    apiToken?: string,
+    authMethod?: 'pat' | 'cloud',
+    pageId: string 
+  }) => Promise<any>
+  updateConfluencePage: (config: {
+    baseUrl: string
+    email?: string
+    pat?: string
+    apiToken?: string
+    authMethod?: 'pat' | 'cloud'
+    pageId: string
+    title: string
+    content: string
+    version: number
+  }) => Promise<any>
 }
 
 declare global {

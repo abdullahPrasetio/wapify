@@ -22,17 +22,21 @@ import {
   X,
   Download,
   Copy,
-  GripVertical, Key, DatabaseZap,
-  Zap, Heart, ListTree
+  Key, DatabaseZap,
+  Zap, Heart, ListTree,
+  Cloud
 } from 'lucide-react'
-import { useState, useEffect, useLayoutEffect, useMemo } from 'react'
+import { useState, useEffect, useLayoutEffect, useMemo, useRef, createContext, useContext } from 'react'
 import {
   DndContext,
-  closestCorners,
+  closestCenter,
   PointerSensor,
   useSensor,
   useSensors,
   DragEndEvent,
+  DragMoveEvent,
+  DragStartEvent,
+  DragOverlay,
   useDroppable
 } from '@dnd-kit/core'
 import {
@@ -41,6 +45,7 @@ import {
   useSortable
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 
 import { useAuthStore } from '../../store/useAuthStore'
 import { useDataStore } from '../../store/useDataStore'
@@ -52,10 +57,25 @@ import { EnvironmentModal } from '../modals/EnvironmentModal'
 import { ServerSettingsModal } from '../modals/ServerSettingsModal'
 import { ChangePasswordModal } from "../modals/ChangePasswordModal"
 import { StandaloneMockPanel } from "./StandaloneMockPanel"
+import { ConfluenceSettingsModal } from '../modals/ConfluenceSettingsModal'
+import { UserConfluenceSettingsModal } from '../modals/UserConfluenceSettingsModal'
+import { CollectionModal } from '../modals/CollectionModal'
+import type { ApiRequest, Collection, Folder, RequestExample } from '../../types'
 import { DocumentationPanel } from './DocumentationPanel'
 import { MockServerPanel } from './MockServerPanel'
 import { NotificationBell } from './NotificationBell'
-import type { ApiRequest, Collection, Folder, RequestExample } from '../../types'
+
+interface DragZoneInfo {
+  id: string
+  zone: 'sort-top' | 'sort-bottom' | 'nest'
+}
+
+interface DragStateContextValue {
+  activeDragId: string | null
+  overInfo: DragZoneInfo | null
+}
+
+const DragStateContext = createContext<DragStateContextValue>({ activeDragId: null, overInfo: null })
 
 const METHOD_COLORS: Record<string, string> = {
   GET: 'text-success',
@@ -108,76 +128,39 @@ const SortableItem = ({ id, children, disabled, type = 'request' }: SortableItem
     transform,
     transition,
     isDragging,
-    isOver,
-    over
   } = useSortable({ id, disabled })
 
-  const [dropMode, setDropMode] = useState<'sort-top' | 'sort-bottom' | 'nest' | null>(null)
-
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isOver || isDragging) return
-    const rect = e.currentTarget.getBoundingClientRect()
-    const x = e.clientX - rect.left
-    const y = e.clientY - rect.top
-
-    // LOGIC: Left 30% of the width is ALWAYS sorting
-    const isLeftSide = x < rect.width * 0.3
-
-    if (type === 'folder') {
-      if (isLeftSide) {
-        if (y < rect.height / 2) setDropMode('sort-top')
-        else setDropMode('sort-bottom')
-      } else {
-        setDropMode('nest')
-      }
-    } else {
-      if (y < rect.height / 2) setDropMode('sort-top')
-      else setDropMode('sort-bottom')
-    }
-  }
-
-  const handleMouseLeave = () => setDropMode(null)
+  const { overInfo } = useContext(DragStateContext)
+  const isOverSelf = overInfo?.id === id
 
   const style = {
     transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.3 : 1,
-    zIndex: isDragging ? 100 : 'auto'
+    transition: transition ?? 'transform 150ms ease',
+    opacity: isDragging ? 0 : 1,
   }
 
-  const isOverSelf = isOver && over?.id === id
-
   return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className="relative group/sortable"
-      onMouseMove={handleMouseMove}
-      onMouseLeave={handleMouseLeave}
-    >
-      {/* Visual Indicators */}
+    <div ref={setNodeRef} style={style} className="relative group/sortable">
+      {/* Visual drop indicators — driven by DragStateContext, not mousemove */}
       {isOverSelf && !isDragging && (
         <>
-          {dropMode === 'sort-top' && (
-            <div className="absolute -top-0.5 left-0 right-0 h-0.5 bg-info z-30 rounded-full shadow-[0_0_8px_rgba(59,130,246,0.5)]" />
+          {overInfo?.zone === 'sort-top' && (
+            <div className="absolute -top-0.5 left-2 right-2 h-0.5 bg-primary z-30 rounded-full shadow-[0_0_6px_rgba(99,102,241,0.6)]">
+              <div className="absolute -left-1 -top-1 w-2 h-2 rounded-full bg-primary" />
+            </div>
           )}
-          {dropMode === 'sort-bottom' && (
-            <div className="absolute -bottom-0.5 left-0 right-0 h-0.5 bg-info z-30 rounded-full shadow-[0_0_8px_rgba(59,130,246,0.5)]" />
+          {overInfo?.zone === 'sort-bottom' && (
+            <div className="absolute -bottom-0.5 left-2 right-2 h-0.5 bg-primary z-30 rounded-full shadow-[0_0_6px_rgba(99,102,241,0.6)]">
+              <div className="absolute -left-1 -top-1 w-2 h-2 rounded-full bg-primary" />
+            </div>
           )}
-          {dropMode === 'nest' && type === 'folder' && (
-            <div className="absolute inset-0 bg-primary/20 border border-primary/40 rounded z-10 pointer-events-none" />
+          {overInfo?.zone === 'nest' && type === 'folder' && (
+            <div className="absolute inset-0 bg-primary/15 border border-primary/50 rounded z-10 pointer-events-none" />
           )}
         </>
       )}
 
-      <div
-        {...attributes}
-        {...listeners}
-        className="absolute left-[-10px] top-1.5 opacity-0 group-hover/sortable:opacity-40 cursor-grab active:cursor-grabbing p-1 z-20"
-      >
-        <GripVertical size={10} />
-      </div>
-      <div className="relative z-20">
+      <div {...attributes} {...listeners} className="relative z-10">
         {children}
       </div>
     </div>
@@ -494,7 +477,8 @@ const CollectionItem = ({ collection }: { collection: Collection }): React.JSX.E
     deleteRequest,
     duplicateRequest,
     exportCollection,
-    runCollection
+    runCollection,
+    updateCollection
   } = useDataStore()
   const { setActiveView } = useAppStore()
 
@@ -504,6 +488,7 @@ const CollectionItem = ({ collection }: { collection: Collection }): React.JSX.E
   const [showDocs, setShowDocs] = useState(false)
   const [showMockServer, setShowMockServer] = useState(false)
   const [showRunner, setShowRunner] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
   const [runnerState, setRunnerState] = useState<'idle' | 'running' | 'finished'>('idle')
   const [runResults, setRunResults] = useState<any[]>([])
 
@@ -576,6 +561,7 @@ const CollectionItem = ({ collection }: { collection: Collection }): React.JSX.E
             { label: 'Run Collection', icon: PlayCircle, onClick: (): void => setShowRunner(true) },
             { label: 'View Documentation', icon: BookOpen, onClick: (): void => setShowDocs(true) },
             { label: 'Mock Server', icon: Server, onClick: (): void => setShowMockServer(true) },
+            { label: 'Collection Settings', icon: Settings, onClick: (): void => setShowSettings(true) },
             { label: 'Export Collection', icon: Download, onClick: (): Promise<void> => exportCollection(collection.id) },
             { label: 'Delete Collection', icon: Trash2, onClick: handleDeleteCollection, variant: 'danger' }
           ]}
@@ -623,6 +609,21 @@ const CollectionItem = ({ collection }: { collection: Collection }): React.JSX.E
         </div>
       )}
 
+      {showSettings && (
+        <CollectionModal
+          isOpen={showSettings}
+          onClose={() => setShowSettings(false)}
+          title="Collection Settings"
+          submitText="Save Changes"
+          initialData={{
+            name: collection.name,
+            description: collection.description,
+            confluence_page_id: collection.confluence_page_id || ''
+          }}
+          onSubmit={(data) => updateCollection(collection.id, data.name, data.description, data.confluence_page_id)}
+        />
+      )}
+
       <PromptModal
         isOpen={promptType !== null}
         title={promptType === 'request' ? 'New Request' : 'New Folder'}
@@ -651,8 +652,10 @@ const CollectionItem = ({ collection }: { collection: Collection }): React.JSX.E
 export const Sidebar = (): React.JSX.Element => {
   const { user, logout } = useAuthStore()
   const [showServerSettings, setShowServerSettings] = useState(false)
+  const [showUserConfluence, setShowUserConfluence] = useState(false)
   const [showChangePassword, setShowChangePassword] = useState(false)
   const [showStandaloneMock, setShowStandaloneMock] = useState(false)
+  const [showConfluenceSettings, setShowConfluenceSettings] = useState(false)
   const [appVersion, setAppVersion] = useState<string>('')
 
   const {
@@ -677,11 +680,13 @@ export const Sidebar = (): React.JSX.Element => {
   const [sidebarTab, setSidebarTab] = useState<'collections' | 'history'>('collections')
   const [isNewCollectionModalOpen, setIsNewCollectionModalOpen] = useState(false)
 
+  const [activeDragId, setActiveDragId] = useState<string | null>(null)
+  const [overInfo, setOverInfo] = useState<DragZoneInfo | null>(null)
+  const overInfoRef = useRef<DragZoneInfo | null>(null)
+
   const sensors = useSensors(
     useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 8,
-      },
+      activationConstraint: { delay: 300, tolerance: 5 },
     })
   )
 
@@ -694,22 +699,74 @@ export const Sidebar = (): React.JSX.Element => {
   useEffect(() => {
     const handleOpenSettings = () => setShowServerSettings(true)
     const handleOpenMock = () => setShowStandaloneMock(true)
+    const handleOpenConfluence = () => {
+      setShowUserConfluence(true)
+    }
 
     window.addEventListener('wapbolt:open-settings', handleOpenSettings)
     window.addEventListener('wapbolt:open-standalone-mock', handleOpenMock)
+    window.addEventListener('wapbolt:open-user-confluence-settings', handleOpenConfluence)
 
     return () => {
       window.removeEventListener('wapbolt:open-settings', handleOpenSettings)
       window.removeEventListener('wapbolt:open-standalone-mock', handleOpenMock)
+      window.removeEventListener('wapbolt:open-user-confluence-settings', handleOpenConfluence)
     }
   }, [])
 
   const activeTeam = teams.find((t) => t.id === activeTeamId)
-  const filteredCollections = collections.filter((c) => c.name.toLowerCase().includes(searchQuery.toLowerCase()))
+  const filteredCollections = collections
+    .filter((c) => c.name.toLowerCase().includes(searchQuery.toLowerCase()))
+    .sort((a, b) => a.name.localeCompare(b.name))
+
+  const computeDropZone = (
+    overIdStr: string,
+    overRect: DOMRect | null,
+    pointerX: number,
+    pointerY: number
+  ): 'sort-top' | 'sort-bottom' | 'nest' => {
+    if (!overRect) return 'sort-bottom'
+    const relX = pointerX - overRect.left
+    const relY = pointerY - overRect.top
+    if (overIdStr.startsWith('folder-')) {
+      // Left 30% = sort, right 70% = nest into folder
+      if (relX < overRect.width * 0.3) {
+        return relY < overRect.height / 2 ? 'sort-top' : 'sort-bottom'
+      }
+      return 'nest'
+    }
+    return relY < overRect.height / 2 ? 'sort-top' : 'sort-bottom'
+  }
+
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveDragId(event.active.id.toString())
+    setOverInfo(null)
+    overInfoRef.current = null
+  }
+
+  const handleDragMove = (event: DragMoveEvent) => {
+    const { over, activatorEvent, delta } = event
+    if (!over) {
+      setOverInfo(null)
+      overInfoRef.current = null
+      return
+    }
+    const overIdStr = over.id.toString()
+    const pointer = activatorEvent as MouseEvent
+    const pointerX = pointer.clientX + delta.x
+    const pointerY = pointer.clientY + delta.y
+    const overRect = over.rect as unknown as DOMRect | null
+    const zone = computeDropZone(overIdStr, overRect, pointerX, pointerY)
+    const info = { id: overIdStr, zone }
+    overInfoRef.current = info
+    setOverInfo(info)
+  }
 
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event
-    if (!over || active.id === over.id) return
+    setActiveDragId(null)
+    setOverInfo(null)
+    if (!over || active.id === over.id) { overInfoRef.current = null; return }
 
     const activeIdStr = active.id.toString()
     const overIdStr = over.id.toString()
@@ -721,29 +778,9 @@ export const Sidebar = (): React.JSX.Element => {
     const allRequests = state.requests
     const allFolders = Object.values(state.foldersByCollection).flat()
 
-    // DETECT DROP ZONE PRECISELY USING POINTER COORDINATES
-    const overRect = over.rect
-    const pointer = (event.activatorEvent as MouseEvent)
-    const pointerX = pointer.clientX + (event.delta.x || 0)
-    const pointerY = pointer.clientY + (event.delta.y || 0)
-
-    let dropZone: 'sort-top' | 'sort-bottom' | 'nest' = 'sort-bottom'
-
-    if (overRect) {
-      const relativeX = pointerX - overRect.left
-      const relativeY = pointerY - overRect.top
-      const isLeftSide = relativeX < (overRect.width * 0.3)
-
-      if (overIdStr.startsWith('folder-')) {
-        if (isLeftSide) {
-          dropZone = relativeY < overRect.height / 2 ? 'sort-top' : 'sort-bottom'
-        } else {
-          dropZone = 'nest'
-        }
-      } else {
-        dropZone = relativeY < overRect.height / 2 ? 'sort-top' : 'sort-bottom'
-      }
-    }
+    // Use the zone we tracked in onDragMove (most up-to-date)
+    const dropZone = overInfoRef.current?.zone ?? 'sort-bottom'
+    overInfoRef.current = null
 
     if (isRequest) {
       const targetFold = allFolders.find(f => `folder-${f.id}` === overIdStr)
@@ -836,11 +873,32 @@ export const Sidebar = (): React.JSX.Element => {
     }
   }
 
+  // Resolve active drag item info for DragOverlay ghost
+  const activeDragLabel = useMemo(() => {
+    if (!activeDragId) return null
+    const state = useDataStore.getState()
+    if (activeDragId.startsWith('request-')) {
+      const id = parseInt(activeDragId.split('-')[1])
+      const req = state.requests.find(r => r.id === id)
+      return req ? { type: 'request', method: req.method, name: req.name } : null
+    }
+    if (activeDragId.startsWith('folder-')) {
+      const id = parseInt(activeDragId.split('-')[1])
+      const folder = Object.values(state.foldersByCollection).flat().find(f => f.id === id)
+      return folder ? { type: 'folder', name: folder.name } : null
+    }
+    return null
+  }, [activeDragId])
+
   return (
+    <DragStateContext.Provider value={{ activeDragId, overInfo }}>
     <DndContext
       sensors={sensors}
-      collisionDetection={closestCorners}
+      collisionDetection={closestCenter}
+      onDragStart={handleDragStart}
+      onDragMove={handleDragMove}
       onDragEnd={handleDragEnd}
+      onDragCancel={() => { setActiveDragId(null); setOverInfo(null); overInfoRef.current = null }}
     >
       <div className="w-64 h-full bg-surface border-r border-border flex flex-col flex-shrink-0 overflow-hidden">
         <div className="h-14 flex items-center justify-between px-4 border-b border-border shrink-0">
@@ -883,6 +941,9 @@ export const Sidebar = (): React.JSX.Element => {
                   <div onClick={() => setActiveView('admin-donations')} className={`flex items-center gap-2 px-2 py-1.5 rounded text-xs cursor-pointer ${activeView === 'admin-donations' ? 'bg-primary/10 text-primary' : 'text-text hover:bg-background'}`}>
                     <Heart size={12} /> Donation Settings
                   </div>
+                  <div onClick={() => setShowConfluenceSettings(true)} className={`flex items-center gap-2 px-2 py-1.5 rounded text-xs cursor-pointer text-text hover:bg-background`}>
+                    <Cloud size={12} className="text-blue-500" /> Confluence Sync
+                  </div>
                 </div>
               )}
             </div>
@@ -914,9 +975,9 @@ export const Sidebar = (): React.JSX.Element => {
               <div onClick={() => setSidebarTab('collections')} className={`pb-2 text-xs font-bold uppercase tracking-wider cursor-pointer border-b-2 transition-all ${sidebarTab === 'collections' ? 'border-primary text-primary' : 'border-transparent text-muted hover:text-text'}`}>Collections</div>
               <div onClick={() => setSidebarTab('history')} className={`pb-2 text-xs font-bold uppercase tracking-wider cursor-pointer border-b-2 transition-all ${sidebarTab === 'history' ? 'border-primary text-primary' : 'border-transparent text-muted hover:text-text'}`}>History</div>
             </div>
-            
+
             {sidebarTab === 'collections' && (
-              <button 
+              <button
                 onClick={collapseAll}
                 title="Collapse All"
                 className="mb-2 p-1 rounded hover:bg-background text-muted hover:text-text transition-colors"
@@ -973,30 +1034,88 @@ export const Sidebar = (): React.JSX.Element => {
               <div className="flex items-center gap-1"><Hash size={11} /> Environment</div>
               <EnvironmentModal />
             </div>
-            <select value={activeEnvironmentId ?? ''} onChange={(e) => setActiveEnvironment(e.target.value === '' ? null : Number(e.target.value))} className="w-full bg-background border border-border rounded text-xs px-2 py-1.5 text-text focus:border-primary">
+            <select value={activeEnvironmentId ?? ''} onChange={(e) => setActiveEnvironment(e.target.value === '' ? null : Number(e.target.value))} className="w-full bg-background border border-border rounded text-xs px-2 py-1.5 text-text focus:border-primary outline-none">
               <option value="">No Environment</option>
-              {environments.map((env) => <option key={env.id} value={env.id}>{env.name}</option>)}
+              {environments.filter(e => e.is_global).length > 0 && (
+                <optgroup label="🌍 Global Environments">
+                  {environments.filter(e => e.is_global).map((env) => <option key={env.id} value={env.id}>{env.name}</option>)}
+                </optgroup>
+              )}
+              {environments.filter(e => !e.is_global).length > 0 && (
+                <optgroup label="🏢 Workspace Environments">
+                  {environments.filter(e => !e.is_global).map((env) => <option key={env.id} value={env.id}>{env.name}</option>)}
+                </optgroup>
+              )}
             </select>
           </div>
 
           <div className="px-3 py-2 flex flex-col gap-1 border-t border-border/50 bg-background/50">
             {appVersion && <div className="px-1 text-[9px] font-black uppercase tracking-[0.2em] text-muted/70 mb-1 text-center">Wapbolt v{appVersion}</div>}
-            <div className="flex items-center justify-between min-w-0">
-              <div className="min-w-0 flex-1">
-                <div className="text-xs font-bold text-text truncate">{user?.name}</div>
-                <div className="text-[10px] text-muted truncate">{user?.email}</div>
-              </div>
-              <div className="flex items-center gap-1.5 shrink-0 ml-2">
+            <div className="flex items-center justify-between min-w-0 px-1">
+              <DropdownMenu.Root>
+                <DropdownMenu.Trigger asChild>
+                  <button className="flex flex-1 items-center gap-2 min-w-0 p-1 rounded-lg hover:bg-background text-left transition-colors focus:outline-none">
+                    <div className="flex items-center justify-center w-7 h-7 rounded-full bg-primary/20 text-primary font-bold text-xs shrink-0 ring-1 ring-primary/20">
+                      {user?.name?.substring(0, 2).toUpperCase() || 'U'}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-xs font-bold text-text truncate">{user?.name}</div>
+                      <div className="text-[10px] text-muted truncate">{user?.email}</div>
+                    </div>
+                  </button>
+                </DropdownMenu.Trigger>
+                <DropdownMenu.Portal>
+                  <DropdownMenu.Content
+                    className="min-w-[200px] bg-surface border border-border rounded-lg shadow-xl p-1 z-[100] text-sm font-sans"
+                    sideOffset={5}
+                    side="top"
+                    align="start"
+                  >
+                    <DropdownMenu.Item
+                      onClick={() => setShowUserConfluence(true)}
+                      className="flex items-center px-2 py-1.5 text-xs text-text hover:bg-background hover:text-text rounded cursor-pointer outline-none data-[highlighted]:bg-background"
+                    >
+                      <Cloud size={14} className="mr-2 text-blue-400" />
+                      Confluence Settings
+                    </DropdownMenu.Item>
+                    <DropdownMenu.Item
+                      onClick={() => setShowChangePassword(true)}
+                      className="flex items-center px-2 py-1.5 text-xs text-text hover:bg-background hover:text-text rounded cursor-pointer outline-none data-[highlighted]:bg-background"
+                    >
+                      <Key size={14} className="mr-2" />
+                      Change Password
+                    </DropdownMenu.Item>
+                    <DropdownMenu.Item
+                      onClick={() => setShowServerSettings(true)}
+                      className="flex items-center px-2 py-1.5 text-xs text-text hover:bg-background hover:text-text rounded cursor-pointer outline-none data-[highlighted]:bg-background"
+                    >
+                      <Settings size={14} className="mr-2" />
+                      App Settings
+                    </DropdownMenu.Item>
+                    
+                    <DropdownMenu.Separator className="h-px bg-border my-1" />
+                    
+                    <DropdownMenu.Item
+                      onClick={logout}
+                      className="flex items-center px-2 py-1.5 text-xs text-danger hover:bg-danger/10 hover:text-danger rounded cursor-pointer outline-none data-[highlighted]:bg-danger/10"
+                    >
+                      <LogOut size={14} className="mr-2" />
+                      Logout
+                    </DropdownMenu.Item>
+                  </DropdownMenu.Content>
+                </DropdownMenu.Portal>
+              </DropdownMenu.Root>
+              
+              <div className="flex items-center shrink-0 ml-1">
                 <NotificationBell />
-                <button onClick={() => setShowChangePassword(true)} title="Change Password" className="text-muted hover:text-text"><Key size={14} /></button>
-                <button onClick={() => setShowServerSettings(true)} className="text-muted hover:text-text"><Settings size={14} /></button>
-                <button onClick={logout} className="text-muted hover:text-danger"><LogOut size={14} /></button>
               </div>
             </div>
           </div>
         </div>
 
         {showServerSettings && <ServerSettingsModal onClose={() => setShowServerSettings(false)} />}
+        {showConfluenceSettings && <ConfluenceSettingsModal onClose={() => setShowConfluenceSettings(false)} />}
+        {showUserConfluence && <UserConfluenceSettingsModal onClose={() => setShowUserConfluence(false)} />}
         {showChangePassword && <ChangePasswordModal isOpen={showChangePassword} onClose={() => setShowChangePassword(false)} />}
         {showStandaloneMock && activeTeam && (
           <StandaloneMockPanel
@@ -1007,15 +1126,37 @@ export const Sidebar = (): React.JSX.Element => {
         )}
 
         {isNewCollectionModalOpen && (
-          <PromptModal
+          <CollectionModal
             title="New Collection"
-            placeholder="Collection name..."
+            submitText="Create"
             isOpen={isNewCollectionModalOpen}
             onClose={() => setIsNewCollectionModalOpen(false)}
-            onSubmit={(val) => { createCollection(val) }}
+            onSubmit={(data) => { createCollection(data.name, data.description, data.confluence_page_id) }}
           />
         )}
       </div>
+
+      {/* Drag ghost overlay */}
+      <DragOverlay dropAnimation={{ duration: 150, easing: 'ease' }}>
+        {activeDragLabel && (
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-surface border border-primary/60 rounded-lg shadow-2xl shadow-black/40 text-xs font-medium text-text opacity-95 backdrop-blur-sm max-w-55">
+            {activeDragLabel.type === 'folder' ? (
+              <>
+                <FolderIcon size={13} className="text-primary shrink-0" />
+                <span className="truncate">{activeDragLabel.name}</span>
+              </>
+            ) : (
+              <>
+                <span className={`text-[9px] font-black w-8 text-right shrink-0 ${METHOD_COLORS[(activeDragLabel as any).method] ?? 'text-muted'}`}>
+                  {(activeDragLabel as any).method}
+                </span>
+                <span className="truncate">{activeDragLabel.name}</span>
+              </>
+            )}
+          </div>
+        )}
+      </DragOverlay>
     </DndContext>
+    </DragStateContext.Provider>
   )
 }

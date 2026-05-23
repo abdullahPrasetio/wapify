@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useState, useCallback, useRef } from 'react'
 import {
   Server,
   Plus,
@@ -11,15 +11,29 @@ import {
   Clock,
   Code,
   ChevronDown,
-  LayoutGrid
+  LayoutGrid,
+  ArrowRight,
+  FolderInput,
+  MoveRight
 } from 'lucide-react'
 import { apiClient, getBaseUrl } from '../../api/client'
-import type { MockEndpoint } from '../../types'
+import type { MockEndpoint, Collection, Team } from '../../types'
 import { MethodBadge } from '../ui/MethodBadge'
 import { toast } from 'sonner'
 import { ScenariosPanel } from './ScenariosPanel'
+import { useDataStore } from '../../store/useDataStore'
 
 const HTTP_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS']
+
+const METHOD_COLOR: Record<string, string> = {
+  GET: 'text-emerald-400',
+  POST: 'text-amber-400',
+  PUT: 'text-blue-400',
+  PATCH: 'text-sky-400',
+  DELETE: 'text-rose-400',
+  HEAD: 'text-purple-400',
+  OPTIONS: 'text-slate-400'
+}
 
 interface StandaloneMockPanelProps {
   teamId: number
@@ -36,8 +50,11 @@ export const StandaloneMockPanel: React.FC<StandaloneMockPanelProps> = ({
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
   const [editingId, setEditingId] = useState<number | null>(null)
+  const [transferringEndpoint, setTransferringEndpoint] = useState<MockEndpoint | null>(null)
+  const [bulkTransferOpen, setBulkTransferOpen] = useState(false)
   const [copiedId, setCopiedId] = useState<number | null>(null)
   const [managingScenariosEndpoint, setManagingScenariosEndpoint] = useState<MockEndpoint | null>(null)
+  const listBottomRef = useRef<HTMLDivElement>(null)
 
   const mockBaseUrl = `${getBaseUrl()}/mock/w/${teamId}`
 
@@ -108,7 +125,73 @@ export const StandaloneMockPanel: React.FC<StandaloneMockPanelProps> = ({
     toast.success('cURL command copied to clipboard')
   }
 
+  const handleTransfer = async (
+    ep: MockEndpoint,
+    targetType: 'collection' | 'standalone',
+    targetId: number,
+    mode: 'copy' | 'move'
+  ) => {
+    try {
+      await apiClient.post(`/api/v1/mock/endpoints/${ep.id}/transfer`, {
+        target_type: targetType,
+        target_id: targetId,
+        mode
+      })
+      if (mode === 'move') {
+        setEndpoints((prev) => prev.filter((e) => e.id !== ep.id))
+        toast.success(targetType === 'collection' ? 'Endpoint dipindahkan ke collection mock' : 'Endpoint dipindahkan ke workspace lain')
+      } else {
+        toast.success(targetType === 'collection' ? 'Endpoint disalin ke collection mock' : 'Endpoint disalin ke workspace lain')
+      }
+      setTransferringEndpoint(null)
+    } catch {
+      toast.error('Gagal transfer endpoint')
+    }
+  }
+
+  const handleBulkTransfer = async (
+    targetType: 'collection' | 'standalone',
+    targetId: number,
+    mode: 'copy' | 'move'
+  ) => {
+    try {
+      const res = await apiClient.post<{ message: string; count: number }>(
+        `/api/v1/workspaces/${teamId}/mock/endpoints/transfer-bulk`,
+        { target_type: targetType, target_id: targetId, mode }
+      )
+      if (mode === 'move') {
+        setEndpoints([])
+      }
+      toast.success((res.data as { message: string; count: number }).message)
+      setBulkTransferOpen(false)
+    } catch {
+      toast.error('Gagal bulk transfer endpoint')
+    }
+  }
+
   const activeCount = endpoints.filter((e) => e.is_active).length
+
+  if (bulkTransferOpen) {
+    return (
+      <BulkTransferModal
+        teamId={teamId}
+        endpointCount={endpoints.length}
+        onTransfer={handleBulkTransfer}
+        onClose={() => setBulkTransferOpen(false)}
+      />
+    )
+  }
+
+  if (transferringEndpoint) {
+    return (
+      <TransferMockModal
+        endpoint={transferringEndpoint}
+        currentTeamId={teamId}
+        onTransfer={handleTransfer}
+        onClose={() => setTransferringEndpoint(null)}
+      />
+    )
+  }
 
   if (managingScenariosEndpoint) {
     return (
@@ -150,8 +233,21 @@ export const StandaloneMockPanel: React.FC<StandaloneMockPanelProps> = ({
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
               {mockBaseUrl}
             </div>
+            {endpoints.length > 0 && (
+              <button
+                onClick={() => setBulkTransferOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-500/10 text-blue-400 border border-blue-500/20 hover:bg-blue-500/20 transition-all"
+                title="Transfer semua endpoint ke collection atau workspace lain"
+              >
+                <MoveRight size={13} />
+                Transfer All
+              </button>
+            )}
             <button
-              onClick={() => setCreating(true)}
+              onClick={() => {
+                setCreating(true)
+                setTimeout(() => listBottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
+              }}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 transition-all"
             >
               <Plus size={13} />
@@ -173,23 +269,15 @@ export const StandaloneMockPanel: React.FC<StandaloneMockPanelProps> = ({
             </div>
           ) : (
             <>
-              {creating && (
-                <StandaloneMockEndpointForm
-                  teamId={teamId}
-                  onSave={(ep) => {
-                    setEndpoints((prev) => [...prev, ep])
-                    setCreating(false)
-                  }}
-                  onCancel={() => setCreating(false)}
-                />
-              )}
-
               {endpoints.length === 0 && !creating ? (
                 <div className="flex flex-col items-center justify-center h-64 gap-3 text-muted">
                   <Server size={32} className="opacity-20" />
                   <p className="text-sm">No standalone mock endpoints yet</p>
                   <button
-                    onClick={() => setCreating(true)}
+                    onClick={() => {
+                      setCreating(true)
+                      setTimeout(() => listBottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
+                    }}
                     className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 transition-all"
                   >
                     <Plus size={13} />
@@ -197,35 +285,49 @@ export const StandaloneMockPanel: React.FC<StandaloneMockPanelProps> = ({
                   </button>
                 </div>
               ) : (
-                endpoints.map((ep) =>
-                  editingId === ep.id ? (
+                <>
+                  {endpoints.map((ep) =>
+                    editingId === ep.id ? (
+                      <StandaloneMockEndpointForm
+                        key={ep.id}
+                        teamId={teamId}
+                        existing={ep}
+                        onSave={(updated) => {
+                          setEndpoints((prev) =>
+                            prev.map((e) => (e.id === updated.id ? updated : e))
+                          )
+                          setEditingId(null)
+                        }}
+                        onCancel={() => setEditingId(null)}
+                      />
+                    ) : (
+                      <MockEndpointCard
+                        key={ep.id}
+                        endpoint={ep}
+                        mockBaseUrl={mockBaseUrl}
+                        copiedId={copiedId}
+                        onEdit={() => setEditingId(ep.id)}
+                        onDelete={() => handleDelete(ep.id)}
+                        onToggle={() => handleToggle(ep)}
+                        onCopy={() => copyMockUrl(ep)}
+                        onCopyAsCurl={() => copyAsCurl(ep)}
+                        onManageScenarios={() => setManagingScenariosEndpoint(ep)}
+                        onTransfer={() => setTransferringEndpoint(ep)}
+                      />
+                    )
+                  )}
+                  {creating && (
                     <StandaloneMockEndpointForm
-                      key={ep.id}
                       teamId={teamId}
-                      existing={ep}
-                      onSave={(updated) => {
-                        setEndpoints((prev) =>
-                          prev.map((e) => (e.id === updated.id ? updated : e))
-                        )
-                        setEditingId(null)
+                      onSave={(ep) => {
+                        setEndpoints((prev) => [...prev, ep])
+                        setCreating(false)
                       }}
-                      onCancel={() => setEditingId(null)}
+                      onCancel={() => setCreating(false)}
                     />
-                  ) : (
-                    <MockEndpointCard
-                      key={ep.id}
-                      endpoint={ep}
-                      mockBaseUrl={mockBaseUrl}
-                      copiedId={copiedId}
-                      onEdit={() => setEditingId(ep.id)}
-                      onDelete={() => handleDelete(ep.id)}
-                      onToggle={() => handleToggle(ep)}
-                      onCopy={() => copyMockUrl(ep)}
-                      onCopyAsCurl={() => copyAsCurl(ep)}
-                      onManageScenarios={() => setManagingScenariosEndpoint(ep)}
-                    />
-                  )
-                )
+                  )}
+                  <div ref={listBottomRef} />
+                </>
               )}
             </>
           )}
@@ -245,7 +347,8 @@ const MockEndpointCard: React.FC<{
   onCopy: () => void
   onCopyAsCurl: () => void
   onManageScenarios: () => void
-}> = ({ endpoint, mockBaseUrl, copiedId, onEdit, onDelete, onToggle, onCopy, onCopyAsCurl, onManageScenarios }) => {
+  onTransfer: () => void
+}> = ({ endpoint, mockBaseUrl, copiedId, onEdit, onDelete, onToggle, onCopy, onCopyAsCurl, onManageScenarios, onTransfer }) => {
   const [expanded, setExpanded] = useState(false)
 
   return (
@@ -256,10 +359,21 @@ const MockEndpointCard: React.FC<{
     >
       <div className="flex items-center gap-3 px-4 py-3 bg-white/[0.02]">
         <MethodBadge method={endpoint.method} size="sm" />
-        <code className="flex-1 text-xs font-mono text-text/90 truncate">
-          {mockBaseUrl}
-          <span className="text-emerald-400">{endpoint.path}</span>
-        </code>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-text truncate">
+              {endpoint.name || 'Untitled Endpoint'}
+            </span>
+            {!endpoint.name && (
+              <span className="text-[10px] text-muted font-mono truncate opacity-50 italic">
+                (no name set)
+              </span>
+            )}
+          </div>
+          <code className="text-[10px] font-mono text-emerald-400/70 truncate block">
+            <span className="opacity-50">{mockBaseUrl}</span>{endpoint.path}
+          </code>
+        </div>
 
         <div className="flex items-center gap-1.5 ml-auto">
           <span
@@ -342,6 +456,15 @@ const MockEndpointCard: React.FC<{
           </button>
 
           <button
+            onClick={onTransfer}
+            className="flex items-center gap-1 p-1 rounded bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 transition-colors text-[10px] font-bold border border-blue-500/20 px-2"
+            title="Transfer ke Collection Mock"
+          >
+            <FolderInput size={11} />
+            Transfer
+          </button>
+
+          <button
             onClick={onDelete}
             className="p-1 rounded text-muted hover:text-rose-400 transition-colors"
           >
@@ -375,6 +498,7 @@ const StandaloneMockEndpointForm: React.FC<StandaloneMockEndpointFormProps> = ({
   onSave,
   onCancel
 }) => {
+  const [name, setName] = useState(existing?.name ?? '')
   const [method, setMethod] = useState(existing?.method ?? 'GET')
   const [path, setPath] = useState(existing?.path ?? '/')
   const [statusCode, setStatusCode] = useState(existing?.status_code ?? 200)
@@ -387,7 +511,14 @@ const StandaloneMockEndpointForm: React.FC<StandaloneMockEndpointFormProps> = ({
   const handleSave = async () => {
     setSaving(true)
     try {
-      const payload = { method, path, status_code: statusCode, response_body: responseBody, delay_ms: delayMs }
+      const payload = {
+        name,
+        method,
+        path,
+        status_code: statusCode,
+        response_body: responseBody,
+        delay_ms: delayMs,
+      }
       let res
       if (existing) {
         res = await apiClient.put<MockEndpoint>(
@@ -401,42 +532,54 @@ const StandaloneMockEndpointForm: React.FC<StandaloneMockEndpointFormProps> = ({
         )
       }
       onSave(res.data as MockEndpoint)
-      toast.success(existing ? 'Standalone mock updated' : 'Standalone mock created')
+      toast.success(existing ? 'Mock updated' : 'Mock created')
     } catch {
-      toast.error('Failed to save standalone mock endpoint')
+      toast.error('Failed to save mock endpoint')
     } finally {
       setSaving(false)
     }
   }
 
   return (
-    <div className="border border-emerald-500/20 rounded-xl bg-emerald-500/5 p-4 space-y-3">
-      <p className="text-xs font-semibold text-emerald-400">
-        {existing ? 'Edit Standalone Endpoint' : 'New Standalone Mock'}
-      </p>
+    <div className="border border-emerald-500/20 rounded-xl bg-emerald-500/5 p-4 space-y-3 animate-in fade-in zoom-in-95 duration-200">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-semibold text-emerald-400">
+          {existing ? 'Edit Endpoint' : 'New Mock Endpoint'}
+        </p>
+      </div>
 
-      <div className="flex gap-2 text-text">
-        <div className="relative">
-          <select
-            value={method}
-            onChange={(e) => setMethod(e.target.value)}
-            className="appearance-none bg-background border border-border rounded-lg px-3 py-2 text-xs font-mono text-text focus:outline-none focus:border-emerald-500/50 pr-7"
-          >
-            {HTTP_METHODS.map((m) => (
-              <option key={m} value={m}>
-                {m}
-              </option>
-            ))}
-          </select>
-          <ChevronDown size={11} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
-        </div>
+      <div className="space-y-2 text-text">
         <input
           type="text"
-          value={path}
-          onChange={(e) => setPath(e.target.value)}
-          placeholder="/api/mock/path"
-          className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-xs font-mono text-text placeholder-muted focus:outline-none focus:border-emerald-500/50"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Endpoint Name (e.g. Get User Profile)"
+          className="w-full bg-background border border-border rounded-lg px-3 py-2 text-xs font-medium text-text placeholder-muted focus:outline-none focus:border-emerald-500/50"
         />
+
+        <div className="flex gap-2">
+          <div className="relative">
+            <select
+              value={method}
+              onChange={(e) => setMethod(e.target.value)}
+              className={`appearance-none bg-background border border-border rounded-lg px-3 py-2 text-xs font-mono font-bold uppercase ${METHOD_COLOR[method] || 'text-text'} focus:outline-none focus:border-emerald-500/50 pr-7`}
+            >
+              {HTTP_METHODS.map((m) => (
+                <option key={m} value={m} className="text-text font-sans">
+                  {m}
+                </option>
+              ))}
+            </select>
+            <ChevronDown size={11} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
+          </div>
+          <input
+            type="text"
+            value={path}
+            onChange={(e) => setPath(e.target.value)}
+            placeholder="/api/mock/path"
+            className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-xs font-mono text-text placeholder-muted focus:outline-none focus:border-emerald-500/50"
+          />
+        </div>
       </div>
 
       <div className="flex gap-2">
@@ -487,6 +630,239 @@ const StandaloneMockEndpointForm: React.FC<StandaloneMockEndpointFormProps> = ({
         >
           {saving ? 'Saving...' : existing ? 'Update' : 'Create'}
         </button>
+      </div>
+    </div>
+  )
+}
+
+const TransferMockModal: React.FC<{
+  endpoint: MockEndpoint
+  currentTeamId: number
+  onTransfer: (ep: MockEndpoint, targetType: 'collection' | 'standalone', targetId: number, mode: 'copy' | 'move') => Promise<void>
+  onClose: () => void
+}> = ({ endpoint, currentTeamId, onTransfer, onClose }) => {
+  const { collections, teams } = useDataStore() as { collections: Collection[]; teams: Team[] }
+  const [targetType, setTargetType] = useState<'collection' | 'standalone'>('collection')
+  const [selectedId, setSelectedId] = useState<number | null>(null)
+  const [mode, setMode] = useState<'copy' | 'move'>('copy')
+  const [loading, setLoading] = useState(false)
+
+  const otherTeams = teams.filter((t) => t.id !== currentTeamId)
+
+  const handleSubmit = async () => {
+    if (!selectedId) return
+    setLoading(true)
+    await onTransfer(endpoint, targetType, selectedId, mode)
+    setLoading(false)
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <div className="bg-surface border border-border rounded-xl shadow-2xl w-full max-w-md p-6 space-y-5 text-text">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <FolderInput size={16} className="text-blue-400" />
+            <h3 className="text-sm font-semibold">Transfer Endpoint</h3>
+          </div>
+          <button onClick={onClose} className="p-1 rounded text-muted hover:text-text transition-colors">
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="bg-white/5 border border-border rounded-lg px-3 py-2 text-xs">
+          <span className="text-muted">Endpoint: </span>
+          <span className="font-mono text-emerald-400">{endpoint.method}</span>
+          <span className="text-muted ml-1">{endpoint.path}</span>
+        </div>
+
+        <div className="space-y-3">
+          <div>
+            <label className="block text-[10px] text-muted mb-1.5 uppercase tracking-wider">Tujuan Transfer</label>
+            <div className="flex gap-2">
+              <button
+                onClick={() => { setTargetType('collection'); setSelectedId(null) }}
+                className={`flex-1 py-2 rounded-lg text-xs font-medium border transition-all ${targetType === 'collection' ? 'bg-violet-500/15 border-violet-500/40 text-violet-400' : 'border-border text-muted hover:bg-white/5'}`}
+              >
+                Collection Mock
+              </button>
+              <button
+                onClick={() => { setTargetType('standalone'); setSelectedId(null) }}
+                className={`flex-1 py-2 rounded-lg text-xs font-medium border transition-all ${targetType === 'standalone' ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-400' : 'border-border text-muted hover:bg-white/5'}`}
+              >
+                Workspace Lain
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-[10px] text-muted mb-1.5 uppercase tracking-wider">
+              {targetType === 'collection' ? 'Pilih Collection' : 'Pilih Workspace'}
+            </label>
+            <select
+              value={selectedId || ''}
+              onChange={(e) => setSelectedId(e.target.value ? Number(e.target.value) : null)}
+              className="w-full bg-background border border-border rounded-lg px-3 py-2 text-xs text-text focus:outline-none focus:border-blue-500/50"
+            >
+              <option value="">-- {targetType === 'collection' ? 'Pilih collection' : 'Pilih workspace'} --</option>
+              {targetType === 'collection'
+                ? collections.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)
+                : otherTeams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)
+              }
+            </select>
+            {targetType === 'standalone' && otherTeams.length === 0 && (
+              <p className="text-[10px] text-muted mt-1">Tidak ada workspace lain yang bisa dipilih.</p>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-[10px] text-muted mb-1.5 uppercase tracking-wider">Mode Transfer</label>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setMode('copy')}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium border transition-all ${mode === 'copy' ? 'bg-blue-500/15 border-blue-500/40 text-blue-400' : 'border-border text-muted hover:bg-white/5'}`}
+              >
+                <Copy size={12} />
+                Copy
+                <span className="text-[10px] opacity-60">(tetap di sini)</span>
+              </button>
+              <button
+                onClick={() => setMode('move')}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium border transition-all ${mode === 'move' ? 'bg-amber-500/15 border-amber-500/40 text-amber-400' : 'border-border text-muted hover:bg-white/5'}`}
+              >
+                <ArrowRight size={12} />
+                Move
+                <span className="text-[10px] opacity-60">(hapus dari sini)</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex gap-2 pt-1">
+          <button onClick={onClose} className="flex-1 py-2 rounded-lg text-xs text-muted border border-border hover:bg-white/5 transition-colors">
+            Batal
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={!selectedId || loading}
+            className="flex-1 py-2 rounded-lg text-xs font-medium bg-blue-500/80 hover:bg-blue-500 text-white transition-colors disabled:opacity-40"
+          >
+            {loading ? 'Memproses...' : mode === 'copy' ? 'Copy' : 'Pindahkan'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const BulkTransferModal: React.FC<{
+  teamId: number
+  endpointCount: number
+  onTransfer: (targetType: 'collection' | 'standalone', targetId: number, mode: 'copy' | 'move') => Promise<void>
+  onClose: () => void
+}> = ({ teamId, endpointCount, onTransfer, onClose }) => {
+  const { collections, teams } = useDataStore() as { collections: Collection[]; teams: Team[] }
+  const [targetType, setTargetType] = useState<'collection' | 'standalone'>('collection')
+  const [selectedId, setSelectedId] = useState<number | null>(null)
+  const [mode, setMode] = useState<'copy' | 'move'>('copy')
+  const [loading, setLoading] = useState(false)
+
+  const otherTeams = teams.filter((t) => t.id !== teamId)
+
+  const handleSubmit = async () => {
+    if (!selectedId) return
+    setLoading(true)
+    await onTransfer(targetType, selectedId, mode)
+    setLoading(false)
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <div className="bg-surface border border-border rounded-xl shadow-2xl w-full max-w-md p-6 space-y-5 text-text">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <MoveRight size={16} className="text-blue-400" />
+            <h3 className="text-sm font-semibold">Transfer Semua Endpoint</h3>
+          </div>
+          <button onClick={onClose} className="p-1 rounded text-muted hover:text-text transition-colors">
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="bg-blue-500/5 border border-blue-500/20 rounded-lg px-3 py-2 text-xs text-blue-300">
+          Akan mentransfer <span className="font-bold">{endpointCount} endpoint</span> sekaligus beserta semua scenarionya.
+        </div>
+
+        <div className="space-y-3">
+          <div>
+            <label className="block text-[10px] text-muted mb-1.5 uppercase tracking-wider">Tujuan Transfer</label>
+            <div className="flex gap-2">
+              <button
+                onClick={() => { setTargetType('collection'); setSelectedId(null) }}
+                className={`flex-1 py-2 rounded-lg text-xs font-medium border transition-all ${targetType === 'collection' ? 'bg-violet-500/15 border-violet-500/40 text-violet-400' : 'border-border text-muted hover:bg-white/5'}`}
+              >
+                Collection Mock
+              </button>
+              <button
+                onClick={() => { setTargetType('standalone'); setSelectedId(null) }}
+                className={`flex-1 py-2 rounded-lg text-xs font-medium border transition-all ${targetType === 'standalone' ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-400' : 'border-border text-muted hover:bg-white/5'}`}
+              >
+                Workspace Lain
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-[10px] text-muted mb-1.5 uppercase tracking-wider">
+              {targetType === 'collection' ? 'Pilih Collection' : 'Pilih Workspace'}
+            </label>
+            <select
+              value={selectedId || ''}
+              onChange={(e) => setSelectedId(e.target.value ? Number(e.target.value) : null)}
+              className="w-full bg-background border border-border rounded-lg px-3 py-2 text-xs text-text focus:outline-none focus:border-blue-500/50"
+            >
+              <option value="">-- {targetType === 'collection' ? 'Pilih collection' : 'Pilih workspace'} --</option>
+              {targetType === 'collection'
+                ? collections.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)
+                : otherTeams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)
+              }
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-[10px] text-muted mb-1.5 uppercase tracking-wider">Mode Transfer</label>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setMode('copy')}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium border transition-all ${mode === 'copy' ? 'bg-blue-500/15 border-blue-500/40 text-blue-400' : 'border-border text-muted hover:bg-white/5'}`}
+              >
+                <Copy size={12} />
+                Copy
+                <span className="text-[10px] opacity-60">(tetap di sini)</span>
+              </button>
+              <button
+                onClick={() => setMode('move')}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium border transition-all ${mode === 'move' ? 'bg-rose-500/15 border-rose-500/40 text-rose-400' : 'border-border text-muted hover:bg-white/5'}`}
+              >
+                <ArrowRight size={12} />
+                Move
+                <span className="text-[10px] opacity-60">(hapus semua dari sini)</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex gap-2 pt-1">
+          <button onClick={onClose} className="flex-1 py-2 rounded-lg text-xs text-muted border border-border hover:bg-white/5 transition-colors">
+            Batal
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={!selectedId || loading}
+            className="flex-1 py-2 rounded-lg text-xs font-medium bg-blue-500/80 hover:bg-blue-500 text-white transition-colors disabled:opacity-40"
+          >
+            {loading ? 'Memproses...' : mode === 'copy' ? `Copy ${endpointCount} Endpoint` : `Pindahkan ${endpointCount} Endpoint`}
+          </button>
+        </div>
       </div>
     </div>
   )

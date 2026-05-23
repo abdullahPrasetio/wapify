@@ -52,6 +52,7 @@ export interface Collection {
   created_by: number
   created_at: string
   updated_at: string
+  confluence_page_id?: string
 }
 
 // ─── Folder Types ─────────────────────────────────────────────────────────────
@@ -168,7 +169,8 @@ export interface Environment {
   id: number
   name: string
   variables: Record<string, string>
-  team_id: number
+  team_id: number | null
+  is_global: boolean
   created_at: string
 }
 
@@ -212,6 +214,7 @@ export interface CollectionDocs {
 // ─── Mock Server Types ────────────────────────────────────────────────────────
 export interface MockEndpoint {
   id: number
+  name?: string
   collection_id: number | null
   team_id?: number | null
   request_id: number | null

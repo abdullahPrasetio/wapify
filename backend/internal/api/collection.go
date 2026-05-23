@@ -2,6 +2,10 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
+	"strings"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/waluyo/wapbolt-backend/internal/middleware"
 	"github.com/waluyo/wapbolt-backend/internal/repository"
@@ -9,8 +13,9 @@ import (
 )
 
 type CreateCollectionRequest struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
+	Name             string `json:"name"`
+	Description      string `json:"description"`
+	ConfluencePageID string `json:"confluence_page_id"`
 }
 
 // Postman Collection Structs (simplified v2.1)
@@ -23,13 +28,14 @@ type PostmanCollection struct {
 }
 
 type PostmanItem struct {
-	Name    string        `json:"name"`
-	Item    []PostmanItem `json:"item,omitempty"` // for folders
-	Request *PostmanReq   `json:"request,omitempty"`
+	Name      string            `json:"name"`
+	Item      []PostmanItem     `json:"item,omitempty"` // for folders
+	Request   *PostmanReq       `json:"request,omitempty"`
+	Responses []PostmanResponse `json:"response,omitempty"` // examples are at item level in Postman v2.1
 }
 
 type PostmanReq struct {
-	Method string `json:"method"`
+	Method string      `json:"method"`
 	URL    interface{} `json:"url"` // can be string or object
 	Header []struct {
 		Key   string `json:"key"`
@@ -39,6 +45,19 @@ type PostmanReq struct {
 		Mode string `json:"mode"`
 		Raw  string `json:"raw"`
 	} `json:"body"`
+	Description      string                 `json:"description,omitempty"`
+	FieldValidations map[string]interface{} `json:"field_validations,omitempty"`
+}
+
+type PostmanResponse struct {
+	Name   string `json:"name"`
+	Status string `json:"status"`
+	Code   int    `json:"code"`
+	Header []struct {
+		Key   string `json:"key"`
+		Value string `json:"value"`
+	} `json:"header"`
+	Body string `json:"body"`
 }
 
 func SetupCollectionRoutes(app *fiber.App) {
@@ -64,19 +83,55 @@ func ImportPostman(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid Postman JSON", "code": "BAD_REQUEST"})
 	}
 
+	// Import Options from Query Params
+	mode := c.Query("mode", "new") // default to 'new' for safety
+	confirmName := c.Query("confirm_name", "")
+
 	userID := uint(c.Locals("user_id").(float64))
 	tid := parseUint(teamID)
 
+	var collection repository.Collection
+
 	err := repository.DB.Transaction(func(tx *gorm.DB) error {
-		// 1. Create Collection
-		collection := repository.Collection{
-			Name:        postman.Info.Name,
-			Description: postman.Info.Description,
-			TeamID:      tid,
-			CreatedByID: &userID,
-		}
-		if err := tx.Create(&collection).Error; err != nil {
-			return err
+		if mode == "overwrite" {
+			// 1. Search for collection to overwrite
+			err := tx.Where("team_id = ? AND name = ?", tid, postman.Info.Name).First(&collection).Error
+			if err != nil {
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					return fmt.Errorf("collection '%s' not found for overwrite", postman.Info.Name)
+				}
+				return err
+			}
+
+			// 2. Safety Check: Verify confirmation name matches
+			if confirmName != collection.Name {
+				return fmt.Errorf("confirmation name mismatch: expected '%s', got '%s'", collection.Name, confirmName)
+			}
+
+			// 3. Clear existing contents
+			if err := tx.Where("collection_id = ?", collection.ID).Delete(&repository.Folder{}).Error; err != nil {
+				return err
+			}
+			if err := tx.Where("collection_id = ?", collection.ID).Delete(&repository.Request{}).Error; err != nil {
+				return err
+			}
+
+			// Update description
+			collection.Description = postman.Info.Description
+			if err := tx.Save(&collection).Error; err != nil {
+				return err
+			}
+		} else {
+			// Create brand new collection (even if name matches, will be a duplicate)
+			collection = repository.Collection{
+				Name:        postman.Info.Name,
+				Description: postman.Info.Description,
+				TeamID:      tid,
+				CreatedByID: &userID,
+			}
+			if err := tx.Create(&collection).Error; err != nil {
+				return err
+			}
 		}
 
 		// 2. Process Items recursively
@@ -84,14 +139,24 @@ func ImportPostman(c *fiber.Ctx) error {
 	})
 
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error(), "code": "INTERNAL_SERVER_ERROR"})
+		code := "INTERNAL_SERVER_ERROR"
+		status := fiber.StatusInternalServerError
+		if strings.Contains(err.Error(), "not found") || strings.Contains(err.Error(), "mismatch") {
+			code = "BAD_REQUEST"
+			status = fiber.StatusBadRequest
+		}
+		return c.Status(status).JSON(fiber.Map{"error": err.Error(), "code": code})
 	}
 
 	// Real-time broadcast
 	WSHub.BroadcastEntityUpdate(tid, "TEAM", tid)
-	LogActivity(repository.DB, tid, userID, "IMPORTED_POSTMAN", "TEAM", tid, map[string]interface{}{"collection_name": postman.Info.Name})
+	action := "IMPORTED_COLLECTION"
+	if mode == "overwrite" {
+		action = "UPDATED_COLLECTION_VIA_IMPORT"
+	}
+	LogActivity(repository.DB, tid, userID, action, "TEAM", tid, map[string]interface{}{"collection_name": postman.Info.Name})
 
-	return c.Status(fiber.StatusCreated).JSON(fiber.Map{"message": "Import successful"})
+	return c.Status(fiber.StatusCreated).JSON(fiber.Map{"message": "Import successful", "collection_id": collection.ID})
 }
 
 func processPostmanItems(tx *gorm.DB, items []PostmanItem, collectionID uint, folderID *uint, userID uint) error {
@@ -133,18 +198,47 @@ func processPostmanItems(tx *gorm.DB, items []PostmanItem, collectionID uint, fo
 			}
 
 			request := repository.Request{
-				Name:         item.Name,
-				CollectionID: collectionID,
-				FolderID:     folderID,
-				Method:       item.Request.Method,
-				URL:          urlStr,
-				Headers:      headers,
-				Body:         body,
-				CreatedByID:  &userID,
-				AuthConfig:   repository.JSONB{"type": "No Auth"},
+				Name:             item.Name,
+				CollectionID:     collectionID,
+				FolderID:         folderID,
+				Method:           item.Request.Method,
+				URL:              urlStr,
+				Headers:          headers,
+				Body:             body,
+				Description:      item.Request.Description,
+				FieldValidations: item.Request.FieldValidations,
+				CreatedByID:      &userID,
+				AuthConfig:       repository.JSONB{"type": "No Auth"},
 			}
 			if err := tx.Create(&request).Error; err != nil {
 				return err
+			}
+
+			// 3. Process Examples (Responses) - responses are at item level in Postman v2.1
+			requestBodyRaw := ""
+			if item.Request.Body != nil {
+				requestBodyRaw = item.Request.Body.Raw
+			}
+			for _, res := range item.Responses {
+				resHeaders := repository.JSONB{}
+				for _, rh := range res.Header {
+					resHeaders[rh.Key] = rh.Value
+				}
+
+				example := repository.RequestExample{
+					RequestID:       request.ID,
+					Name:            res.Name,
+					RequestMethod:   item.Request.Method,
+					RequestURL:      urlStr,
+					RequestHeaders:  headers,
+					RequestBody:     requestBodyRaw,
+					ResponseStatus:  res.Code,
+					ResponseHeaders: resHeaders,
+					ResponseBody:    res.Body,
+				}
+				if err := tx.Create(&example).Error; err != nil {
+					return err
+				}
 			}
 		}
 	}
@@ -182,10 +276,11 @@ func CreateCollection(c *fiber.Ctx) error {
 	tid := parseUint(teamID)
 
 	collection := repository.Collection{
-		Name:        req.Name,
-		Description: req.Description,
-		TeamID:      tid,
-		CreatedByID: &userID,
+		Name:             req.Name,
+		Description:      req.Description,
+		TeamID:           tid,
+		CreatedByID:      &userID,
+		ConfluencePageID: req.ConfluencePageID,
 	}
 
 	if err := repository.DB.Create(&collection).Error; err != nil {
@@ -248,6 +343,8 @@ func UpdateCollection(c *fiber.Ctx) error {
 	if req.Description != "" {
 		collection.Description = req.Description
 	}
+	// Always allow updating page id (even to empty string)
+	collection.ConfluencePageID = req.ConfluencePageID
 
 	if err := repository.DB.Save(&collection).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to update collection", "code": "INTERNAL_SERVER_ERROR"})

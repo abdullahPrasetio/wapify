@@ -1,4 +1,155 @@
 
+## [2026-05-22] — Mock Server Enhancements & Bulk Transfer
+**Fase:** Fase 7 — Kolaborasi Lanjutan & Mock Pro
+**Dikerjakan oleh:** Waluyo
+**Status:** ✅ Selesai
+
+### Yang Dikerjakan
+- **Mock Endpoint Naming**: Menambahkan field `name` pada `MockEndpoint` untuk memudahkan identifikasi mock (didukung oleh migrasi DB).
+- **Standalone Mock Transfer**: Mengimplementasikan fitur transfer mock endpoint tunggal maupun bulk dari Standalone ke Collection (dan sebaliknya).
+- **Universal Mock Transfer API**: Membuat endpoint API universal untuk menangani perpindahan mock lintas tim, koleksi, maupun standalone.
+- **Postman Import Improvement**: Memperbaiki logika import Postman v2.1 agar contoh respon (responses/examples) pada level item diproses dengan benar.
+- **UI UX Enhancements**:
+    - Auto-scroll ke bawah saat menambahkan mock endpoint baru.
+    - Context menu clamping untuk mencegah overflow pada viewport.
+    - Penanganan reset URL server jika input kosong dan penambahan notifikasi sukses (toast).
+- **Version Bump**: Menaikkan versi aplikasi Desktop ke `1.6.3` dan Landing Page ke `1.1.3`.
+
+### Perubahan File
+- `backend/internal/api/mock_server.go` & `collection.go` — Logic API & Import.
+- `backend/internal/repository/models.go` & `migrations/000027_...` — DB Schema.
+- `apps/desktop/src/renderer/src/...` — Frontend implementation & UI components.
+- `apps/desktop/package.json` & `apps/landing-page/package.json` — Version updates.
+
+---
+
+## [2026-05-18] — Go SDK for Wapbolt
+**Fase:** Fase Ekstensi & Ekosistem
+**Dikerjakan oleh:** Gemini
+**Status:** ✅ Selesai
+
+### Yang Dikerjakan
+- **SDK Initialization**: Membuat modul independen `go-wapbolt` di dalam repository baru.
+- **Zero-Touch Static Analysis**: Mengimplementasikan scanner berbasis AST untuk mendeteksi rute dan struct body secara otomatis tanpa merubah kode bisnis.
+- **Auto-Route Registration**: Menambahkan fungsi `Register()` untuk mempermudah inisialisasi dokumentasi hanya dalam satu baris kode.
+- **Nullable Detection**: Otomatis mendeteksi tag `omitempty` dan mengonversinya menjadi properti `nullable` di Wapbolt.
+- **Auto Sample Body**: Men-generate contoh JSON payload secara otomatis berdasarkan tipe data dan aturan validasi field.
+- **Multi-Package Support**: Mendukung pemindaian rekursif lintas folder (Controllers, Models, Entities).
+
+### Perubahan File
+- Pembuatan folder `go-wapbolt/` dan pendaftarannya di `.gitignore` utama.
+
+---
+
+## [2026-05-18] — Confluence Documentation Footer Enhancement
+**Fase:** Fase 7 — Kolaborasi Lanjutan & Mock Pro
+**Dikerjakan oleh:** Gemini
+**Status:** ✅ Selesai
+
+### Yang Dikerjakan
+- **Confluence Sync Enhancement**: Menambahkan footer otomatis pada setiap halaman dokumentasi yang di-sinkronisasi ke Confluence.
+- **Branding & Support**: Footer menyertakan teks branding "Generated using aplikasi wapbolt by temancode", link ke Landing Page (`wapbolt.temancode.my.id`), dan tautan ke profil GitHub author (`abdullahPrasetio`) untuk dukungan teknis.
+- **Dynamic Timestamp**: Mengimplementasikan timestamp dinamis menggunakan format lokal Indonesia (`id-ID`) yang mencatat waktu tepat saat sinkronisasi dilakukan.
+- **Environment Variable Resolution**: Kini placeholder variabel `{{variable}}` di URL, Headers, Body, dan Deskripsi otomatis di-resolve menggunakan nilai dari environment yang aktif sebelum dikirim ke Confluence.
+- **Bug Fix**: Memperbaiki `TypeError` saat sinkronisasi Confluence jika data versi halaman tidak ditemukan (penambahan optional chaining pada `pageData.data.version.number`).
+
+### Perubahan File
+- `apps/desktop/src/renderer/src/components/layout/DocumentationPanel.tsx` — Modifikasi fungsi `generateContent` untuk menyertakan blok HTML footer.
+
+---
+
+## [2026-05-13] — Shared Environment Lintas Workspace
+**Fase:** Fase 7 — Kolaborasi Lanjutan & Mock Pro
+**Dikerjakan oleh:** Antigravity
+**Status:** ✅ Selesai
+
+### Yang Dikerjakan
+- **Database Schema**: Menambahkan kolom `is_global BOOLEAN DEFAULT FALSE` pada tabel `environments` dan membuat kolom `team_id` menjadi *nullable* untuk membedakan antara environment milik workspace tertentu dan environment global.
+- **Backend API**: Memodifikasi rute REST API agar query `ListEnvironments` juga mengembalikan environment global, dan menambahkan rute eksklusif `POST /api/v1/environments/global` yang hanya bisa diakses oleh Super Admin. Mengimplementasi logika autorisasi (*role-based*) di fungsi edit dan delete untuk mencegah pengguna biasa mengubah global environment.
+- **Backend Tests**: Memperbarui dan menyelaraskan puluhan unit tests terkait manipulasi *environments* (`environment_test.go`) guna memastikan coverage 100% dan regresi keamanan yang ketat.
+- **State Store (Frontend)**: Meng-update metode pada `useDataStore.ts` untuk menangani format respon baru dan menambahkan fungsionalitas `createGlobalEnvironment`.
+- **UI/UX Enhancement**: Memodifikasi `EnvironmentModal.tsx` agar visualisasi daftar environment dibagi menjadi dua kategori secara eksplisit (**🌍 Global Environments** dan **🏢 Workspace Environments**). Menambahkan proteksi *read-only* bagi environment global apabila yang mengakses adalah user biasa. Memberikan opsi checkbox 'Shared/Global' bagi Super Admin saat menambahkan environment baru. Mengatur layout dropdown `Sidebar` agar menampilkan grup (*optgroups*) dengan rapi.
+
+### Perubahan File
+- `backend/migrations/000026_support_shared_environments.up.sql` & `.down.sql` — Database migration script.
+- `backend/internal/repository/models.go` — Update struktur data `Environment`.
+- `backend/internal/api/environment.go` & `environment_test.go` — Backend core logic dan tes.
+- `apps/desktop/src/renderer/src/store/useDataStore.ts` — Manajemen state untuk memfasilitasi pembuatan global environment.
+- `apps/desktop/src/renderer/src/components/modals/EnvironmentModal.tsx` — Peningkatan UI modal pengelolaan environment.
+- `apps/desktop/src/renderer/src/components/layout/Sidebar.tsx` — Pengelompokkan menu *dropdown select*.
+- `apps/desktop/src/renderer/src/types/index.ts` — Pembaruan Type definisi Typescript.
+
+### Keputusan & Catatan
+- Memutuskan untuk membuat rute eksklusif `/api/v1/environments/global` dibanding mengeksploitasi endpoint per-tim (meskipun secara fungsi sama) agar API architecture tetap rapi dan *semantic*.
+- Super Admin secara default menjadi satu-satunya entitas yang memiliki hak akses C-U-D (Create, Update, Delete) untuk Global Environment. User lain hanya berhak menggunakan dan membaca (R).
+
+### Langkah Selanjutnya
+- Melanjutkan fitur tersisa di Fase 7: Diff Viewer, Thread Diskusi, dan Mention (`@nama`).
+
+---
+
+## [2026-05-13] — User Profile Dropdown Menu Redesign
+**Fase:** Fase 6 — UX & Power Features
+**Dikerjakan oleh:** Antigravity
+**Status:** ✅ Selesai
+
+### Yang Dikerjakan
+- **UI Redesign**: Merombak tampilan menu profil pengguna di pojok kiri bawah `Sidebar`.
+- **Dropdown Menu**: Memindahkan tombol akses (Confluence Settings, App Settings, Change Password, Logout) ke dalam `DropdownMenu` menggunakan komponen dari Radix UI untuk membuat tampilan sidebar lebih minimalis dan elegan.
+- **User Avatar**: Mengganti tampilan nama dan email teks murni dengan komponen avatar inisial (mengambil 2 huruf pertama dari nama) sebagai *trigger* untuk membuka dropdown menu.
+- **Layout Adjustments**: Memastikan komponen Notification Bell tetap berada di luar dropdown agar pengguna tetap dapat melihat notifikasi masuk dengan cepat.
+
+### Perubahan File
+- `apps/desktop/src/renderer/src/components/layout/Sidebar.tsx` — Implementasi Radix UI `DropdownMenu` dan perombakan struktur menu pengguna.
+
+### Keputusan & Catatan
+- Memutuskan untuk menggunakan komponen DropdownMenu dari `@radix-ui/react-dropdown-menu` yang sudah ada di dependensi (*package.json*) demi memastikan konsistensi interaksi dengan elemen UI lain di Wapbolt.
+- Memisahkan komponen Notifikasi sesuai spesifikasi agar urgensinya tetap tinggi.
+
+### Langkah Selanjutnya
+- Melanjutkan perbaikan atau pengembangan fitur lain di Fase 7.
+
+---
+
+## [2026-05-12] — Confluence Sync Integration & v1.6.0
+**Fase:** Fase 3 — Dokumentasi & Mock Server (Advanced)
+**Dikerjakan oleh:** Antigravity
+**Status:** ✅ Selesai
+
+### Yang Dikerjakan
+- **Version Bump**: Menaikkan versi aplikasi ke **1.6.0**.
+- **Full Confluence Integration**:
+    - Implementasi sinkronisasi dokumentasi API langsung ke Confluence (Cloud & Server/DC).
+    - Dukungan autentikasi ganda: **Personal Access Token (PAT)** dan **Atlassian Cloud API Token**.
+    - Penambahan sistem *Auth Method Switcher* yang menyimpan preferensi autentikasi per-user di database.
+    - Sinkronisasi otomatis menyertakan: Metadata (Deskripsi), Navigasi (TOC), Request Body Validation, dan Contoh Respons (Examples).
+- **UI/UX Consistency**:
+    - Standarisasi warna Method HTTP di seluruh aplikasi (GET: Emerald, POST: Amber, PUT: Blue, PATCH: Sky, DELETE: Rose).
+    - Penyesuaian warna method pada Documentation Panel, Mock Server, dan Main Request Builder.
+    - Pembersihan visual pada label validasi (Validation Rules) menjadi warna netral (*slate*) untuk keterbacaan yang lebih baik.
+- **Developer Utilities**:
+    - Penambahan fitur **Auto-generated cURL** pada panel dokumentasi aplikasi.
+    - Optimasi performa rendering dokumentasi dengan batas tinggi (max-height) pada blok respons JSON.
+- **TypeScript & Stability**:
+    - Perbaikan 16+ error TypeScript terkait penanganan data `unknown` dari API.
+    - Sinkronisasi tipe data antara Electron Main Process (IPC) dengan Renderer untuk fitur Confluence.
+
+### Perubahan File
+- `apps/desktop/package.json` — Version 1.6.0.
+- `docs/release.md` — Log rilis kumulatif diperbarui.
+- `docs/releases/v1.6.0.md` — Detail rilis v1.6.0 dibuat.
+- `backend/migrations/000019..000025` — Migrasi skema Confluence (Global & User settings).
+- `apps/desktop/src/renderer/src/components/layout/DocumentationPanel.tsx` — UI dokumentasi & sync engine.
+- `apps/desktop/src/renderer/src/components/modals/UserConfluenceSettingsModal.tsx` — Modal settings user baru.
+- `apps/desktop/src/main/index.ts` — IPC handler untuk Confluence.
+- `apps/desktop/src/renderer/src/env.d.ts` — Type definitions untuk IPC bridge.
+
+### Keputusan & Catatan
+- Memilih untuk mempertahankan data kredensial (Email/PAT/Token) di database meskipun user berpindah metode autentikasi, guna memudahkan user saat ingin berganti kembali tanpa input ulang.
+- Menggunakan pendekatan *switch* eksplisit di UI daripada deteksi otomatis field kosong untuk menghindari ambiguitas autentikasi.
+
+---
+
 ## [2026-05-12] — Structured API Validation & v1.5.1
 **Fase:** Fase 3 — Dokumentasi & Mock Server (Enhancement)
 **Dikerjakan oleh:** Antigravity

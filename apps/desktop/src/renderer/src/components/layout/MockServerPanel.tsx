@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useState, useCallback, useRef } from 'react'
 import {
   Server,
   Plus,
@@ -22,6 +22,16 @@ import { ScenariosPanel } from './ScenariosPanel'
 
 const HTTP_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS']
 
+const METHOD_COLOR: Record<string, string> = {
+  GET: 'text-emerald-400',
+  POST: 'text-amber-400',
+  PUT: 'text-blue-400',
+  PATCH: 'text-sky-400',
+  DELETE: 'text-rose-400',
+  HEAD: 'text-purple-400',
+  OPTIONS: 'text-slate-400'
+}
+
 interface MockServerPanelProps {
   collectionId: number
   collectionName: string
@@ -41,6 +51,7 @@ export const MockServerPanel: React.FC<MockServerPanelProps> = ({
   const [editingId, setEditingId] = useState<number | null>(null)
   const [copiedId, setCopiedId] = useState<number | null>(null)
   const [managingScenariosEndpoint, setManagingScenariosEndpoint] = useState<MockEndpoint | null>(null)
+  const listBottomRef = useRef<HTMLDivElement>(null)
 
   const mockBaseUrl = `${getBaseUrl()}/mock/${collectionId}`
 
@@ -184,7 +195,10 @@ export const MockServerPanel: React.FC<MockServerPanelProps> = ({
               {mockBaseUrl}
             </div>
             <button
-              onClick={() => setCreating(true)}
+              onClick={() => {
+                setCreating(true)
+                setTimeout(() => listBottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
+              }}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-violet-500/10 text-violet-400 border border-violet-500/20 hover:bg-violet-500/20 transition-all"
             >
               <Plus size={13} />
@@ -231,23 +245,15 @@ export const MockServerPanel: React.FC<MockServerPanelProps> = ({
               </div>
             ) : (
               <>
-                {creating && (
-                  <MockEndpointForm
-                    collectionId={collectionId}
-                    onSave={(ep) => {
-                      setEndpoints((prev) => [...prev, ep])
-                      setCreating(false)
-                    }}
-                    onCancel={() => setCreating(false)}
-                  />
-                )}
-
                 {endpoints.length === 0 && !creating ? (
                   <div className="flex flex-col items-center justify-center h-64 gap-3 text-muted">
                     <Server size={32} className="opacity-20" />
                     <p className="text-sm">No mock endpoints yet</p>
                     <button
-                      onClick={() => setCreating(true)}
+                      onClick={() => {
+                        setCreating(true)
+                        setTimeout(() => listBottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
+                      }}
                       className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium bg-violet-500/10 text-violet-400 border border-violet-500/20 hover:bg-violet-500/20 transition-all"
                     >
                       <Plus size={13} />
@@ -255,35 +261,48 @@ export const MockServerPanel: React.FC<MockServerPanelProps> = ({
                     </button>
                   </div>
                 ) : (
-                  endpoints.map((ep) =>
-                    editingId === ep.id ? (
+                  <>
+                    {endpoints.map((ep) =>
+                      editingId === ep.id ? (
+                        <MockEndpointForm
+                          key={ep.id}
+                          collectionId={collectionId}
+                          existing={ep}
+                          onSave={(updated) => {
+                            setEndpoints((prev) =>
+                              prev.map((e) => (e.id === updated.id ? updated : e))
+                            )
+                            setEditingId(null)
+                          }}
+                          onCancel={() => setEditingId(null)}
+                        />
+                      ) : (
+                        <MockEndpointCard
+                          key={ep.id}
+                          endpoint={ep}
+                          mockBaseUrl={mockBaseUrl}
+                          copiedId={copiedId}
+                          onEdit={() => setEditingId(ep.id)}
+                          onDelete={() => handleDelete(ep.id)}
+                          onToggle={() => handleToggle(ep)}
+                          onCopy={() => copyMockUrl(ep)}
+                          onCopyAsCurl={() => copyAsCurl(ep)}
+                          onManageScenarios={() => setManagingScenariosEndpoint(ep)}
+                        />
+                      )
+                    )}
+                    {creating && (
                       <MockEndpointForm
-                        key={ep.id}
                         collectionId={collectionId}
-                        existing={ep}
-                        onSave={(updated) => {
-                          setEndpoints((prev) =>
-                            prev.map((e) => (e.id === updated.id ? updated : e))
-                          )
-                          setEditingId(null)
+                        onSave={(ep) => {
+                          setEndpoints((prev) => [...prev, ep])
+                          setCreating(false)
                         }}
-                        onCancel={() => setEditingId(null)}
+                        onCancel={() => setCreating(false)}
                       />
-                    ) : (
-                      <MockEndpointCard
-                        key={ep.id}
-                        endpoint={ep}
-                        mockBaseUrl={mockBaseUrl}
-                        copiedId={copiedId}
-                        onEdit={() => setEditingId(ep.id)}
-                        onDelete={() => handleDelete(ep.id)}
-                        onToggle={() => handleToggle(ep)}
-                        onCopy={() => copyMockUrl(ep)}
-                        onCopyAsCurl={() => copyAsCurl(ep)}
-                        onManageScenarios={() => setManagingScenariosEndpoint(ep)}
-                      />
-                    )
-                  )
+                    )}
+                    <div ref={listBottomRef} />
+                  </>
                 )}
               </>
             )}
@@ -318,10 +337,14 @@ const MockEndpointCard: React.FC<{
       {/* Card header */}
       <div className="flex items-center gap-3 px-4 py-3 bg-white/[0.02]">
         <MethodBadge method={endpoint.method} size="sm" />
-        <code className="flex-1 text-xs font-mono text-text/90 truncate">
-          {mockBaseUrl}
-          <span className="text-violet-400">{endpoint.path}</span>
-        </code>
+        <div className="flex-1 min-w-0">
+          {endpoint.name && (
+            <span className="block text-xs font-bold text-text truncate">{endpoint.name}</span>
+          )}
+          <code className="text-[10px] font-mono text-violet-400/80 truncate block">
+            {mockBaseUrl}<span className="text-violet-400">{endpoint.path}</span>
+          </code>
+        </div>
 
         <div className="flex items-center gap-1.5 ml-auto">
           {/* Status badge */}
@@ -450,6 +473,7 @@ const MockEndpointForm: React.FC<MockEndpointFormProps> = ({
   onSave,
   onCancel
 }) => {
+  const [name, setName] = useState(existing?.name ?? '')
   const [method, setMethod] = useState(existing?.method ?? 'GET')
   const [path, setPath] = useState(existing?.path ?? '/')
   const [statusCode, setStatusCode] = useState(existing?.status_code ?? 200)
@@ -462,7 +486,7 @@ const MockEndpointForm: React.FC<MockEndpointFormProps> = ({
   const handleSave = async () => {
     setSaving(true)
     try {
-      const payload = { method, path, status_code: statusCode, response_body: responseBody, delay_ms: delayMs }
+      const payload = { name, method, path, status_code: statusCode, response_body: responseBody, delay_ms: delayMs }
       let res
       if (existing) {
         res = await apiClient.put<MockEndpoint>(
@@ -490,16 +514,25 @@ const MockEndpointForm: React.FC<MockEndpointFormProps> = ({
         {existing ? 'Edit Endpoint' : 'New Mock Endpoint'}
       </p>
 
+      {/* Name */}
+      <input
+        type="text"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        placeholder="Endpoint Name (e.g. Get User Profile)"
+        className="w-full bg-background border border-border rounded-lg px-3 py-2 text-xs font-medium text-text placeholder-muted focus:outline-none focus:border-violet-500/50"
+      />
+
       {/* Method + Path */}
       <div className="flex gap-2">
         <div className="relative">
           <select
             value={method}
             onChange={(e) => setMethod(e.target.value)}
-            className="appearance-none bg-background border border-border rounded-lg px-3 py-2 text-xs font-mono text-text focus:outline-none focus:border-violet-500/50 pr-7"
+            className={`appearance-none bg-background border border-border rounded-lg px-3 py-2 text-xs font-mono font-bold uppercase ${METHOD_COLOR[method] || 'text-text'} focus:outline-none focus:border-violet-500/50 pr-7`}
           >
             {HTTP_METHODS.map((m) => (
-              <option key={m} value={m}>
+              <option key={m} value={m} className="text-text font-sans">
                 {m}
               </option>
             ))}

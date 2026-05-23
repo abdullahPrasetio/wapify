@@ -1,0 +1,2 @@
+ALTER TABLE environments ADD COLUMN is_global BOOLEAN DEFAULT FALSE;
+ALTER TABLE environments ALTER COLUMN team_id DROP NOT NULL;

@@ -4,7 +4,8 @@ import { useAuthStore } from '../../store/useAuthStore'
 import { KeyValueEditor } from '../ui/KeyValueEditor'
 import { VariableOverlayInput } from '../ui/VariableOverlayInput'
 import { SetVarModal } from '../modals/SetVarModal'
-import { Shield, Eye, EyeOff, X, RefreshCw, Save, Lock, Users, ChevronDown, FileCode2, Terminal as TerminalIcon, Code, Box, Globe, Link as LinkIcon, BookOpen, Zap, ShieldCheck, FileText } from 'lucide-react'
+import { Shield, Eye, EyeOff, X, RefreshCw, Save, Lock, Users, ChevronDown, FileCode2, Terminal as TerminalIcon, Code, Box, Globe, Link as LinkIcon, BookOpen, Zap, ShieldCheck, FileText, Copy, XCircle, Minus, Plus } from 'lucide-react'
+import * as ContextMenu from '@radix-ui/react-context-menu'
 import { ResponseArea } from './ResponseArea'
 import { HistoryDetailView } from './HistoryDetailView'
 import { CollaborationPanel } from './CollaborationPanel'
@@ -64,11 +65,13 @@ monaco.languages.registerHoverProvider('html', createVarHoverProvider('html'))
 const REQUEST_TABS = ['Params', 'Auth', 'Headers', 'Body', 'Pre-request', 'Tests', 'Validation'] as const
 
 const METHOD_COLOR: Record<string, string> = {
-  GET: 'text-success',
-  POST: 'text-warning',
-  PUT: 'text-info',
-  PATCH: 'text-secondary',
-  DELETE: 'text-danger'
+  GET: 'text-emerald-400',
+  POST: 'text-amber-400',
+  PUT: 'text-blue-400',
+  PATCH: 'text-sky-400',
+  DELETE: 'text-rose-400',
+  HEAD: 'text-purple-400',
+  OPTIONS: 'text-slate-400'
 }
 
 interface RequestFormProps {
@@ -812,44 +815,150 @@ const ValidationEditorTab: React.FC<ValidationEditorTabProps> = ({
   )
 }
 
-const RequestTabs = (): React.JSX.Element => {
-  const { tabs, activeTabId, setActiveTab, closeTab } = useDataStore()
+const ctxMenuItemCls = 'flex items-center gap-2 px-3 py-1.5 text-[11px] font-medium text-text hover:bg-primary/15 hover:text-primary rounded cursor-pointer outline-none transition-colors select-none'
+const ctxMenuSeparatorCls = 'my-1 h-px bg-border mx-2'
+const ctxMenuShortcutCls = 'ml-auto text-[10px] text-muted font-mono'
 
+const RequestTabs = (): React.JSX.Element => {
+  const { tabs, activeTabId, setActiveTab, closeTab, forceCloseTab, closeOtherTabs, closeAllTabs, forceCloseAllTabs, duplicateTab, openDraftRequest } = useDataStore()
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const isMac = navigator.platform.toUpperCase().includes('MAC')
+      const mod = isMac ? e.metaKey : e.ctrlKey
+
+      // ⌘T / Ctrl+T — New Request
+      if (mod && e.key === 't') {
+        e.preventDefault()
+        openDraftRequest({})
+        return
+      }
+
+      // ⌘W / Ctrl+W — Close active tab
+      if (mod && !e.altKey && e.key === 'w') {
+        e.preventDefault()
+        const { activeTabId: currentId } = useDataStore.getState()
+        if (currentId) closeTab(currentId)
+        return
+      }
+
+      // ⌥⌘W / Ctrl+Alt+W — Force close active tab
+      if (mod && e.altKey && e.key === 'w') {
+        e.preventDefault()
+        const { activeTabId: currentId } = useDataStore.getState()
+        if (currentId) forceCloseTab(currentId)
+        return
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [closeTab, forceCloseTab, openDraftRequest])
 
   if (!tabs || tabs.length === 0) return <></>
 
   return (
     <div className="flex bg-background border-b border-border overflow-x-auto no-scrollbar shrink-0">
       {tabs.map((tab) => (
-        <div
-          key={tab.requestId}
-          onClick={(): void => setActiveTab(tab.requestId)}
-          className={`group flex items-center h-10 px-3 border-r border-border cursor-pointer transition-all min-w-[120px] max-w-[200px] relative ${activeTabId === tab.requestId
-            ? 'bg-surface border-t-2 border-t-primary'
-            : 'hover:bg-surface/50'
-            }`}
-        >
-          <span
-            className={`text-[9px] font-black mr-2 shrink-0 ${METHOD_COLOR[tab.method] ?? 'text-muted'}`}
-          >
-            {tab.method}
-          </span>
-          <span
-            className={`text-xs truncate flex-1 ${activeTabId === tab.requestId ? 'text-text font-medium' : 'text-muted'}`}
-          >
-            {tab.name}
-            {tab.isDirty && <span className="ml-1 text-primary">•</span>}
-          </span>
-          <button
-            onClick={(e): void => {
-              e.stopPropagation()
-              closeTab(tab.requestId)
-            }}
-            className="ml-2 p-0.5 rounded-full hover:bg-border transition-colors opacity-0 group-hover:opacity-100"
-          >
-            <X size={10} />
-          </button>
-        </div>
+        <ContextMenu.Root key={tab.requestId}>
+          <ContextMenu.Trigger asChild>
+            <div
+              onClick={(): void => setActiveTab(tab.requestId)}
+              className={`group flex items-center h-10 px-3 border-r border-border cursor-pointer transition-all min-w-[120px] max-w-[200px] relative ${activeTabId === tab.requestId
+                ? 'bg-surface border-t-2 border-t-primary'
+                : 'hover:bg-surface/50'
+                }`}
+            >
+              <span
+                className={`text-[9px] font-black mr-2 shrink-0 ${METHOD_COLOR[tab.method] ?? 'text-muted'}`}
+              >
+                {tab.method}
+              </span>
+              <span
+                className={`text-xs truncate flex-1 ${activeTabId === tab.requestId ? 'text-text font-medium' : 'text-muted'}`}
+              >
+                {tab.name}
+                {tab.isDirty && <span className="ml-1 text-primary">•</span>}
+              </span>
+              <button
+                onClick={(e): void => {
+                  e.stopPropagation()
+                  closeTab(tab.requestId)
+                }}
+                className="ml-2 p-0.5 rounded-full hover:bg-border transition-colors opacity-0 group-hover:opacity-100"
+              >
+                <X size={10} />
+              </button>
+            </div>
+          </ContextMenu.Trigger>
+
+          <ContextMenu.Portal>
+            <ContextMenu.Content className="bg-surface border border-border rounded-lg shadow-2xl p-1 z-[200] min-w-[200px] animate-in fade-in-0 zoom-in-95">
+              <ContextMenu.Item
+                className={ctxMenuItemCls}
+                onSelect={() => openDraftRequest({})}
+              >
+                <Plus size={13} className="text-muted" />
+                New Request
+                <span className={ctxMenuShortcutCls}>⌘T</span>
+              </ContextMenu.Item>
+
+              <ContextMenu.Item
+                className={ctxMenuItemCls}
+                onSelect={() => duplicateTab(tab.requestId)}
+              >
+                <Copy size={13} className="text-muted" />
+                Duplicate Tab
+              </ContextMenu.Item>
+
+              <div className={ctxMenuSeparatorCls} />
+
+              <ContextMenu.Item
+                className={ctxMenuItemCls}
+                onSelect={() => closeTab(tab.requestId)}
+              >
+                <X size={13} className="text-muted" />
+                Close Tab
+                <span className={ctxMenuShortcutCls}>⌘W</span>
+              </ContextMenu.Item>
+
+              <ContextMenu.Item
+                className={ctxMenuItemCls}
+                onSelect={() => forceCloseTab(tab.requestId)}
+              >
+                <XCircle size={13} className="text-muted" />
+                Force Close Tab
+                <span className={ctxMenuShortcutCls}>⌥⌘W</span>
+              </ContextMenu.Item>
+
+              <ContextMenu.Item
+                className={ctxMenuItemCls}
+                onSelect={() => closeOtherTabs(tab.requestId)}
+              >
+                <Minus size={13} className="text-muted" />
+                Close Other Tabs
+              </ContextMenu.Item>
+
+              <div className={ctxMenuSeparatorCls} />
+
+              <ContextMenu.Item
+                className={ctxMenuItemCls}
+                onSelect={() => closeAllTabs()}
+              >
+                <X size={13} className="text-muted" />
+                Close All Tabs
+              </ContextMenu.Item>
+
+              <ContextMenu.Item
+                className={`${ctxMenuItemCls} text-rose-400 hover:text-rose-400 hover:bg-rose-500/10`}
+                onSelect={() => forceCloseAllTabs()}
+              >
+                <XCircle size={13} />
+                Force Close All Tabs
+              </ContextMenu.Item>
+            </ContextMenu.Content>
+          </ContextMenu.Portal>
+        </ContextMenu.Root>
       ))}
     </div>
   )

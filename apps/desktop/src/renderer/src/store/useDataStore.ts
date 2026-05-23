@@ -222,11 +222,17 @@ interface DataState {
   renameRequest: (id: number, name: string) => Promise<void>
   setActiveTab: (requestId: number | string) => void
   closeTab: (requestId: number | string) => void
+  forceCloseTab: (requestId: number | string) => void
+  closeOtherTabs: (keepRequestId: number | string) => void
+  closeAllTabs: () => void
+  forceCloseAllTabs: () => void
+  duplicateTab: (requestId: number | string) => void
   setWorkingRequest: (update: Partial<WorkingRequest>) => void
 
   // CRUD Actions
   saveActiveRequest: () => Promise<void>
-  createCollection: (name: string) => Promise<void>
+  createCollection: (name: string, description?: string, confluence_page_id?: string) => Promise<void>
+  updateCollection: (id: number, name: string, description: string, confluence_page_id: string) => Promise<void>
   importCollection: (jsonContent: string) => Promise<void>
   createRequest: (
     collectionId: number,
@@ -240,7 +246,8 @@ interface DataState {
   fetchEnvironments: (teamId: number) => Promise<void>
   setActiveEnvironment: (envId: number | null) => void
   createEnvironment: (name: string) => Promise<void>
-  updateEnvironment: (id: number, name: string, variables: Record<string, string>) => Promise<void>
+  createGlobalEnvironment: (name: string) => Promise<void>
+  updateEnvironment: (id: number, name: string, variables: Record<string, string>, isGlobal?: boolean, teamId?: number | null) => Promise<void>
   deleteEnvironment: (id: number) => Promise<void>
 
   // History Actions
@@ -701,6 +708,47 @@ export const useDataStore = create<DataState>()(
           set({ tabs: newTabs, activeTabId: newActiveTabId })
         },
 
+        forceCloseTab: (requestId) => {
+          const { tabs, activeTabId } = get()
+          const newTabs = tabs.filter((t) => t.requestId !== requestId)
+          let newActiveTabId = activeTabId
+          if (activeTabId === requestId) {
+            newActiveTabId = newTabs.length > 0 ? newTabs[newTabs.length - 1].requestId : null
+          }
+          set({ tabs: newTabs, activeTabId: newActiveTabId })
+        },
+
+        closeOtherTabs: (keepRequestId) => {
+          const { tabs } = get()
+          const newTabs = tabs.filter((t) => t.requestId === keepRequestId)
+          set({ tabs: newTabs, activeTabId: keepRequestId })
+        },
+
+        closeAllTabs: () => {
+          set({ tabs: [], activeTabId: null })
+        },
+
+        forceCloseAllTabs: () => {
+          set({ tabs: [], activeTabId: null })
+        },
+
+        duplicateTab: (requestId) => {
+          const { tabs } = get()
+          const tab = tabs.find((t) => t.requestId === requestId)
+          if (!tab) return
+          const draftId = `draft-${Date.now()}`
+          const newTab = {
+            ...tab,
+            requestId: draftId,
+            name: `${tab.name} (Copy)`,
+            isDirty: true,
+            workingRequest: { ...tab.workingRequest }
+          }
+          const idx = tabs.findIndex((t) => t.requestId === requestId)
+          const newTabs = [...tabs.slice(0, idx + 1), newTab, ...tabs.slice(idx + 1)]
+          set({ tabs: newTabs, activeTabId: draftId })
+        },
+
         setWorkingRequest: (update) => {
           const { activeTabId, tabs } = get()
           if (!activeTabId) return
@@ -830,14 +878,15 @@ export const useDataStore = create<DataState>()(
           }
         },
 
-        createCollection: async (name: string) => {
+        createCollection: async (name: string, description: string = '', confluence_page_id: string = '') => {
           const { activeTeamId } = get()
           if (!activeTeamId) return
 
           try {
             const response = await apiClient.post(`/api/v1/teams/${activeTeamId}/collections`, {
               name,
-              description: ''
+              description,
+              confluence_page_id
             })
             if (response.status === 201) {
               const newCol = response.data as Collection
@@ -853,16 +902,40 @@ export const useDataStore = create<DataState>()(
           }
         },
 
-        importCollection: async (jsonContent: string) => {
+        updateCollection: async (id: number, name: string, description: string, confluence_page_id: string) => {
+          try {
+            const response = await apiClient.put(`/api/v1/collections/${id}`, {
+              name,
+              description,
+              confluence_page_id
+            })
+            if (response.status === 200) {
+              const updated = response.data as Collection
+              set((state) => ({
+                collections: state.collections.map(c => c.id === id ? updated : c)
+              }))
+              toast.success('Collection updated')
+            }
+          } catch {
+            toast.error('Failed to update collection')
+          }
+        },
+
+        importCollection: async (jsonContent: string, mode: 'new' | 'overwrite' = 'new', confirmName?: string) => {
           const { activeTeamId } = get()
           if (!activeTeamId) return
 
           try {
             const data = JSON.parse(jsonContent)
-            const response = await apiClient.post(`/api/v1/teams/${activeTeamId}/import`, data)
-            if (response.status === 201) {
+            let url = `/api/v1/teams/${activeTeamId}/import?mode=${mode}`
+            if (mode === 'overwrite' && confirmName) {
+              url += `&confirm_name=${encodeURIComponent(confirmName)}`
+            }
+
+            const response = await apiClient.post(url, data)
+            if (response.status === 201 || response.status === 200) {
               await get().fetchCollections(activeTeamId)
-              toast.success('Collection imported successfully')
+              toast.success(mode === 'overwrite' ? 'Collection overwritten successfully' : 'Collection imported successfully')
             } else {
               toast.error('Failed to import collection')
             }
@@ -1053,15 +1126,33 @@ export const useDataStore = create<DataState>()(
           }
         },
 
-        updateEnvironment: async (id: number, name: string, variables: Record<string, string>) => {
+        createGlobalEnvironment: async (name: string) => {
+          const { activeTeamId } = get()
+          try {
+            const response = await apiClient.post(`/api/v1/environments/global`, {
+              name,
+              variables: {}
+            })
+            if (response.status === 201) {
+              if (activeTeamId) await get().fetchEnvironments(activeTeamId)
+              toast.success('Global environment created')
+            }
+          } catch {
+            toast.error('Failed to create global environment')
+          }
+        },
+
+        updateEnvironment: async (id: number, name: string, variables: Record<string, string>, isGlobal?: boolean, teamId?: number | null) => {
           const { activeTeamId } = get()
           if (!activeTeamId) return
 
           try {
-            console.log(`[Store] Updating environment ${id}...`, variables)
+            console.log(`[Store] Updating environment ${id}...`, { name, variables, isGlobal, teamId })
             const response = await apiClient.put(`/api/v1/environments/${id}`, {
               name,
-              variables
+              variables,
+              is_global: isGlobal,
+              team_id: teamId
             })
             if (response.status === 200) {
               await get().fetchEnvironments(activeTeamId)

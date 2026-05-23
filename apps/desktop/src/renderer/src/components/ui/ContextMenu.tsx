@@ -28,9 +28,13 @@ export const ContextMenu = ({ x, y, items, onClose }: ContextMenuProps): React.J
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [onClose])
 
-  // Prevent menu from going off screen
-  const menuX = Math.min(x, window.innerWidth - 160)
-  const menuY = Math.min(y, window.innerHeight - 200)
+  // Clamp position so the menu never overflows the viewport
+  const MENU_WIDTH = 192 // w-48 = 12rem = 192px
+  const estimatedHeight = items.length * 34 + 8 // ~34px per item + py-1 padding
+  const menuX = Math.min(x, window.innerWidth - MENU_WIDTH - 4)
+  const menuY = y + estimatedHeight > window.innerHeight
+    ? Math.max(4, window.innerHeight - estimatedHeight - 4)
+    : y
 
   return (
     <div
