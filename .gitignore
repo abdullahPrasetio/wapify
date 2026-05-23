@@ -1,3 +1,8 @@
-\n# Wapbolt Go SDK\ngo-wapbolt/
+# Wapbolt Go SDK
+go-wapbolt/
 
-testsprite_tests/tmp/config.json
+# PHP SDK
+php-wapbolt/
+
+# TestSprite
+testsprite_tests/
