@@ -22,18 +22,21 @@ import {
   X,
   Download,
   Copy,
-  GripVertical, Key, DatabaseZap,
+  Key, DatabaseZap,
   Zap, Heart, ListTree,
   Cloud
 } from 'lucide-react'
-import { useState, useEffect, useLayoutEffect, useMemo } from 'react'
+import { useState, useEffect, useLayoutEffect, useMemo, useRef, createContext, useContext } from 'react'
 import {
   DndContext,
-  closestCorners,
+  closestCenter,
   PointerSensor,
   useSensor,
   useSensors,
   DragEndEvent,
+  DragMoveEvent,
+  DragStartEvent,
+  DragOverlay,
   useDroppable
 } from '@dnd-kit/core'
 import {
@@ -61,6 +64,18 @@ import type { ApiRequest, Collection, Folder, RequestExample } from '../../types
 import { DocumentationPanel } from './DocumentationPanel'
 import { MockServerPanel } from './MockServerPanel'
 import { NotificationBell } from './NotificationBell'
+
+interface DragZoneInfo {
+  id: string
+  zone: 'sort-top' | 'sort-bottom' | 'nest'
+}
+
+interface DragStateContextValue {
+  activeDragId: string | null
+  overInfo: DragZoneInfo | null
+}
+
+const DragStateContext = createContext<DragStateContextValue>({ activeDragId: null, overInfo: null })
 
 const METHOD_COLORS: Record<string, string> = {
   GET: 'text-success',
@@ -113,76 +128,39 @@ const SortableItem = ({ id, children, disabled, type = 'request' }: SortableItem
     transform,
     transition,
     isDragging,
-    isOver,
-    over
   } = useSortable({ id, disabled })
 
-  const [dropMode, setDropMode] = useState<'sort-top' | 'sort-bottom' | 'nest' | null>(null)
-
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isOver || isDragging) return
-    const rect = e.currentTarget.getBoundingClientRect()
-    const x = e.clientX - rect.left
-    const y = e.clientY - rect.top
-
-    // LOGIC: Left 30% of the width is ALWAYS sorting
-    const isLeftSide = x < rect.width * 0.3
-
-    if (type === 'folder') {
-      if (isLeftSide) {
-        if (y < rect.height / 2) setDropMode('sort-top')
-        else setDropMode('sort-bottom')
-      } else {
-        setDropMode('nest')
-      }
-    } else {
-      if (y < rect.height / 2) setDropMode('sort-top')
-      else setDropMode('sort-bottom')
-    }
-  }
-
-  const handleMouseLeave = () => setDropMode(null)
+  const { overInfo } = useContext(DragStateContext)
+  const isOverSelf = overInfo?.id === id
 
   const style = {
     transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.3 : 1,
-    zIndex: isDragging ? 100 : 'auto'
+    transition: transition ?? 'transform 150ms ease',
+    opacity: isDragging ? 0 : 1,
   }
 
-  const isOverSelf = isOver && over?.id === id
-
   return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className="relative group/sortable"
-      onMouseMove={handleMouseMove}
-      onMouseLeave={handleMouseLeave}
-    >
-      {/* Visual Indicators */}
+    <div ref={setNodeRef} style={style} className="relative group/sortable">
+      {/* Visual drop indicators — driven by DragStateContext, not mousemove */}
       {isOverSelf && !isDragging && (
         <>
-          {dropMode === 'sort-top' && (
-            <div className="absolute -top-0.5 left-0 right-0 h-0.5 bg-info z-30 rounded-full shadow-[0_0_8px_rgba(59,130,246,0.5)]" />
+          {overInfo?.zone === 'sort-top' && (
+            <div className="absolute -top-0.5 left-2 right-2 h-0.5 bg-primary z-30 rounded-full shadow-[0_0_6px_rgba(99,102,241,0.6)]">
+              <div className="absolute -left-1 -top-1 w-2 h-2 rounded-full bg-primary" />
+            </div>
           )}
-          {dropMode === 'sort-bottom' && (
-            <div className="absolute -bottom-0.5 left-0 right-0 h-0.5 bg-info z-30 rounded-full shadow-[0_0_8px_rgba(59,130,246,0.5)]" />
+          {overInfo?.zone === 'sort-bottom' && (
+            <div className="absolute -bottom-0.5 left-2 right-2 h-0.5 bg-primary z-30 rounded-full shadow-[0_0_6px_rgba(99,102,241,0.6)]">
+              <div className="absolute -left-1 -top-1 w-2 h-2 rounded-full bg-primary" />
+            </div>
           )}
-          {dropMode === 'nest' && type === 'folder' && (
-            <div className="absolute inset-0 bg-primary/20 border border-primary/40 rounded z-10 pointer-events-none" />
+          {overInfo?.zone === 'nest' && type === 'folder' && (
+            <div className="absolute inset-0 bg-primary/15 border border-primary/50 rounded z-10 pointer-events-none" />
           )}
         </>
       )}
 
-      <div
-        {...attributes}
-        {...listeners}
-        className="absolute left-[-10px] top-1.5 opacity-0 group-hover/sortable:opacity-40 cursor-grab active:cursor-grabbing p-1 z-20"
-      >
-        <GripVertical size={10} />
-      </div>
-      <div className="relative z-20">
+      <div {...attributes} {...listeners} className="relative z-10">
         {children}
       </div>
     </div>
@@ -702,11 +680,13 @@ export const Sidebar = (): React.JSX.Element => {
   const [sidebarTab, setSidebarTab] = useState<'collections' | 'history'>('collections')
   const [isNewCollectionModalOpen, setIsNewCollectionModalOpen] = useState(false)
 
+  const [activeDragId, setActiveDragId] = useState<string | null>(null)
+  const [overInfo, setOverInfo] = useState<DragZoneInfo | null>(null)
+  const overInfoRef = useRef<DragZoneInfo | null>(null)
+
   const sensors = useSensors(
     useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 8,
-      },
+      activationConstraint: { delay: 300, tolerance: 5 },
     })
   )
 
@@ -735,11 +715,58 @@ export const Sidebar = (): React.JSX.Element => {
   }, [])
 
   const activeTeam = teams.find((t) => t.id === activeTeamId)
-  const filteredCollections = collections.filter((c) => c.name.toLowerCase().includes(searchQuery.toLowerCase()))
+  const filteredCollections = collections
+    .filter((c) => c.name.toLowerCase().includes(searchQuery.toLowerCase()))
+    .sort((a, b) => a.name.localeCompare(b.name))
+
+  const computeDropZone = (
+    overIdStr: string,
+    overRect: DOMRect | null,
+    pointerX: number,
+    pointerY: number
+  ): 'sort-top' | 'sort-bottom' | 'nest' => {
+    if (!overRect) return 'sort-bottom'
+    const relX = pointerX - overRect.left
+    const relY = pointerY - overRect.top
+    if (overIdStr.startsWith('folder-')) {
+      // Left 30% = sort, right 70% = nest into folder
+      if (relX < overRect.width * 0.3) {
+        return relY < overRect.height / 2 ? 'sort-top' : 'sort-bottom'
+      }
+      return 'nest'
+    }
+    return relY < overRect.height / 2 ? 'sort-top' : 'sort-bottom'
+  }
+
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveDragId(event.active.id.toString())
+    setOverInfo(null)
+    overInfoRef.current = null
+  }
+
+  const handleDragMove = (event: DragMoveEvent) => {
+    const { over, activatorEvent, delta } = event
+    if (!over) {
+      setOverInfo(null)
+      overInfoRef.current = null
+      return
+    }
+    const overIdStr = over.id.toString()
+    const pointer = activatorEvent as MouseEvent
+    const pointerX = pointer.clientX + delta.x
+    const pointerY = pointer.clientY + delta.y
+    const overRect = over.rect as unknown as DOMRect | null
+    const zone = computeDropZone(overIdStr, overRect, pointerX, pointerY)
+    const info = { id: overIdStr, zone }
+    overInfoRef.current = info
+    setOverInfo(info)
+  }
 
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event
-    if (!over || active.id === over.id) return
+    setActiveDragId(null)
+    setOverInfo(null)
+    if (!over || active.id === over.id) { overInfoRef.current = null; return }
 
     const activeIdStr = active.id.toString()
     const overIdStr = over.id.toString()
@@ -751,29 +778,9 @@ export const Sidebar = (): React.JSX.Element => {
     const allRequests = state.requests
     const allFolders = Object.values(state.foldersByCollection).flat()
 
-    // DETECT DROP ZONE PRECISELY USING POINTER COORDINATES
-    const overRect = over.rect
-    const pointer = (event.activatorEvent as MouseEvent)
-    const pointerX = pointer.clientX + (event.delta.x || 0)
-    const pointerY = pointer.clientY + (event.delta.y || 0)
-
-    let dropZone: 'sort-top' | 'sort-bottom' | 'nest' = 'sort-bottom'
-
-    if (overRect) {
-      const relativeX = pointerX - overRect.left
-      const relativeY = pointerY - overRect.top
-      const isLeftSide = relativeX < (overRect.width * 0.3)
-
-      if (overIdStr.startsWith('folder-')) {
-        if (isLeftSide) {
-          dropZone = relativeY < overRect.height / 2 ? 'sort-top' : 'sort-bottom'
-        } else {
-          dropZone = 'nest'
-        }
-      } else {
-        dropZone = relativeY < overRect.height / 2 ? 'sort-top' : 'sort-bottom'
-      }
-    }
+    // Use the zone we tracked in onDragMove (most up-to-date)
+    const dropZone = overInfoRef.current?.zone ?? 'sort-bottom'
+    overInfoRef.current = null
 
     if (isRequest) {
       const targetFold = allFolders.find(f => `folder-${f.id}` === overIdStr)
@@ -866,11 +873,32 @@ export const Sidebar = (): React.JSX.Element => {
     }
   }
 
+  // Resolve active drag item info for DragOverlay ghost
+  const activeDragLabel = useMemo(() => {
+    if (!activeDragId) return null
+    const state = useDataStore.getState()
+    if (activeDragId.startsWith('request-')) {
+      const id = parseInt(activeDragId.split('-')[1])
+      const req = state.requests.find(r => r.id === id)
+      return req ? { type: 'request', method: req.method, name: req.name } : null
+    }
+    if (activeDragId.startsWith('folder-')) {
+      const id = parseInt(activeDragId.split('-')[1])
+      const folder = Object.values(state.foldersByCollection).flat().find(f => f.id === id)
+      return folder ? { type: 'folder', name: folder.name } : null
+    }
+    return null
+  }, [activeDragId])
+
   return (
+    <DragStateContext.Provider value={{ activeDragId, overInfo }}>
     <DndContext
       sensors={sensors}
-      collisionDetection={closestCorners}
+      collisionDetection={closestCenter}
+      onDragStart={handleDragStart}
+      onDragMove={handleDragMove}
       onDragEnd={handleDragEnd}
+      onDragCancel={() => { setActiveDragId(null); setOverInfo(null); overInfoRef.current = null }}
     >
       <div className="w-64 h-full bg-surface border-r border-border flex flex-col flex-shrink-0 overflow-hidden">
         <div className="h-14 flex items-center justify-between px-4 border-b border-border shrink-0">
@@ -1107,6 +1135,28 @@ export const Sidebar = (): React.JSX.Element => {
           />
         )}
       </div>
+
+      {/* Drag ghost overlay */}
+      <DragOverlay dropAnimation={{ duration: 150, easing: 'ease' }}>
+        {activeDragLabel && (
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-surface border border-primary/60 rounded-lg shadow-2xl shadow-black/40 text-xs font-medium text-text opacity-95 backdrop-blur-sm max-w-55">
+            {activeDragLabel.type === 'folder' ? (
+              <>
+                <FolderIcon size={13} className="text-primary shrink-0" />
+                <span className="truncate">{activeDragLabel.name}</span>
+              </>
+            ) : (
+              <>
+                <span className={`text-[9px] font-black w-8 text-right shrink-0 ${METHOD_COLORS[(activeDragLabel as any).method] ?? 'text-muted'}`}>
+                  {(activeDragLabel as any).method}
+                </span>
+                <span className="truncate">{activeDragLabel.name}</span>
+              </>
+            )}
+          </div>
+        )}
+      </DragOverlay>
     </DndContext>
+    </DragStateContext.Provider>
   )
 }

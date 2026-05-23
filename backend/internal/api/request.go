@@ -142,18 +142,20 @@ func CreateRequestInFolder(c *fiber.Ctx) error {
 		PostRequestScript: getString(data, "post_request_script"),
 	}
 
-	if headers, ok := data["headers"]; ok {
-		request.Headers = repository.JSONB(headers.(map[string]interface{}))
-	}
-	if body, ok := data["body"]; ok {
-		if bArray, ok := body.([]interface{}); ok {
-			request.Body = repository.JSONB{"array": bArray}
-		} else {
-			request.Body = repository.JSONB(body.(map[string]interface{}))
+	if v, ok := data["headers"]; ok {
+		if jsonb, ok := toJSONB(v); ok {
+			request.Headers = jsonb
 		}
 	}
-	if auth, ok := data["auth_config"]; ok {
-		request.AuthConfig = repository.JSONB(auth.(map[string]interface{}))
+	if v, ok := data["body"]; ok {
+		if jsonb, ok := toJSONB(v); ok {
+			request.Body = jsonb
+		}
+	}
+	if v, ok := data["auth_config"]; ok {
+		if jsonb, ok := toJSONB(v); ok {
+			request.AuthConfig = jsonb
+		}
 	}
 
 	if err := repository.DB.Create(&request).Error; err != nil {
@@ -216,18 +218,20 @@ func CreateRequestInCollection(c *fiber.Ctx) error {
 		request.FolderID = &fid
 	}
 
-	if headers, ok := data["headers"]; ok {
-		request.Headers = repository.JSONB(headers.(map[string]interface{}))
-	}
-	if body, ok := data["body"]; ok {
-		if bArray, ok := body.([]interface{}); ok {
-			request.Body = repository.JSONB{"array": bArray}
-		} else {
-			request.Body = repository.JSONB(body.(map[string]interface{}))
+	if v, ok := data["headers"]; ok {
+		if jsonb, ok := toJSONB(v); ok {
+			request.Headers = jsonb
 		}
 	}
-	if auth, ok := data["auth_config"]; ok {
-		request.AuthConfig = repository.JSONB(auth.(map[string]interface{}))
+	if v, ok := data["body"]; ok {
+		if jsonb, ok := toJSONB(v); ok {
+			request.Body = jsonb
+		}
+	}
+	if v, ok := data["auth_config"]; ok {
+		if jsonb, ok := toJSONB(v); ok {
+			request.AuthConfig = jsonb
+		}
 	}
 
 	if err := repository.DB.Create(&request).Error; err != nil {
@@ -287,22 +291,23 @@ func UpdateRequest(c *fiber.Ctx) error {
 	}
 
 	// Headers dan Body diperbolehkan kosong
-	if headers, ok := updateData["headers"]; ok {
-		request.Headers = repository.JSONB(headers.(map[string]interface{}))
+	if v, ok := updateData["headers"]; ok {
+		if jsonb, ok := toJSONB(v); ok {
+			request.Headers = jsonb
+		}
 	}
-	if body, ok := updateData["body"]; ok {
-		if bArray, ok := body.([]interface{}); ok {
-			// Jika body berupa array (form-data/urlencoded)
-			request.Body = repository.JSONB{"array": bArray} // Bungkus agar konsisten JSONB
-		} else {
-			request.Body = repository.JSONB(body.(map[string]interface{}))
+	if v, ok := updateData["body"]; ok {
+		if jsonb, ok := toJSONB(v); ok {
+			request.Body = jsonb
 		}
 	}
 	if bodyType, ok := updateData["body_type"].(string); ok {
 		request.BodyType = bodyType
 	}
-	if authConfig, ok := updateData["auth_config"]; ok {
-		request.AuthConfig = repository.JSONB(authConfig.(map[string]interface{}))
+	if v, ok := updateData["auth_config"]; ok {
+		if jsonb, ok := toJSONB(v); ok {
+			request.AuthConfig = jsonb
+		}
 	}
 	if pre, ok := updateData["pre_request_script"].(string); ok {
 		request.PreRequestScript = pre
@@ -400,6 +405,23 @@ func DuplicateRequest(c *fiber.Ctx) error {
 }
 
 // Helpers
+// toJSONB safely converts an interface{} value to JSONB.
+// Handles map, array, and string (raw body) cases without panicking.
+func toJSONB(v interface{}) (repository.JSONB, bool) {
+	if v == nil {
+		return nil, false
+	}
+	switch val := v.(type) {
+	case map[string]interface{}:
+		return repository.JSONB(val), true
+	case []interface{}:
+		return repository.JSONB{"array": val}, true
+	case string:
+		return repository.JSONB{"raw": val}, true
+	}
+	return nil, false
+}
+
 func getString(m map[string]interface{}, key string) string {
 	if val, ok := m[key].(string); ok {
 		return val

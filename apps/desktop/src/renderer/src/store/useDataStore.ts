@@ -222,6 +222,11 @@ interface DataState {
   renameRequest: (id: number, name: string) => Promise<void>
   setActiveTab: (requestId: number | string) => void
   closeTab: (requestId: number | string) => void
+  forceCloseTab: (requestId: number | string) => void
+  closeOtherTabs: (keepRequestId: number | string) => void
+  closeAllTabs: () => void
+  forceCloseAllTabs: () => void
+  duplicateTab: (requestId: number | string) => void
   setWorkingRequest: (update: Partial<WorkingRequest>) => void
 
   // CRUD Actions
@@ -701,6 +706,47 @@ export const useDataStore = create<DataState>()(
           }
 
           set({ tabs: newTabs, activeTabId: newActiveTabId })
+        },
+
+        forceCloseTab: (requestId) => {
+          const { tabs, activeTabId } = get()
+          const newTabs = tabs.filter((t) => t.requestId !== requestId)
+          let newActiveTabId = activeTabId
+          if (activeTabId === requestId) {
+            newActiveTabId = newTabs.length > 0 ? newTabs[newTabs.length - 1].requestId : null
+          }
+          set({ tabs: newTabs, activeTabId: newActiveTabId })
+        },
+
+        closeOtherTabs: (keepRequestId) => {
+          const { tabs } = get()
+          const newTabs = tabs.filter((t) => t.requestId === keepRequestId)
+          set({ tabs: newTabs, activeTabId: keepRequestId })
+        },
+
+        closeAllTabs: () => {
+          set({ tabs: [], activeTabId: null })
+        },
+
+        forceCloseAllTabs: () => {
+          set({ tabs: [], activeTabId: null })
+        },
+
+        duplicateTab: (requestId) => {
+          const { tabs } = get()
+          const tab = tabs.find((t) => t.requestId === requestId)
+          if (!tab) return
+          const draftId = `draft-${Date.now()}`
+          const newTab = {
+            ...tab,
+            requestId: draftId,
+            name: `${tab.name} (Copy)`,
+            isDirty: true,
+            workingRequest: { ...tab.workingRequest }
+          }
+          const idx = tabs.findIndex((t) => t.requestId === requestId)
+          const newTabs = [...tabs.slice(0, idx + 1), newTab, ...tabs.slice(idx + 1)]
+          set({ tabs: newTabs, activeTabId: draftId })
         },
 
         setWorkingRequest: (update) => {

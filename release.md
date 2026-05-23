@@ -1,5 +1,12 @@
 # Wapbolt Release Notes
 
+## [v1.6.4] — 2026-05-22
+### 🚀 Sidebar Refactor & Improved Save Flow
+- **DND Refactor**: Menggunakan `closestCenter` dan Drag Ghost Overlay untuk pengaturan koleksi yang lebih presisi.
+- **Recursive Save Location**: Modal penyimpanan request kini mendukung pemilihan folder via hierarchical tree.
+- **Advanced Tab Management**: Fitur baru "Close Other Tabs", "Duplicate Tab", dan "Force Close".
+- **Backend Robustness**: Konversi data ke JSONB yang lebih aman untuk mencegah panic.
+
 ## [v1.6.3] — 2026-05-18
 ### 🛡️ Confluence Resilience & Variables
 - **Firewall Bypass**: Mendukung Method Tunneling (POST-as-PUT) dan bypass CSRF untuk lingkungan korporat ketat.
