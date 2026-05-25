@@ -28,14 +28,6 @@ function buildFolderTree(folders: FolderType[], parentId: number | null = null, 
     }))
 }
 
-function flattenTree(nodes: FolderNode[]): FolderNode[] {
-  const result: FolderNode[] = []
-  for (const node of nodes) {
-    result.push(node)
-    result.push(...flattenTree(node.children))
-  }
-  return result
-}
 
 interface FolderRowProps {
   node: FolderNode
@@ -176,29 +168,34 @@ export const SaveRequestLocationModal = ({
   draftRequest,
   draftId
 }: SaveRequestLocationModalProps): React.JSX.Element => {
-  const { collections, foldersByCollection, createRequest, tabs } = useDataStore()
+  const { collections, foldersByCollection, fetchCollectionContents, createRequest, tabs } = useDataStore()
   const [selectedCollectionId, setSelectedCollectionId] = useState<number | null>(null)
   const [selectedFolderId, setSelectedFolderId] = useState<number | null>(null)
   const [requestName, setRequestName] = useState(draftRequest.name || 'New Request')
 
   useEffect(() => {
     if (isOpen) {
-      if (collections.length > 0 && !selectedCollectionId) {
-        setSelectedCollectionId(collections[0].id)
+      const firstId = collections.length > 0 ? collections[0].id : null
+      if (firstId && !selectedCollectionId) {
+        setSelectedCollectionId(firstId)
+        if (!foldersByCollection[firstId]) fetchCollectionContents(firstId)
       }
       const tab = tabs.find(t => t.requestId === draftId)
       if (tab) {
         let name = tab.name
         if (name.startsWith('[Draft] ')) name = name.replace('[Draft] ', '')
         setRequestName(name)
+      } else if (draftRequest.name) {
+        setRequestName(draftRequest.name)
       }
     }
-  }, [isOpen, collections, draftId, tabs, selectedCollectionId])
+  }, [isOpen, collections, draftId, tabs, selectedCollectionId, draftRequest.name, foldersByCollection, fetchCollectionContents])
 
-  // Reset folder selection when collection changes
+  // Reset folder selection when collection changes and fetch folders if needed
   const handleCollectionChange = (id: number) => {
     setSelectedCollectionId(id)
     setSelectedFolderId(null)
+    if (!foldersByCollection[id]) fetchCollectionContents(id)
   }
 
   const folders: FolderType[] = selectedCollectionId ? (foldersByCollection[selectedCollectionId] || []) : []

@@ -978,7 +978,8 @@ export const MainArea = (): React.JSX.Element => {
     presenceByRequest,
     locksByRequest,
     collections,
-    requests
+    requests,
+    duplicateRequest
   } = useDataStore()
 
   const { user } = useAuthStore()
@@ -1159,9 +1160,37 @@ export const MainArea = (): React.JSX.Element => {
                   <Save size={14} className="text-muted" />
                   <span>Save</span>
                 </button>
-                <button className="px-2 py-1.5 hover:bg-border/30 transition-colors">
-                  <ChevronDown size={14} className="text-muted" />
-                </button>
+                <DropdownMenu.Root>
+                  <DropdownMenu.Trigger asChild>
+                    <button className="px-2 py-1.5 hover:bg-border/30 transition-colors focus:outline-none">
+                      <ChevronDown size={14} className="text-muted" />
+                    </button>
+                  </DropdownMenu.Trigger>
+                  <DropdownMenu.Portal>
+                    <DropdownMenu.Content
+                      className="bg-surface border border-border rounded-lg shadow-xl p-1 z-110 min-w-40 text-xs"
+                      sideOffset={4}
+                      align="end"
+                    >
+                      <DropdownMenu.Item
+                        onClick={() => setIsSaveModalOpen(true)}
+                        className="flex items-center gap-2 px-3 py-2 rounded cursor-pointer text-text hover:bg-background outline-none data-highlighted:bg-background"
+                      >
+                        <Save size={13} className="text-muted" />
+                        Save As...
+                      </DropdownMenu.Item>
+                      {typeof activeTabRequest.requestId === 'number' && (
+                        <DropdownMenu.Item
+                          onClick={() => duplicateRequest(activeTabRequest.requestId as number)}
+                          className="flex items-center gap-2 px-3 py-2 rounded cursor-pointer text-text hover:bg-background outline-none data-highlighted:bg-background"
+                        >
+                          <Copy size={13} className="text-muted" />
+                          Duplicate
+                        </DropdownMenu.Item>
+                      )}
+                    </DropdownMenu.Content>
+                  </DropdownMenu.Portal>
+                </DropdownMenu.Root>
               </div>
 
               <div className="flex items-center bg-surface border border-border rounded divide-x divide-border">
@@ -1426,24 +1455,23 @@ export const MainArea = (): React.JSX.Element => {
         />
       )}
 
-      {/* Save Draft Location Modal */}
-      {typeof activeTabRequest.requestId === 'string' && (activeTabRequest.requestId.startsWith('draft-') || activeTabRequest.requestId.startsWith('example-')) && (
-        <SaveRequestLocationModal
-          isOpen={isSaveModalOpen}
-          onClose={() => setIsSaveModalOpen(false)}
-          draftRequest={{
-            method: activeTabRequest.workingRequest.method as any,
-            url: activeTabRequest.workingRequest.url,
-            headers: activeTabRequest.workingRequest.headers,
-            body: activeTabRequest.workingRequest.body,
-            body_type: activeTabRequest.workingRequest.body_type,
-            auth_config: activeTabRequest.workingRequest.auth_config,
-            pre_request_script: activeTabRequest.workingRequest.pre_request_script,
-            post_request_script: activeTabRequest.workingRequest.post_request_script
-          }}
-          draftId={activeTabRequest.requestId}
-        />
-      )}
+      {/* Save / Save As Modal */}
+      <SaveRequestLocationModal
+        isOpen={isSaveModalOpen}
+        onClose={() => setIsSaveModalOpen(false)}
+        draftRequest={{
+          name: activeTabRequest.name,
+          method: activeTabRequest.workingRequest.method as any,
+          url: activeTabRequest.workingRequest.url,
+          headers: activeTabRequest.workingRequest.headers,
+          body: activeTabRequest.workingRequest.body,
+          body_type: activeTabRequest.workingRequest.body_type,
+          auth_config: activeTabRequest.workingRequest.auth_config,
+          pre_request_script: activeTabRequest.workingRequest.pre_request_script,
+          post_request_script: activeTabRequest.workingRequest.post_request_script
+        }}
+        draftId={typeof activeTabRequest.requestId === 'string' ? activeTabRequest.requestId : `saved-${activeTabRequest.requestId}`}
+      />
 
       <ComingSoonModal
         isOpen={comingSoon.isOpen}

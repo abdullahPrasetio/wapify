@@ -15,6 +15,7 @@ export class WebSocketClient {
   public ws: WebSocket | null = null
   private isConnecting = false
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
+  private _wasConnected = false
 
   public connect(teamId: number, userId: number, userName: string) {
     if (this.ws || this.isConnecting) return
@@ -27,7 +28,14 @@ export class WebSocketClient {
 
       this.ws.onopen = () => {
         console.log('[Wapbolt WS] Connected to collaboration server')
-        toast.success('Connected to collaboration server', { id: 'ws-status' })
+        const isReconnect = this._wasConnected
+        this._wasConnected = true
+        toast.success(isReconnect ? 'Reconnected to collaboration server' : 'Connected to collaboration server', { id: 'ws-status' })
+        useNotificationStore.getState().addLocalNotification(
+          isReconnect ? 'Collaboration Reconnected' : 'Collaboration Connected',
+          isReconnect ? 'You have rejoined the collaboration server.' : 'You have joined the collaboration server.',
+          'collaboration'
+        )
         this.isConnecting = false
         if (this.reconnectTimer) {
           clearTimeout(this.reconnectTimer)

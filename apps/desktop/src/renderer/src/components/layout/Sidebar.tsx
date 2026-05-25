@@ -64,6 +64,7 @@ import type { ApiRequest, Collection, Folder, RequestExample } from '../../types
 import { DocumentationPanel } from './DocumentationPanel'
 import { MockServerPanel } from './MockServerPanel'
 import { NotificationBell } from './NotificationBell'
+import { wsClient } from '../../api/websocket'
 
 interface DragZoneInfo {
   id: string
@@ -400,6 +401,15 @@ const FolderItem = ({
           )}
           <FolderIcon size={12} className="text-muted mr-2 shrink-0" />
           <span className="truncate flex-1">{folder.name}</span>
+          <button
+            onClick={(e): void => { e.stopPropagation(); e.preventDefault(); handleContextMenu(e) }}
+            className="opacity-0 group-hover:opacity-100 shrink-0 p-0.5 rounded hover:bg-border text-muted hover:text-text transition-all"
+            title="Folder actions"
+          >
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
+              <circle cx="2" cy="6" r="1.2"/><circle cx="6" cy="6" r="1.2"/><circle cx="10" cy="6" r="1.2"/>
+            </svg>
+          </button>
         </div>
 
         {contextMenu && (
@@ -657,6 +667,7 @@ export const Sidebar = (): React.JSX.Element => {
   const [showStandaloneMock, setShowStandaloneMock] = useState(false)
   const [showConfluenceSettings, setShowConfluenceSettings] = useState(false)
   const [appVersion, setAppVersion] = useState<string>('')
+  const [wsStatus, setWsStatus] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected')
 
   const {
     teams,
@@ -675,6 +686,22 @@ export const Sidebar = (): React.JSX.Element => {
   } = useDataStore()
 
   const { activeView, setActiveView } = useAppStore()
+
+  useEffect(() => {
+    const checkWs = () => {
+      if (wsClient.ws && wsClient.ws.readyState === WebSocket.OPEN) {
+        setWsStatus('connected')
+      } else if (user) {
+        setWsStatus('connecting')
+      } else {
+        setWsStatus('disconnected')
+      }
+    }
+    checkWs()
+    const interval = setInterval(checkWs, 500)
+    return () => clearInterval(interval)
+  }, [user])
+
   const [searchQuery, setSearchQuery] = useState('')
   const [isAdminMenuOpen, setIsAdminMenuOpen] = useState(false)
   const [sidebarTab, setSidebarTab] = useState<'collections' | 'history'>('collections')
@@ -1106,7 +1133,16 @@ export const Sidebar = (): React.JSX.Element => {
                 </DropdownMenu.Portal>
               </DropdownMenu.Root>
               
-              <div className="flex items-center shrink-0 ml-1">
+              <div className="flex items-center shrink-0 ml-1 gap-1.5">
+                <span
+                  title={wsStatus === 'connected' ? 'Collaboration connected' : wsStatus === 'connecting' ? 'Collaboration connecting' : 'Collaboration disconnected'}
+                  aria-label={wsStatus === 'connected' ? 'collaboration connected' : wsStatus === 'connecting' ? 'collaboration connecting' : 'collaboration disconnected'}
+                  data-ws-status={wsStatus}
+                  className={`flex items-center gap-1 text-[9px] font-medium ${wsStatus === 'connected' ? 'text-green-400' : wsStatus === 'connecting' ? 'text-yellow-400' : 'text-red-400 opacity-60'}`}
+                >
+                  <span className={`w-2 h-2 rounded-full shrink-0 ${wsStatus === 'connected' ? 'bg-green-400' : wsStatus === 'connecting' ? 'bg-yellow-400' : 'bg-red-400 opacity-60'}`} />
+                  {wsStatus === 'connected' ? 'collaboration connected' : wsStatus === 'connecting' ? 'collaboration connecting' : 'collaboration disconnected'}
+                </span>
                 <NotificationBell />
               </div>
             </div>
