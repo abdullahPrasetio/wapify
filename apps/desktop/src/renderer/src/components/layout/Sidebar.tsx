@@ -1138,18 +1138,17 @@ export const Sidebar = (): React.JSX.Element => {
                 </DropdownMenu.Portal>
               </DropdownMenu.Root>
               
-              <div className="flex items-center shrink-0 ml-1 gap-1.5">
-                <span
-                  title={wsStatus === 'connected' ? 'Collaboration connected' : wsStatus === 'connecting' ? 'Collaboration connecting' : 'Collaboration disconnected'}
-                  aria-label={wsStatus === 'connected' ? 'collaboration connected' : wsStatus === 'connecting' ? 'collaboration connecting' : 'collaboration disconnected'}
-                  data-ws-status={wsStatus}
-                  className={`flex items-center gap-1 text-[9px] font-medium ${wsStatus === 'connected' ? 'text-green-400' : wsStatus === 'connecting' ? 'text-yellow-400' : 'text-red-400 opacity-60'}`}
-                >
-                  <span className={`w-2 h-2 rounded-full shrink-0 ${wsStatus === 'connected' ? 'bg-green-400' : wsStatus === 'connecting' ? 'bg-yellow-400' : 'bg-red-400 opacity-60'}`} />
-                  {wsStatus === 'connected' ? 'collaboration connected' : wsStatus === 'connecting' ? 'collaboration connecting' : 'collaboration disconnected'}
-                </span>
-                <NotificationBell />
-              </div>
+              <NotificationBell />
+            </div>
+            <div className="flex items-center gap-1.5 px-1 mt-0.5">
+              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${wsStatus === 'connected' ? 'bg-green-400' : wsStatus === 'connecting' ? 'bg-yellow-400' : 'bg-red-400 opacity-60'}`} />
+              <span
+                title={wsStatus === 'connected' ? 'Collaboration connected' : wsStatus === 'connecting' ? 'Collaboration connecting' : 'Collaboration disconnected'}
+                data-ws-status={wsStatus}
+                className={`text-[9px] font-medium truncate ${wsStatus === 'connected' ? 'text-green-400' : wsStatus === 'connecting' ? 'text-yellow-400' : 'text-red-400 opacity-60'}`}
+              >
+                {wsStatus === 'connected' ? 'Collaboration connected' : wsStatus === 'connecting' ? 'Collaboration connecting' : 'Collaboration disconnected'}
+              </span>
             </div>
           </div>
         </div>
