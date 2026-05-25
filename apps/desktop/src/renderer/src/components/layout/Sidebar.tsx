@@ -682,7 +682,9 @@ export const Sidebar = (): React.JSX.Element => {
     createCollection,
     history,
     clearHistory,
-    collapseAll
+    collapseAll,
+    confluenceEnabled,
+    fetchConfluenceEnabled
   } = useDataStore()
 
   const { activeView, setActiveView } = useAppStore()
@@ -722,6 +724,7 @@ export const Sidebar = (): React.JSX.Element => {
   }, [])
 
   useEffect(() => { fetchTeams() }, [fetchTeams])
+  useEffect(() => { fetchConfluenceEnabled() }, [fetchConfluenceEnabled])
 
   useEffect(() => {
     const handleOpenSettings = () => setShowServerSettings(true)
@@ -1098,13 +1101,15 @@ export const Sidebar = (): React.JSX.Element => {
                     side="top"
                     align="start"
                   >
-                    <DropdownMenu.Item
-                      onClick={() => setShowUserConfluence(true)}
-                      className="flex items-center px-2 py-1.5 text-xs text-text hover:bg-background hover:text-text rounded cursor-pointer outline-none data-[highlighted]:bg-background"
-                    >
-                      <Cloud size={14} className="mr-2 text-blue-400" />
-                      Confluence Settings
-                    </DropdownMenu.Item>
+                    {confluenceEnabled && (
+                      <DropdownMenu.Item
+                        onClick={() => setShowUserConfluence(true)}
+                        className="flex items-center px-2 py-1.5 text-xs text-text hover:bg-background hover:text-text rounded cursor-pointer outline-none data-highlighted:bg-background"
+                      >
+                        <Cloud size={14} className="mr-2 text-blue-400" />
+                        Confluence Settings
+                      </DropdownMenu.Item>
+                    )}
                     <DropdownMenu.Item
                       onClick={() => setShowChangePassword(true)}
                       className="flex items-center px-2 py-1.5 text-xs text-text hover:bg-background hover:text-text rounded cursor-pointer outline-none data-[highlighted]:bg-background"

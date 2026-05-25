@@ -201,6 +201,10 @@ interface DataState {
   restoreVersion: (requestId: number, versionId: number) => Promise<void>
   fetchActivities: (teamId: number) => Promise<void>
 
+  // Confluence
+  confluenceEnabled: boolean
+  fetchConfluenceEnabled: () => Promise<void>
+
   // Searchable Data (Cross-team)
   searchableRequests: { id: number; name: string; url: string; method: string; team_id: number; collection_id: number }[]
   searchableCollections: { id: number; name: string; team_id: number }[]
@@ -359,6 +363,19 @@ export const useDataStore = create<DataState>()(
         requestVersions: {},
         requestComments: {},
         activities: [],
+
+        confluenceEnabled: false,
+
+        fetchConfluenceEnabled: async () => {
+          try {
+            const res = await apiClient.get('/api/v1/admin/confluence/config')
+            if (res.status === 200) {
+              set({ confluenceEnabled: (res.data as any).confluence_enabled === 'true' })
+            }
+          } catch {
+            set({ confluenceEnabled: false })
+          }
+        },
 
         searchableRequests: [],
         searchableCollections: [],

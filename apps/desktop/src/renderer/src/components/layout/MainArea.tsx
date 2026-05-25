@@ -120,6 +120,7 @@ interface EditorAreaProps {
   workingRequest: WorkingRequest
   onUpdate: (update: Partial<WorkingRequest>) => void
   isLocked?: boolean
+  onSetVar?: (varName: string) => void
 }
 
 const EditorArea = ({
@@ -127,7 +128,8 @@ const EditorArea = ({
   requestId,
   workingRequest,
   isLocked,
-  onUpdate
+  onUpdate,
+  onSetVar
 }: EditorAreaProps): React.JSX.Element => {
   const { fontSize, theme } = useAppStore()
   const monacoTheme = theme === 'system'
@@ -289,6 +291,26 @@ const EditorArea = ({
               theme={monacoTheme}
               value={typeof workingRequest.body === 'string' ? workingRequest.body : JSON.stringify(workingRequest.body, null, 2)}
               onChange={(val) => onUpdate({ body: val || '' })}
+              onMount={(editor) => {
+                editor.onMouseDown((e) => {
+                  if (!onSetVar) return
+                  const pos = e.target.position
+                  if (!pos) return
+                  const model = editor.getModel()
+                  if (!model) return
+                  const lineContent = model.getLineContent(pos.lineNumber)
+                  const regex = /\{\{([^}]+)\}\}/g
+                  let match
+                  while ((match = regex.exec(lineContent)) !== null) {
+                    const start = match.index + 1
+                    const end = start + match[0].length
+                    if (pos.column >= start && pos.column <= end) {
+                      onSetVar(match[1].trim())
+                      break
+                    }
+                  }
+                })
+              }}
               options={{
                 minimap: { enabled: false },
                 fontSize: fontSize,
@@ -1398,6 +1420,7 @@ export const MainArea = (): React.JSX.Element => {
               workingRequest={workingRequest}
               isLocked={isLockedByOthers}
               onUpdate={(update): void => setWorkingRequest(update)}
+              onSetVar={setSettingVar}
             />
           </div>
         </div>
