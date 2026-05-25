@@ -1,5 +1,21 @@
 # Wapbolt Release Notes
 
+## [v1.7.2] — 2026-05-25
+
+### ⌨️ Keyboard Shortcut & Export Code
+- **Cmd+Enter di Monaco Editor**: Shortcut kirim request kini bekerja dari mana saja — termasuk saat fokus di editor body, pre-request script, dan tests script. Didaftarkan via `editor.addCommand` di setiap Monaco instance saat mount.
+- **Export Code — 8 Bahasa Lengkap**: `node-axios`, `php-guzzle`, `java-okhttp`, `ruby-net-http`, dan `csharp-restsharp` kini menghasilkan snippet yang akurat dan siap-pakai (sebelumnya menampilkan "coming soon").
+- **Fix `js-fetch` double-stringify**: Body JSON tidak lagi di-`JSON.stringify` dua kali.
+- **Fix `node-native` protocol detection**: Snippet Node.js native kini otomatis menggunakan `http` atau `https` sesuai URL, lengkap dengan port dan query string.
+- **Syntax highlighting**: Monaco editor di Export Code Modal kini menampilkan highlighting yang benar untuk Java, C#, PHP, Ruby, dan Go.
+
+### 🖱️ Cursor Pointer Global Audit
+- Audit menyeluruh ~60 elemen interaktif di seluruh app yang sebelumnya tidak memiliki `cursor-pointer`.
+- Diperbaiki di: `MainArea`, `KeyValueEditor`, `VariableOverlayInput`, `HistoryDetailView`, `NotificationBell`, `ActivityLogView`, `ScenariosPanel`, `LoginPage`, dan semua `<select>` di sidebar, admin panels, dan modals.
+- Elemen disabled kini konsisten menampilkan `cursor-not-allowed`.
+
+---
+
 ## [v1.7.1] — 2026-05-25
 
 ### 📋 Export cURL
