@@ -16,7 +16,7 @@ import { ComingSoonModal } from '../modals/ComingSoonModal'
 import { parseCurlCommand } from '../../utils/curlParser'
 import Editor, { loader } from '@monaco-editor/react'
 import * as monaco from 'monaco-editor'
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import type { FieldValidationRule, FieldValidations } from '../../types'
 import { toast } from 'sonner'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
@@ -61,6 +61,166 @@ monaco.languages.registerHoverProvider('javascript', createVarHoverProvider('jav
 monaco.languages.registerHoverProvider('xml', createVarHoverProvider('xml'))
 monaco.languages.registerHoverProvider('html', createVarHoverProvider('html'))
 
+// Register wap API type definitions for IntelliSense in script editors
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const _tsLang = (monaco.languages as any).typescript
+_tsLang.javascriptDefaults.addExtraLib(`
+declare const wap: {
+  /** Set a temporary local variable (not persisted to DB) */
+  set(key: string, value: unknown): void;
+  environment: {
+    /** Set an environment variable and persist to the active environment */
+    set(key: string, value: unknown): void;
+    /** Get an environment variable by key */
+    get(key: string): string | undefined;
+  };
+  collectionVariables: {
+    set(key: string, value: unknown): void;
+    get(key: string): string | undefined;
+  };
+  /** The current request object */
+  request: {
+    method: string;
+    url: string;
+    headers: Record<string, string>;
+    body: unknown;
+    body_type: string;
+  };
+  /** Run a named test assertion. Only available in post-request scripts. */
+  test(name: string, fn: () => void): void;
+  /** Create an assertion chain */
+  expect(value: unknown): {
+    to: {
+      equal(expected: unknown): void;
+      include(substring: string): void;
+      be: { a(type: string): void };
+      have: { status(code: number): void };
+    };
+    not: { to: { be: { null(): void } } };
+  };
+  /** Response data. Only available in post-request scripts. */
+  response: {
+    /** HTTP status code */
+    status: number;
+    /** Parsed response body */
+    json(): any;
+    /** Raw response data */
+    data: any;
+    headers: {
+      get(key: string): string | undefined;
+    };
+    to: { have: { status(code: number): void } };
+  };
+};
+declare const pm: typeof wap;
+declare const moment: any;
+declare const _: any;
+`, 'wap-api.d.ts')
+
+_tsLang.javascriptDefaults.setCompilerOptions({
+  allowNonTsExtensions: true,
+  noLib: false,
+  target: _tsLang.ScriptTarget.ESNext,
+})
+
+// ─── Script Snippets ──────────────────────────────────────────────────────────
+
+interface Snippet {
+  label: string
+  code: string
+  description: string
+}
+
+const PRE_REQUEST_SNIPPETS: { category: string; items: Snippet[] }[] = [
+  {
+    category: 'Environment',
+    items: [
+      { label: 'Set variable', description: 'Persist a value to active env', code: "wap.environment.set('variableName', 'value')" },
+      { label: 'Get variable', description: 'Read from active env', code: "const value = wap.environment.get('token')" },
+      { label: 'Timestamp', description: 'Set current Unix timestamp', code: "wap.environment.set('timestamp', Date.now().toString())" },
+    ]
+  },
+  {
+    category: 'Auth',
+    items: [
+      { label: 'Bearer token header', description: 'Inject token into request header', code: "wap.request.headers['Authorization'] = 'Bearer ' + wap.environment.get('token')" },
+    ]
+  },
+  {
+    category: 'Logging',
+    items: [
+      { label: 'Log variable', description: 'Print env variable to console', code: "console.log('token:', wap.environment.get('token'))" },
+    ]
+  },
+]
+
+const TESTS_SNIPPETS: { category: string; items: Snippet[] }[] = [
+  {
+    category: 'Status',
+    items: [
+      { label: 'Status is 200', description: 'Assert HTTP 200', code: "wap.test('Status is 200', () => {\n  wap.expect(wap.response.status).to.equal(200)\n})" },
+      { label: 'Status is 201', description: 'Assert HTTP 201 Created', code: "wap.test('Status is 201', () => {\n  wap.expect(wap.response.status).to.equal(201)\n})" },
+      { label: 'Status 2xx', description: 'Assert success range', code: "wap.test('Status is success', () => {\n  const s = wap.response.status\n  if (s < 200 || s >= 300) throw new Error('Expected 2xx, got ' + s)\n})" },
+    ]
+  },
+  {
+    category: 'Save from Response',
+    items: [
+      { label: 'Save token', description: 'Extract & save token from response', code: "const json = wap.response.json()\nconst token = json?.data?.token || json?.token\nif (token) {\n  wap.environment.set('token', token)\n  console.log('Token saved:', token)\n}" },
+      { label: 'Save any field', description: 'Extract a field and save to env', code: "const value = wap.response.json()?.data?.id\nwap.environment.set('savedId', String(value))" },
+    ]
+  },
+  {
+    category: 'Assertions',
+    items: [
+      { label: 'Response has field', description: 'Check JSON field exists', code: "wap.test('Response has data', () => {\n  const json = wap.response.json()\n  wap.expect(json).to.have.status // replace with your field check\n  if (!json?.data) throw new Error('Missing data field')\n})" },
+      { label: 'Response time < 1s', description: 'Performance assertion', code: "// Note: timing available in console log\nconsole.log('Response received')" },
+      { label: 'Log response', description: 'Print response to console', code: "console.log(JSON.stringify(wap.response.json(), null, 2))" },
+    ]
+  },
+]
+
+interface ScriptSnippetsPanelProps {
+  mode: 'pre' | 'tests'
+  onInsert: (code: string) => void
+}
+
+const ScriptSnippetsPanel = ({ mode, onInsert }: ScriptSnippetsPanelProps): React.JSX.Element => {
+  const snippets = mode === 'pre' ? PRE_REQUEST_SNIPPETS : TESTS_SNIPPETS
+
+  return (
+    <div className="w-52 shrink-0 border-l border-border bg-background/50 flex flex-col overflow-hidden">
+      <div className="px-3 py-2 border-b border-border">
+        <span className="text-[9px] font-black text-muted uppercase tracking-[0.2em]">Snippets</span>
+      </div>
+      <div className="flex-1 overflow-y-auto p-2 space-y-3">
+        {snippets.map((group) => (
+          <div key={group.category}>
+            <div className="text-[9px] font-black text-muted/60 uppercase tracking-widest px-1 mb-1">
+              {group.category}
+            </div>
+            <div className="space-y-0.5">
+              {group.items.map((snippet) => (
+                <button
+                  key={snippet.label}
+                  onClick={() => onInsert(snippet.code)}
+                  title={snippet.description}
+                  className="w-full text-left px-2 py-1.5 rounded text-[11px] text-text hover:bg-primary/10 hover:text-primary transition-colors group flex items-start gap-1.5"
+                >
+                  <span className="mt-0.5 text-primary/40 group-hover:text-primary transition-colors shrink-0">›</span>
+                  <div>
+                    <div className="font-medium leading-tight">{snippet.label}</div>
+                    <div className="text-[9px] text-muted leading-tight">{snippet.description}</div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
 
 const REQUEST_TABS = ['Params', 'Auth', 'Headers', 'Body', 'Pre-request', 'Tests', 'Validation'] as const
 
@@ -138,6 +298,19 @@ const EditorArea = ({
   const [showPassword, setShowPassword] = useState(false)
   const [isHeaderBulk, setIsHeaderBulk] = useState(false)
   const [headerBulkLocal, setHeaderBulkLocal] = useState('')
+  const preEditorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null)
+  const testsEditorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null)
+
+  const insertSnippet = (editorRef: React.MutableRefObject<monaco.editor.IStandaloneCodeEditor | null>, code: string) => {
+    const editor = editorRef.current
+    if (!editor) return
+    const selection = editor.getSelection()
+    const range = selection ?? new monaco.Range(1, 1, 1, 1)
+    const currentVal = editor.getValue()
+    const insertText = currentVal ? '\n\n' + code : code
+    editor.executeEdits('snippet', [{ range, text: insertText, forceMoveMarkers: true }])
+    editor.focus()
+  }
 
   const auth = workingRequest.auth_config || { type: 'No Auth' }
   const handleAuthChange = (update: Partial<AuthConfig>): void => {
@@ -410,52 +583,66 @@ const EditorArea = ({
       </div>
 
       {/* --- PRE-REQUEST TAB --- */}
-      <div className={`h-full flex flex-col ${activeTab === 'Pre-request' ? 'block' : 'hidden'}`}>
-        <div className="p-2 bg-background/50 border-b border-border flex items-center justify-between">
+      <div className={`h-full flex flex-col ${activeTab === 'Pre-request' ? 'flex' : 'hidden'}`}>
+        <div className="p-2 bg-background/50 border-b border-border flex items-center justify-between shrink-0">
           <span className="text-[9px] text-muted font-black uppercase tracking-[0.2em] flex items-center gap-2">
             <TerminalIcon size={12} className="text-primary" /> Script: Before execution
           </span>
+          <span className="text-[9px] text-muted/50 italic">wap.environment.set / wap.request</span>
         </div>
-        <div className="flex-1 overflow-hidden">
-          <Editor
-            height="100%"
-            defaultLanguage="javascript"
-            theme={monacoTheme}
-            value={workingRequest.pre_request_script || ''}
-            onChange={(val) => onUpdate({ pre_request_script: val || '' })}
-            options={{
-              minimap: { enabled: false },
-              fontSize: fontSize,
-              scrollBeyondLastLine: false,
-              padding: { top: 10 },
-              readOnly: isLocked
-            }}
-          />
+        <div className="flex-1 flex overflow-hidden">
+          <div className="flex-1 overflow-hidden">
+            <Editor
+              height="100%"
+              defaultLanguage="javascript"
+              theme={monacoTheme}
+              value={workingRequest.pre_request_script || ''}
+              onMount={(editor) => { preEditorRef.current = editor }}
+              onChange={(val) => onUpdate({ pre_request_script: val || '' })}
+              options={{
+                minimap: { enabled: false },
+                fontSize: fontSize,
+                scrollBeyondLastLine: false,
+                padding: { top: 10 },
+                readOnly: isLocked,
+                suggestOnTriggerCharacters: true,
+                quickSuggestions: true,
+              }}
+            />
+          </div>
+          {!isLocked && <ScriptSnippetsPanel mode="pre" onInsert={(code) => insertSnippet(preEditorRef, code)} />}
         </div>
       </div>
 
       {/* --- TESTS TAB --- */}
-      <div className={`h-full flex flex-col ${activeTab === 'Tests' ? 'block' : 'hidden'}`}>
-        <div className="p-2 bg-background/50 border-b border-border flex items-center justify-between">
+      <div className={`h-full flex flex-col ${activeTab === 'Tests' ? 'flex' : 'hidden'}`}>
+        <div className="p-2 bg-background/50 border-b border-border flex items-center justify-between shrink-0">
           <span className="text-[9px] text-muted font-black uppercase tracking-[0.2em] flex items-center gap-2">
             <RefreshCw size={12} className="text-primary" /> Script: After response
           </span>
+          <span className="text-[9px] text-muted/50 italic">wap.test / wap.response / wap.environment.set</span>
         </div>
-        <div className="flex-1 overflow-hidden">
-          <Editor
-            height="100%"
-            defaultLanguage="javascript"
-            theme={monacoTheme}
-            value={workingRequest.post_request_script || ''}
-            onChange={(val) => onUpdate({ post_request_script: val || '' })}
-            options={{
-              minimap: { enabled: false },
-              fontSize: fontSize,
-              scrollBeyondLastLine: false,
-              padding: { top: 10 },
-              readOnly: isLocked
-            }}
-          />
+        <div className="flex-1 flex overflow-hidden">
+          <div className="flex-1 overflow-hidden">
+            <Editor
+              height="100%"
+              defaultLanguage="javascript"
+              theme={monacoTheme}
+              value={workingRequest.post_request_script || ''}
+              onMount={(editor) => { testsEditorRef.current = editor }}
+              onChange={(val) => onUpdate({ post_request_script: val || '' })}
+              options={{
+                minimap: { enabled: false },
+                fontSize: fontSize,
+                scrollBeyondLastLine: false,
+                padding: { top: 10 },
+                readOnly: isLocked,
+                suggestOnTriggerCharacters: true,
+                quickSuggestions: true,
+              }}
+            />
+          </div>
+          {!isLocked && <ScriptSnippetsPanel mode="tests" onInsert={(code) => insertSnippet(testsEditorRef, code)} />}
         </div>
       </div>
 

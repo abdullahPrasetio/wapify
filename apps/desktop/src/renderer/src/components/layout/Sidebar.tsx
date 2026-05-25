@@ -24,7 +24,8 @@ import {
   Copy,
   Key, DatabaseZap,
   Zap, Heart, ListTree,
-  Cloud
+  Cloud,
+  RotateCcw
 } from 'lucide-react'
 import { useState, useEffect, useLayoutEffect, useMemo, useRef, createContext, useContext } from 'react'
 import {
@@ -705,6 +706,7 @@ export const Sidebar = (): React.JSX.Element => {
   }, [user])
 
   const [searchQuery, setSearchQuery] = useState('')
+  const [historySearch, setHistorySearch] = useState('')
   const [isAdminMenuOpen, setIsAdminMenuOpen] = useState(false)
   const [sidebarTab, setSidebarTab] = useState<'collections' | 'history'>('collections')
   const [isNewCollectionModalOpen, setIsNewCollectionModalOpen] = useState(false)
@@ -1038,21 +1040,135 @@ export const Sidebar = (): React.JSX.Element => {
                 {collectionsLoading ? <div className="text-center py-8 text-xs text-muted">Loading...</div> : filteredCollections.map((c) => <CollectionItem key={c.id} collection={c} />)}
               </div>
             ) : (
-              <div className="px-2 py-2 space-y-0.5">
-                <div className="px-2 py-2 flex items-center justify-between">
-                  <span className="text-[10px] font-black text-text/50 uppercase tracking-[0.2em]">Recent Activity</span>
-                  <button onClick={() => confirm('Clear history?') && clearHistory()} className="text-muted hover:text-danger" title="Clear All"><Trash2 size={12} /></button>
-                </div>
-                {history.map((h) => (
-                  <div key={h.id} onClick={() => useAppStore.getState().setActiveHistoryId(h.id)} className="px-2 py-2 rounded hover:bg-background cursor-pointer group flex flex-col gap-0.5 border-l-2 border-transparent hover:border-primary/50">
-                    <div className="flex items-center justify-between text-[10px] font-black">
-                      <span className={METHOD_COLORS[h.method] ?? 'text-muted'}>{h.method}</span>
-                      <span className="text-muted font-normal">{(new Date(h.created_at)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                    </div>
-                    <div className="text-[11px] text-text truncate font-mono">{h.url}</div>
-                    <span className={`text-[9px] font-bold ${h.status_code < 300 ? 'text-success' : 'text-danger'}`}>{h.status_code || 'Err'} ({h.response_time}ms)</span>
+              <div className="flex flex-col h-full">
+                {/* Search + Clear */}
+                <div className="px-3 pt-2 pb-1 flex items-center gap-1.5 shrink-0">
+                  <div className="relative flex-1">
+                    <Search size={11} className="absolute left-2 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
+                    <input
+                      type="text"
+                      value={historySearch}
+                      onChange={(e) => setHistorySearch(e.target.value)}
+                      placeholder="Search history..."
+                      className="w-full bg-background border border-border rounded pl-6 pr-2 py-1 text-[11px] text-text placeholder:text-muted/50 focus:outline-none focus:border-primary"
+                    />
+                    {historySearch && (
+                      <button
+                        onClick={() => setHistorySearch('')}
+                        className="absolute right-1.5 top-1/2 -translate-y-1/2 text-muted hover:text-text"
+                      >
+                        <X size={10} />
+                      </button>
+                    )}
                   </div>
-                ))}
+                  <button
+                    onClick={() => confirm('Clear history?') && clearHistory()}
+                    className="text-muted hover:text-danger shrink-0"
+                    title="Clear All"
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                </div>
+
+                {/* History List */}
+                <div className="overflow-y-auto flex-1 px-2 pb-2">
+                  {(() => {
+                    const q = historySearch.trim().toLowerCase()
+                    const filtered = q
+                      ? history.filter(
+                          (h) =>
+                            h.url.toLowerCase().includes(q) ||
+                            h.method.toLowerCase().includes(q) ||
+                            String(h.status_code).includes(q)
+                        )
+                      : history
+
+                    if (filtered.length === 0) {
+                      return (
+                        <div className="text-center py-8 text-xs text-muted italic">
+                          {q ? 'No results found.' : 'No history yet.'}
+                        </div>
+                      )
+                    }
+
+                    // Group by date
+                    const groups: { label: string; items: typeof filtered }[] = []
+                    filtered.forEach((h) => {
+                      const d = new Date(h.created_at)
+                      const today = new Date()
+                      const yesterday = new Date(today)
+                      yesterday.setDate(today.getDate() - 1)
+                      const label =
+                        d.toDateString() === today.toDateString()
+                          ? 'Today'
+                          : d.toDateString() === yesterday.toDateString()
+                          ? 'Yesterday'
+                          : d.toLocaleDateString([], { month: 'short', day: 'numeric' })
+                      const existing = groups.find((g) => g.label === label)
+                      if (existing) existing.items.push(h)
+                      else groups.push({ label, items: [h] })
+                    })
+
+                    return groups.map((group) => (
+                      <div key={group.label} className="mt-2">
+                        <div className="px-2 py-1 text-[9px] font-black text-muted/60 uppercase tracking-widest">
+                          {group.label}
+                        </div>
+                        {group.items.map((h) => (
+                          <div
+                            key={h.id}
+                            className="px-2 py-2 rounded hover:bg-background cursor-pointer group/item flex flex-col gap-0.5 border-l-2 border-transparent hover:border-primary/50 relative"
+                          >
+                            <div
+                              className="flex items-center justify-between text-[10px] font-black"
+                              onClick={() => useAppStore.getState().setActiveHistoryId(h.id)}
+                            >
+                              <span className={METHOD_COLORS[h.method] ?? 'text-muted'}>{h.method}</span>
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-muted font-normal opacity-0 group-hover/item:opacity-100 transition-opacity">
+                                  {(new Date(h.created_at)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                </span>
+                                <button
+                                  title="Replay request"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    const headers: Record<string, string> = {}
+                                    Object.entries(h.request_headers || {}).forEach(([k, v]) => {
+                                      headers[k] = Array.isArray(v) ? v[0] : String(v)
+                                    })
+                                    useDataStore.getState().setWorkingRequest({
+                                      method: h.method,
+                                      url: h.url,
+                                      headers,
+                                      body: h.request_body || '',
+                                      body_type: headers['content-type']?.includes('application/json') ? 'raw-json' : 'raw-text'
+                                    })
+                                    useAppStore.getState().setActiveHistoryId(null)
+                                  }}
+                                  className="opacity-0 group-hover/item:opacity-100 transition-opacity text-muted hover:text-primary"
+                                >
+                                  <RotateCcw size={11} />
+                                </button>
+                              </div>
+                            </div>
+                            <div
+                              className="text-[11px] text-text truncate font-mono"
+                              onClick={() => useAppStore.getState().setActiveHistoryId(h.id)}
+                            >
+                              {h.url}
+                            </div>
+                            <span
+                              className={`text-[9px] font-bold ${h.status_code < 300 ? 'text-success' : 'text-danger'}`}
+                              onClick={() => useAppStore.getState().setActiveHistoryId(h.id)}
+                            >
+                              {h.status_code || 'Err'} ({h.response_time}ms)
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    ))
+                  })()}
+                </div>
               </div>
             )}
           </div>

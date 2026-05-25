@@ -1,4 +1,4 @@
-import { Trash2, CheckSquare, Square } from 'lucide-react'
+import { Trash2, CheckSquare, Square, Eye, EyeOff } from 'lucide-react'
 import { useState, useEffect, useRef } from 'react'
 import { VariableOverlayInput } from './VariableOverlayInput'
 
@@ -14,6 +14,8 @@ interface KeyValueEditorProps {
   initialData?: Record<string, string | number | boolean> | any[]
   disabled?: boolean
   onChange?: (data: any) => void
+  secretKeys?: Set<string>
+  onSecretToggle?: (key: string) => void
 }
 
 const mapDataToRows = (data: any): KeyValueRow[] => {
@@ -42,7 +44,9 @@ const mapDataToRows = (data: any): KeyValueRow[] => {
 export const KeyValueEditor = ({
   initialData = {},
   disabled = false,
-  onChange
+  onChange,
+  secretKeys,
+  onSecretToggle
 }: KeyValueEditorProps): React.JSX.Element => {
   const [rows, setRows] = useState<KeyValueRow[]>(() => mapDataToRows(initialData))
   const isInternalChange = useRef(false)
@@ -133,9 +137,10 @@ export const KeyValueEditor = ({
         <tbody>
           {rows.map((row, index) => {
             const isLastEmpty = index === rows.length - 1 && !row.key && !row.value
+            const isSecret = secretKeys && row.key ? secretKeys.has(row.key) : false
             return (
-              <tr 
-                key={row.id} 
+              <tr
+                key={row.id}
                 className={`border-b border-border group hover:bg-surface/30 transition-colors ${!row.enabled ? 'opacity-50' : ''}`}
               >
                 <td className="px-3 py-1 border-r border-border text-center">
@@ -157,13 +162,19 @@ export const KeyValueEditor = ({
                   />
                 </td>
                 <td className="p-0 border-r border-border">
-                  <VariableOverlayInput
-                    value={row.value}
-                    disabled={disabled}
-                    onChange={(e) => handleRowChange(row.id, 'value', e.target.value)}
-                    placeholder="Value"
-                    className={`bg-transparent border-none px-4 py-2.5 ${isLastEmpty ? 'opacity-50' : ''}`}
-                  />
+                  {onSecretToggle && isSecret ? (
+                    <div className="flex items-center px-3 py-2 h-full font-mono text-sm text-muted select-none">
+                      <span className="tracking-widest flex-1">••••••••</span>
+                    </div>
+                  ) : (
+                    <VariableOverlayInput
+                      value={row.value}
+                      disabled={disabled}
+                      onChange={(e) => handleRowChange(row.id, 'value', e.target.value)}
+                      placeholder="Value"
+                      className={`bg-transparent border-none px-4 py-2.5 ${isLastEmpty ? 'opacity-50' : ''}`}
+                    />
+                  )}
                 </td>
                 <td className="p-0">
                   <textarea
@@ -183,13 +194,25 @@ export const KeyValueEditor = ({
                 </td>
                 <td className="px-3 py-1 text-center">
                   {!isLastEmpty && (
-                    <button
-                      disabled={disabled}
-                      onClick={() => removeRow(row.id)}
-                      className={`transition-all ${disabled ? 'text-muted/20 cursor-not-allowed' : 'text-muted hover:text-danger opacity-0 group-hover:opacity-100'}`}
-                    >
-                      <Trash2 size={14} />
-                    </button>
+                    <div className="flex items-center justify-center gap-1.5 opacity-0 group-hover:opacity-100 transition-all">
+                      {onSecretToggle && row.key && (
+                        <button
+                          disabled={disabled}
+                          title={isSecret ? 'Unmask value' : 'Mark as secret'}
+                          onClick={() => onSecretToggle(row.key)}
+                          className={`transition-colors ${disabled ? 'text-muted/20 cursor-not-allowed' : isSecret ? 'text-amber-400 hover:text-amber-300' : 'text-muted hover:text-text'}`}
+                        >
+                          {isSecret ? <EyeOff size={13} /> : <Eye size={13} />}
+                        </button>
+                      )}
+                      <button
+                        disabled={disabled}
+                        onClick={() => removeRow(row.id)}
+                        className={`transition-all ${disabled ? 'text-muted/20 cursor-not-allowed' : 'text-muted hover:text-danger'}`}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
                   )}
                 </td>
               </tr>

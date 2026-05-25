@@ -1,5 +1,25 @@
 # Wapbolt Release Notes
 
+## [v1.7.0] — 2026-05-25
+### ⚡ Environment Autocomplete, Script IntelliSense & History Replay
+
+#### 🔐 Environment Variables
+- **Variable Autocomplete**: Mengetik `{{` di URL, header, atau body memunculkan dropdown variabel dari environment aktif. Navigasi dengan ↑↓, konfirmasi Enter/Tab, tutup Escape.
+- **Secret Masking**: Nilai variabel bisa ditandai sebagai rahasia — ditampilkan `••••••••` di editor. State secret tersimpan di localStorage per-environment.
+
+#### 🛠️ Pre-request & Post-response Scripts
+- **Monaco IntelliSense**: Object `wap` (dan `pm`) kini fully-typed di editor script. Autocomplete, parameter hints, dan dokumentasi inline tersedia untuk `wap.environment`, `wap.request`, `wap.response`, `wap.test()`, `wap.expect()`, dan lainnya.
+- **Snippet Library**: Panel snippet di samping editor dengan insert satu-klik:
+  - *Pre-request*: Set variable, Get variable, Timestamp, Bearer token injection, Log variable
+  - *Tests*: Assert status 200/201/2xx, Save token dari response, Save field ke environment, Log response
+
+#### 🕓 History Search & Replay
+- **Full-text Search**: Filter history real-time berdasarkan URL, method, atau status code. Dilengkapi tombol clear.
+- **Date Grouping**: Item history dikelompokkan per hari (Today, Yesterday, atau tanggal singkat).
+- **One-click Replay**: Hover item history untuk menampilkan tombol replay (↺) — langsung memuat method, URL, headers, dan body kembali ke editor request, siap dikirim ulang.
+
+---
+
 ## [v1.6.4] — 2026-05-22
 ### 🚀 Sidebar Refactor & Improved Save Flow
 - **DND Refactor**: Menggunakan `closestCenter` dan Drag Ghost Overlay untuk pengaturan koleksi yang lebih presisi.

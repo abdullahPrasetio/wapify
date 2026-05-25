@@ -20,10 +20,16 @@ export const VariableOverlayInput: React.FC<VariableOverlayInputProps> = ({
   const [isFocused, setIsFocused] = useState(false)
   const [activeVar, setActiveVar] = useState<string | null>(null)
   const [newValue, setNewValue] = useState('')
+  const [autocomplete, setAutocomplete] = useState<{
+    prefix: string
+    replaceStart: number
+    replaceEnd: number
+    selectedIndex: number
+  } | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
-  
+
   const { environments, activeEnvironmentId, updateEnvironment } = useDataStore()
   const activeEnv = environments.find((e) => e.id === activeEnvironmentId) ?? null
   const envVars = activeEnv?.variables ?? {}
@@ -37,7 +43,7 @@ export const VariableOverlayInput: React.FC<VariableOverlayInputProps> = ({
         textareaRef.current.style.height = 'auto'
         textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`
       } else {
-        textareaRef.current.style.height = '40px' // Default single line height
+        textareaRef.current.style.height = '40px'
       }
     }
   }, [value, multiline, isFocused])
@@ -47,11 +53,99 @@ export const VariableOverlayInput: React.FC<VariableOverlayInputProps> = ({
     const handleClickOutside = (event: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
         setIsOpen(false)
+        setAutocomplete(null)
       }
     }
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
+
+  // Detect {{ autocomplete context from cursor position
+  const detectAutocomplete = (inputValue: string, cursorPos: number) => {
+    const before = inputValue.slice(0, cursorPos)
+    const lastOpen = before.lastIndexOf('{{')
+    if (lastOpen === -1) return null
+
+    const between = before.slice(lastOpen + 2)
+    if (between.includes('}}') || between.includes('\n')) return null
+
+    return {
+      prefix: between,
+      replaceStart: lastOpen,
+      replaceEnd: cursorPos,
+      selectedIndex: 0
+    }
+  }
+
+  const getFilteredVars = (prefix: string) =>
+    Object.keys(envVars).filter((k) =>
+      k.toLowerCase().startsWith(prefix.toLowerCase())
+    )
+
+  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement | HTMLInputElement>) => {
+    if (onChange) onChange(e as React.ChangeEvent<HTMLTextAreaElement>)
+
+    const cursor = e.target.selectionStart ?? e.target.value.length
+    const ctx = detectAutocomplete(e.target.value, cursor)
+    if (ctx && getFilteredVars(ctx.prefix).length > 0) {
+      setAutocomplete(ctx)
+    } else {
+      setAutocomplete(null)
+    }
+  }
+
+  const applyAutocomplete = (varName: string) => {
+    if (!autocomplete) return
+    const currentText = String(value || '')
+    const newText =
+      currentText.slice(0, autocomplete.replaceStart) +
+      `{{${varName}}}` +
+      currentText.slice(autocomplete.replaceEnd)
+
+    const fakeEvent = {
+      target: { value: newText }
+    } as React.ChangeEvent<HTMLTextAreaElement>
+    if (onChange) onChange(fakeEvent)
+    setAutocomplete(null)
+
+    // Restore focus
+    setTimeout(() => {
+      const el = (multiline ? textareaRef.current : inputRef.current) as HTMLElement | null
+      el?.focus()
+    }, 0)
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement | HTMLInputElement>) => {
+    if (autocomplete) {
+      const vars = getFilteredVars(autocomplete.prefix)
+      if (e.key === 'ArrowDown') {
+        e.preventDefault()
+        setAutocomplete((prev) =>
+          prev ? { ...prev, selectedIndex: Math.min(prev.selectedIndex + 1, vars.length - 1) } : prev
+        )
+        return
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault()
+        setAutocomplete((prev) =>
+          prev ? { ...prev, selectedIndex: Math.max(prev.selectedIndex - 1, 0) } : prev
+        )
+        return
+      }
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        if (vars.length > 0) {
+          e.preventDefault()
+          applyAutocomplete(vars[autocomplete.selectedIndex] ?? vars[0])
+          return
+        }
+      }
+      if (e.key === 'Escape') {
+        setAutocomplete(null)
+        return
+      }
+    }
+    if (props.onKeyDown) props.onKeyDown(e as any)
+  }
 
   const handleVarClick = (varName: string, e: React.MouseEvent) => {
     e.preventDefault()
@@ -80,20 +174,18 @@ export const VariableOverlayInput: React.FC<VariableOverlayInputProps> = ({
     let idx = 0
 
     while ((match = regex.exec(text)) !== null) {
-      // Normal text before variable
       const plainText = text.substring(lastIdx, match.index)
       res.push(<span key={`t-${idx}`}>{plainText}</span>)
-      
+
       const varName = match[1].trim()
       const isSet = envVars[varName] !== undefined || envVars[varName.toLowerCase()] !== undefined
 
-      // Variable part (Visual)
       res.push(
         <span
           key={`v-${idx}`}
           className={`px-0.5 rounded border-b ${
-            isSet 
-              ? 'text-emerald-400 border-emerald-500/50 bg-emerald-500/5' 
+            isSet
+              ? 'text-emerald-400 border-emerald-500/50 bg-emerald-500/5'
               : 'text-amber-400 border-amber-500/50 bg-amber-500/5'
           }`}
         >
@@ -101,8 +193,6 @@ export const VariableOverlayInput: React.FC<VariableOverlayInputProps> = ({
         </span>
       )
 
-      // Variable part (Interaction - Layer 3)
-      // We must make SURE the plain text parts here are also transparent
       parts.push(<span key={`it-${idx}`} className="text-transparent">{plainText}</span>)
       parts.push(
         <span
@@ -124,7 +214,7 @@ export const VariableOverlayInput: React.FC<VariableOverlayInputProps> = ({
     const finalPlainText = text.substring(lastIdx)
     res.push(<span key="last-t">{finalPlainText}</span>)
     parts.push(<span key="last-it" className="text-transparent">{finalPlainText}</span>)
-    
+
     return { res, parts }
   })()
 
@@ -138,19 +228,20 @@ export const VariableOverlayInput: React.FC<VariableOverlayInputProps> = ({
     if (props.onBlur) props.onBlur(e)
   }
 
-  // Common styles to ensure pixel-perfect alignment
   const sharedStyles: React.CSSProperties = {
     padding: '10px 12px',
     lineHeight: '1.5',
-    fontSize: '0.875rem', // text-sm
-    fontFamily: 'Menlo, Monaco, Consolas, monospace', // font-mono
+    fontSize: '0.875rem',
+    fontFamily: 'Menlo, Monaco, Consolas, monospace',
     boxSizing: 'border-box'
   }
+
+  const filteredVars = autocomplete ? getFilteredVars(autocomplete.prefix) : []
 
   return (
     <div ref={containerRef} className={`relative w-full group flex ${multiline && isFocused ? 'items-start' : 'items-center'} h-full transition-all duration-200`}>
       {/* 1. Backdrop Overlay (Visual) */}
-      <div 
+      <div
         className={`absolute inset-0 text-sm font-mono pointer-events-none ${multiline && isFocused ? 'whitespace-pre-wrap break-all' : 'whitespace-nowrap overflow-hidden text-ellipsis'} flex ${multiline && isFocused ? 'items-start' : 'items-center'} ${className || ''}`}
         aria-hidden="true"
         style={sharedStyles}
@@ -160,34 +251,36 @@ export const VariableOverlayInput: React.FC<VariableOverlayInputProps> = ({
         </div>
       </div>
 
-      {/* 2. Real Input/Textarea (Interaction Layer) */}
+      {/* 2. Real Input/Textarea */}
       {multiline ? (
         <textarea
           ref={textareaRef}
           value={value}
-          onChange={onChange as any}
+          onChange={handleChange as any}
           onFocus={handleFocus}
           onBlur={handleBlur}
+          onKeyDown={handleKeyDown as any}
           rows={1}
           className={`w-full bg-transparent text-sm font-mono text-transparent caret-primary focus:outline-none transition-all z-10 resize-none ${isFocused ? 'whitespace-pre-wrap break-all' : 'whitespace-nowrap overflow-hidden'} ${className || ''}`}
           style={sharedStyles}
-          {...props as any}
+          {...(props as any)}
         />
       ) : (
         <input
           ref={inputRef}
           value={value}
-          onChange={onChange as any}
+          onChange={handleChange as any}
           onFocus={handleFocus}
           onBlur={handleBlur}
+          onKeyDown={handleKeyDown as any}
           className={`w-full bg-transparent text-sm font-mono text-transparent caret-primary focus:outline-none transition-colors z-10 ${className || ''}`}
           style={sharedStyles}
-          {...props as any}
+          {...(props as any)}
         />
       )}
 
-      {/* 3. Click Layer (Interaction Layer - For variable clicks) */}
-      <div 
+      {/* 3. Click Layer */}
+      <div
         className={`absolute inset-0 text-sm font-mono pointer-events-none ${multiline && isFocused ? 'whitespace-pre-wrap break-all' : 'whitespace-nowrap overflow-hidden'} flex ${multiline && isFocused ? 'items-start' : 'items-center'} z-20 ${className || ''}`}
         style={sharedStyles}
       >
@@ -196,16 +289,44 @@ export const VariableOverlayInput: React.FC<VariableOverlayInputProps> = ({
         </div>
       </div>
 
-      {/* Popup */}
+      {/* Autocomplete Dropdown */}
+      {autocomplete && filteredVars.length > 0 && (
+        <div className="absolute left-0 top-full mt-1 z-1001 w-56 rounded-lg bg-surface border border-border shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-100">
+          <div className="px-2 py-1 border-b border-border text-[9px] text-muted uppercase tracking-widest font-bold">
+            Environment Variables
+          </div>
+          {filteredVars.slice(0, 8).map((varName, i) => (
+            <button
+              key={varName}
+              onMouseDown={(e) => {
+                e.preventDefault()
+                applyAutocomplete(varName)
+              }}
+              className={`w-full text-left px-3 py-1.5 text-xs font-mono flex items-center justify-between gap-2 transition-colors ${
+                i === autocomplete.selectedIndex
+                  ? 'bg-primary/20 text-primary'
+                  : 'text-text hover:bg-surface/80'
+              }`}
+            >
+              <span className="font-semibold">{`{{${varName}}}`}</span>
+              <span className="text-[10px] text-muted truncate max-w-20">
+                {String(envVars[varName] || '').slice(0, 20) || '—'}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Variable Set Popup */}
       {isOpen && activeVar && (
-        <div className="fixed z-[1000] w-64 rounded-xl bg-surface border border-border/50 shadow-2xl p-4 backdrop-blur-xl animate-in fade-in zoom-in duration-100"
-          style={{ 
+        <div className="fixed z-1000 w-64 rounded-xl bg-surface border border-border/50 shadow-2xl p-4 backdrop-blur-xl animate-in fade-in zoom-in duration-100"
+          style={{
             left: containerRef.current?.getBoundingClientRect().left,
             top: (containerRef.current?.getBoundingClientRect().top || 0) - 130
           }}
         >
           <div className="absolute -bottom-1.5 left-4 w-3 h-3 bg-surface border-r border-b border-border/50 rotate-45" />
-          
+
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded ${
@@ -257,16 +378,16 @@ export const VariableOverlayInput: React.FC<VariableOverlayInputProps> = ({
 
 
 const X = ({ size, className }: { size: number, className?: string }) => (
-  <svg 
-    xmlns="http://www.w3.org/2000/svg" 
-    width={size} 
-    height={size} 
-    viewBox="0 0 24 24" 
-    fill="none" 
-    stroke="currentColor" 
-    strokeWidth="2" 
-    strokeLinecap="round" 
-    strokeLinejoin="round" 
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
     className={className}
   >
     <path d="M18 6 6 18"/><path d="m6 6 12 12"/>
