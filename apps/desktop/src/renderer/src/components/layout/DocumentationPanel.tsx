@@ -288,7 +288,7 @@ export const DocumentationPanel: React.FC<DocumentationPanelProps> = ({
   collectionName,
   onClose
 }) => {
-  const { environments, activeEnvironmentId, updateEnvironment, openExample, deleteExample } = useDataStore()
+  const { environments, activeEnvironmentId, updateEnvironment, openExample, deleteExample, confluenceEnabled } = useDataStore()
   const { setActiveView } = useAppStore()
   const activeEnv = environments.find((e) => e.id === activeEnvironmentId) ?? null
   const envVars: Record<string, string> = activeEnv?.variables ?? {}
@@ -681,14 +681,16 @@ export const DocumentationPanel: React.FC<DocumentationPanelProps> = ({
               <Code size={13} />
               OpenAPI 3.0
             </button>
-            <button
-              onClick={handleSyncToConfluence}
-              disabled={isSyncing}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20 hover:bg-blue-500/20 transition-all disabled:opacity-50"
-            >
-              {isSyncing ? <Loader2 size={13} className="animate-spin" /> : <Cloud size={13} />}
-              Sync to Confluence
-            </button>
+            {confluenceEnabled && (
+              <button
+                onClick={handleSyncToConfluence}
+                disabled={isSyncing}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20 hover:bg-blue-500/20 transition-all disabled:opacity-50"
+              >
+                {isSyncing ? <Loader2 size={13} className="animate-spin" /> : <Cloud size={13} />}
+                Sync to Confluence
+              </button>
+            )}
             <button
               onClick={onClose}
               className="p-1.5 rounded-lg text-muted hover:text-text hover:bg-white/5 transition-colors"
