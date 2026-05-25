@@ -96,6 +96,7 @@ export const LoginPage = (): React.JSX.Element => {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                onBlur={() => { if (email && password) login(email, password) }}
                 placeholder="••••••••"
                 autoComplete="current-password"
                 required

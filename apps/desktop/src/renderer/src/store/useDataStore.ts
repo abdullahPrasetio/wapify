@@ -233,7 +233,7 @@ interface DataState {
   saveActiveRequest: () => Promise<void>
   createCollection: (name: string, description?: string, confluence_page_id?: string) => Promise<void>
   updateCollection: (id: number, name: string, description: string, confluence_page_id: string) => Promise<void>
-  importCollection: (jsonContent: string) => Promise<void>
+  importCollection: (jsonContent: string, mode?: 'new' | 'overwrite', confirmName?: string) => Promise<void>
   createRequest: (
     collectionId: number,
     folderId: number | null,

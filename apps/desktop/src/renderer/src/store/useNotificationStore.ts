@@ -28,6 +28,7 @@ interface NotificationState {
   markAllAsRead: () => Promise<void>
   clearAllNotifications: () => Promise<void>
   addNotification: (notification: Notification) => void
+  addLocalNotification: (title: string, message: string, type?: string) => void
 }
 
 export const useNotificationStore = create<NotificationState>()(
@@ -84,6 +85,24 @@ export const useNotificationStore = create<NotificationState>()(
 
       addNotification: (notification: Notification) => {
         const notifications = [notification, ...get().notifications].slice(0, 50)
+        const unreadCount = notifications.filter((n) => !n.is_read).length
+        set({ notifications, unreadCount })
+      },
+
+      addLocalNotification: (title: string, message: string, type = 'system') => {
+        const local: Notification = {
+          id: -(Date.now()),
+          user_id: 0,
+          sender_id: 0,
+          type,
+          title,
+          message,
+          metadata: {},
+          is_read: false,
+          created_at: new Date().toISOString(),
+          sender: { id: 0, name: 'System', email: '' }
+        }
+        const notifications = [local, ...get().notifications].slice(0, 50)
         const unreadCount = notifications.filter((n) => !n.is_read).length
         set({ notifications, unreadCount })
       },
