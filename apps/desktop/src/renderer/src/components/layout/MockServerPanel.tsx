@@ -529,7 +529,7 @@ const MockEndpointForm: React.FC<MockEndpointFormProps> = ({
           <select
             value={method}
             onChange={(e) => setMethod(e.target.value)}
-            className={`appearance-none bg-background border border-border rounded-lg px-3 py-2 text-xs font-mono font-bold uppercase ${METHOD_COLOR[method] || 'text-text'} focus:outline-none focus:border-violet-500/50 pr-7`}
+            className={`appearance-none bg-background border border-border rounded-lg px-3 py-2 text-xs font-mono font-bold uppercase cursor-pointer ${METHOD_COLOR[method] || 'text-text'} focus:outline-none focus:border-violet-500/50 pr-7`}
           >
             {HTTP_METHODS.map((m) => (
               <option key={m} value={m} className="text-text font-sans">

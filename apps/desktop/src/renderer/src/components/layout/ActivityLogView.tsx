@@ -51,7 +51,7 @@ export const ActivityLogView = () => {
         <div className="flex items-center gap-4">
           <button 
             onClick={() => setActiveView('request-builder')}
-            className="p-2 hover:bg-white/5 rounded-full transition-colors text-muted hover:text-text"
+            className="p-2 hover:bg-white/5 rounded-full transition-colors text-muted hover:text-text cursor-pointer"
           >
             <ArrowLeft size={20} />
           </button>
@@ -64,7 +64,7 @@ export const ActivityLogView = () => {
         <div className="flex items-center gap-3">
           <button 
             onClick={markAllAsRead}
-            className="px-4 py-2 bg-primary/10 hover:bg-primary/20 text-primary text-xs font-black uppercase tracking-widest rounded-lg transition-all flex items-center gap-2 border border-primary/20"
+            className="px-4 py-2 bg-primary/10 hover:bg-primary/20 text-primary text-xs font-black uppercase tracking-widest rounded-lg transition-all flex items-center gap-2 border border-primary/20 cursor-pointer"
           >
             <CheckCircle size={14} />
             Mark all as read
@@ -75,7 +75,7 @@ export const ActivityLogView = () => {
                 clearAllNotifications()
               }
             }}
-            className="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 text-xs font-black uppercase tracking-widest rounded-lg transition-all flex items-center gap-2 border border-red-500/20"
+            className="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 text-xs font-black uppercase tracking-widest rounded-lg transition-all flex items-center gap-2 border border-red-500/20 cursor-pointer"
           >
             <Trash2 size={14} />
             Clear Activities
@@ -99,13 +99,13 @@ export const ActivityLogView = () => {
         <div className="flex items-center gap-1 bg-surface border border-border p-1 rounded-xl shadow-inner">
           <button 
             onClick={() => setFilter('all')}
-            className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${filter === 'all' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-muted hover:text-text'}`}
+            className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer ${filter === 'all' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-muted hover:text-text'}`}
           >
             All
           </button>
           <button 
             onClick={() => setFilter('unread')}
-            className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${filter === 'unread' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-muted hover:text-text'}`}
+            className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer ${filter === 'unread' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-muted hover:text-text'}`}
           >
             Unread
           </button>

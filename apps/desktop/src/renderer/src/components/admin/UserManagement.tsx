@@ -194,7 +194,7 @@ export const UserManagement = (): React.JSX.Element => {
                         onChange={(e) =>
                           setFormData({ ...formData, team_id: Number(e.target.value) })
                         }
-                        className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text focus:outline-none focus:border-primary"
+                        className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text focus:outline-none focus:border-primary cursor-pointer"
                       >
                         <option value={0}>No Team Assignment</option>
                         {teams.map((team) => (
@@ -212,7 +212,7 @@ export const UserManagement = (): React.JSX.Element => {
                         value={formData.role}
                         onChange={(e) => setFormData({ ...formData, role: e.target.value })}
                         disabled={formData.team_id === 0}
-                        className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text focus:outline-none focus:border-primary disabled:opacity-50"
+                        className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text focus:outline-none focus:border-primary disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                       >
                         <option value="Admin">Admin</option>
                         <option value="Editor">Editor</option>

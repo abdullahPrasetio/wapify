@@ -281,6 +281,7 @@ interface EditorAreaProps {
   onUpdate: (update: Partial<WorkingRequest>) => void
   isLocked?: boolean
   onSetVar?: (varName: string) => void
+  onSend?: () => void
 }
 
 const EditorArea = ({
@@ -289,7 +290,8 @@ const EditorArea = ({
   workingRequest,
   isLocked,
   onUpdate,
-  onSetVar
+  onSetVar,
+  onSend
 }: EditorAreaProps): React.JSX.Element => {
   const { fontSize, theme } = useAppStore()
   const monacoTheme = theme === 'system'
@@ -300,6 +302,12 @@ const EditorArea = ({
   const [headerBulkLocal, setHeaderBulkLocal] = useState('')
   const preEditorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null)
   const testsEditorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null)
+
+  const registerSendShortcut = (editor: monaco.editor.IStandaloneCodeEditor) => {
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => {
+      onSend?.()
+    })
+  }
 
   const insertSnippet = (editorRef: React.MutableRefObject<monaco.editor.IStandaloneCodeEditor | null>, code: string) => {
     const editor = editorRef.current
@@ -378,7 +386,7 @@ const EditorArea = ({
               <button
                 key={t.id}
                 onClick={() => handleBodyTypeChange(t.id === 'raw-json' ? 'raw-json' : t.id)}
-                className={`px-2 py-1 text-[10px] font-bold uppercase rounded transition-colors ${(workingRequest.body_type === t.id || (t.id === 'raw-json' && workingRequest.body_type?.startsWith('raw-')))
+                className={`px-2 py-1 text-[10px] font-bold uppercase rounded transition-colors cursor-pointer ${(workingRequest.body_type === t.id || (t.id === 'raw-json' && workingRequest.body_type?.startsWith('raw-')))
                   ? 'bg-primary/20 text-primary'
                   : 'text-muted hover:text-text'
                   }`}
@@ -395,7 +403,7 @@ const EditorArea = ({
           {workingRequest.body_type?.startsWith('raw-') && (
             <DropdownMenu.Root>
               <DropdownMenu.Trigger asChild>
-                <button className="flex items-center gap-1 text-[10px] font-bold text-primary uppercase">
+                <button className="flex items-center gap-1 text-[10px] font-bold text-primary uppercase cursor-pointer">
                   {workingRequest.body_type.split('-')[1]} <ChevronDown size={10} />
                 </button>
               </DropdownMenu.Trigger>
@@ -427,7 +435,7 @@ const EditorArea = ({
                     toast.error('Invalid JSON: Cannot beautify')
                   }
                 }}
-                className="text-[9px] font-black uppercase tracking-widest text-muted hover:text-primary transition-colors"
+                className="text-[9px] font-black uppercase tracking-widest text-muted hover:text-primary transition-colors cursor-pointer"
               >
                 Beautify
               </button>
@@ -441,7 +449,7 @@ const EditorArea = ({
                     toast.error('Invalid JSON: Cannot minify')
                   }
                 }}
-                className="text-[9px] font-black uppercase tracking-widest text-muted hover:text-primary transition-colors"
+                className="text-[9px] font-black uppercase tracking-widest text-muted hover:text-primary transition-colors cursor-pointer"
               >
                 Unbeautify
               </button>
@@ -465,6 +473,7 @@ const EditorArea = ({
               value={typeof workingRequest.body === 'string' ? workingRequest.body : JSON.stringify(workingRequest.body, null, 2)}
               onChange={(val) => onUpdate({ body: val || '' })}
               onMount={(editor) => {
+                registerSendShortcut(editor)
                 editor.onMouseDown((e) => {
                   if (!onSetVar) return
                   const pos = e.target.position
@@ -516,7 +525,7 @@ const EditorArea = ({
               <div className="w-16 h-16 rounded-2xl bg-surface border border-border flex items-center justify-center text-muted">
                 <FileCode2 size={32} />
               </div>
-              <button className="px-4 py-2 bg-surface border border-border rounded-lg text-xs font-bold hover:border-primary transition-colors">
+              <button className="px-4 py-2 bg-surface border border-border rounded-lg text-xs font-bold hover:border-primary transition-colors cursor-pointer">
                 Select File
               </button>
               <span className="text-[10px] text-muted uppercase tracking-widest">Feature coming soon</span>
@@ -534,7 +543,7 @@ const EditorArea = ({
           </div>
           <button
             onClick={() => isHeaderBulk ? applyHeaderBulk() : setIsHeaderBulk(true)}
-            className={`px-3 py-1.5 rounded text-[10px] font-black uppercase tracking-widest transition-all ${isHeaderBulk ? 'bg-success text-white shadow-lg shadow-success/20' : 'bg-surface text-muted hover:text-text border border-border'
+            className={`px-3 py-1.5 rounded text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer ${isHeaderBulk ? 'bg-success text-white shadow-lg shadow-success/20' : 'bg-surface text-muted hover:text-text border border-border'
               }`}
           >
             {isHeaderBulk ? 'Apply Changes' : 'Bulk Edit'}
@@ -597,7 +606,7 @@ const EditorArea = ({
               defaultLanguage="javascript"
               theme={monacoTheme}
               value={workingRequest.pre_request_script || ''}
-              onMount={(editor) => { preEditorRef.current = editor }}
+              onMount={(editor) => { preEditorRef.current = editor; registerSendShortcut(editor) }}
               onChange={(val) => onUpdate({ pre_request_script: val || '' })}
               options={{
                 minimap: { enabled: false },
@@ -629,7 +638,7 @@ const EditorArea = ({
               defaultLanguage="javascript"
               theme={monacoTheme}
               value={workingRequest.post_request_script || ''}
-              onMount={(editor) => { testsEditorRef.current = editor }}
+              onMount={(editor) => { testsEditorRef.current = editor; registerSendShortcut(editor) }}
               onChange={(val) => onUpdate({ post_request_script: val || '' })}
               options={{
                 minimap: { enabled: false },
@@ -691,7 +700,7 @@ const EditorArea = ({
                     />
                     <button
                       onClick={(): void => setShowPassword(!showPassword)}
-                      className="absolute right-2.5 top-2.5 text-muted hover:text-text transition-colors"
+                      className="absolute right-2.5 top-2.5 text-muted hover:text-text transition-colors cursor-pointer"
                     >
                       {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                     </button>
@@ -731,7 +740,7 @@ const EditorArea = ({
                       />
                       <button
                         onClick={(): void => setShowPassword(!showPassword)}
-                        className="absolute right-2.5 top-2.5 text-muted hover:text-text transition-colors"
+                        className="absolute right-2.5 top-2.5 text-muted hover:text-text transition-colors cursor-pointer"
                       >
                         {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                       </button>
@@ -1094,7 +1103,7 @@ const RequestTabs = (): React.JSX.Element => {
                   e.stopPropagation()
                   closeTab(tab.requestId)
                 }}
-                className="ml-2 p-0.5 rounded-full hover:bg-border transition-colors opacity-0 group-hover:opacity-100"
+                className="ml-2 p-0.5 rounded-full hover:bg-border transition-colors opacity-0 group-hover:opacity-100 cursor-pointer"
               >
                 <X size={10} />
               </button>
@@ -1364,14 +1373,14 @@ export const MainArea = (): React.JSX.Element => {
                       saveActiveRequest()
                     }
                   }}
-                  className="flex items-center gap-2 px-3 py-1.5 hover:bg-border/30 transition-colors text-xs font-medium text-text"
+                  className="flex items-center gap-2 px-3 py-1.5 hover:bg-border/30 transition-colors text-xs font-medium text-text cursor-pointer"
                 >
                   <Save size={14} className="text-muted" />
                   <span>Save</span>
                 </button>
                 <DropdownMenu.Root>
                   <DropdownMenu.Trigger asChild>
-                    <button className="px-2 py-1.5 hover:bg-border/30 transition-colors focus:outline-none">
+                    <button className="px-2 py-1.5 hover:bg-border/30 transition-colors focus:outline-none cursor-pointer">
                       <ChevronDown size={14} className="text-muted" />
                     </button>
                   </DropdownMenu.Trigger>
@@ -1405,13 +1414,13 @@ export const MainArea = (): React.JSX.Element => {
               <div className="flex items-center bg-surface border border-border rounded divide-x divide-border">
                 <button
                   onClick={() => setComingSoon({ isOpen: true, feature: 'Request Sharing' })}
-                  className="px-4 py-1.5 hover:bg-border/30 transition-colors text-xs font-medium text-text"
+                  className="px-4 py-1.5 hover:bg-border/30 transition-colors text-xs font-medium text-text cursor-pointer"
                 >
                   Share
                 </button>
                 <button
                   onClick={() => setComingSoon({ isOpen: true, feature: 'Request Sharing' })}
-                  className="px-2 py-1.5 hover:bg-border/30 transition-colors"
+                  className="px-2 py-1.5 hover:bg-border/30 transition-colors cursor-pointer"
                 >
                   <LinkIcon size={14} className="text-muted" />
                 </button>
@@ -1460,7 +1469,7 @@ export const MainArea = (): React.JSX.Element => {
                 <button
                   onClick={executeActiveRequest}
                   disabled={activeTabRequest.isSending}
-                  className="bg-primary hover:bg-primary-hover text-white px-6 py-2 text-sm font-bold transition-all flex items-center gap-2 disabled:opacity-50 rounded"
+                  className="bg-primary hover:bg-primary-hover text-white px-6 py-2 text-sm font-bold transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer rounded"
                 >
                   {activeTabRequest.isSending ? (
                     <RefreshCw size={14} className="animate-spin" />
@@ -1628,6 +1637,7 @@ export const MainArea = (): React.JSX.Element => {
               isLocked={isLockedByOthers}
               onUpdate={(update): void => setWorkingRequest(update)}
               onSetVar={setSettingVar}
+              onSend={executeActiveRequest}
             />
           </div>
         </div>

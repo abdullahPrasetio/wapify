@@ -562,7 +562,7 @@ const StandaloneMockEndpointForm: React.FC<StandaloneMockEndpointFormProps> = ({
             <select
               value={method}
               onChange={(e) => setMethod(e.target.value)}
-              className={`appearance-none bg-background border border-border rounded-lg px-3 py-2 text-xs font-mono font-bold uppercase ${METHOD_COLOR[method] || 'text-text'} focus:outline-none focus:border-emerald-500/50 pr-7`}
+              className={`appearance-none bg-background border border-border rounded-lg px-3 py-2 text-xs font-mono font-bold uppercase cursor-pointer ${METHOD_COLOR[method] || 'text-text'} focus:outline-none focus:border-emerald-500/50 pr-7`}
             >
               {HTTP_METHODS.map((m) => (
                 <option key={m} value={m} className="text-text font-sans">
@@ -701,7 +701,7 @@ const TransferMockModal: React.FC<{
             <select
               value={selectedId || ''}
               onChange={(e) => setSelectedId(e.target.value ? Number(e.target.value) : null)}
-              className="w-full bg-background border border-border rounded-lg px-3 py-2 text-xs text-text focus:outline-none focus:border-blue-500/50"
+              className="w-full bg-background border border-border rounded-lg px-3 py-2 text-xs text-text focus:outline-none focus:border-blue-500/50 cursor-pointer"
             >
               <option value="">-- {targetType === 'collection' ? 'Pilih collection' : 'Pilih workspace'} --</option>
               {targetType === 'collection'
@@ -818,7 +818,7 @@ const BulkTransferModal: React.FC<{
             <select
               value={selectedId || ''}
               onChange={(e) => setSelectedId(e.target.value ? Number(e.target.value) : null)}
-              className="w-full bg-background border border-border rounded-lg px-3 py-2 text-xs text-text focus:outline-none focus:border-blue-500/50"
+              className="w-full bg-background border border-border rounded-lg px-3 py-2 text-xs text-text focus:outline-none focus:border-blue-500/50 cursor-pointer"
             >
               <option value="">-- {targetType === 'collection' ? 'Pilih collection' : 'Pilih workspace'} --</option>
               {targetType === 'collection'

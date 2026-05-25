@@ -124,7 +124,7 @@ const ManageMembersModal = ({ team, onClose }: ManageMembersModalProps): React.J
                 <select
                   value={selectedUserId}
                   onChange={(e) => setSelectedUserId(e.target.value)}
-                  className="flex-1 bg-surface border border-border rounded px-3 py-2 text-sm text-text focus:outline-none focus:border-primary"
+                  className="flex-1 bg-surface border border-border rounded px-3 py-2 text-sm text-text focus:outline-none focus:border-primary cursor-pointer"
                 >
                   <option value="">Select User...</option>
                   {availableUsers.map((u) => (
@@ -136,7 +136,7 @@ const ManageMembersModal = ({ team, onClose }: ManageMembersModalProps): React.J
                 <select
                   value={selectedRole}
                   onChange={(e) => setSelectedRole(e.target.value)}
-                  className="w-32 bg-surface border border-border rounded px-3 py-2 text-sm text-text focus:outline-none focus:border-primary"
+                  className="w-32 bg-surface border border-border rounded px-3 py-2 text-sm text-text focus:outline-none focus:border-primary cursor-pointer"
                 >
                   <option value="Admin">Admin</option>
                   <option value="Editor">Editor</option>

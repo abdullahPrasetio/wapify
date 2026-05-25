@@ -127,49 +127,107 @@ export const ExportCodeModal = ({
         return `wget --method=${method} \\\n  --header='Content-Type: ${headers['Content-Type'] || 'application/json'}' \\\n  --body-data='${bodyStr}' \\\n  '${url}'`
       }
       case 'js-fetch': {
+        const formDataSetup = body_type === 'form-data' && Array.isArray(body)
+          ? 'const formData = new FormData();\n' + (body as any[]).filter(i => i.enabled && i.key).map(i => `formData.append("${i.key}", "${i.value}");`).join('\n') + '\n\n'
+          : ''
         let bodyCode = ''
         if (hasBody) {
           if (body_type === 'x-www-form-urlencoded' && Array.isArray(body)) {
-            bodyCode = `,\n  body: new URLSearchParams(${JSON.stringify(Object.fromEntries((body as any[]).filter(i => i.enabled).map(i => [i.key, i.value])))})`
+            bodyCode = `,\n  body: new URLSearchParams(${JSON.stringify(Object.fromEntries((body as any[]).filter(i => i.enabled && i.key).map(i => [i.key, i.value || ''])))})`
           } else if (body_type === 'form-data' && Array.isArray(body)) {
-            bodyCode = `,\n  body: formData` // Assumption: formData is defined
+            bodyCode = `,\n  body: formData`
+          } else if (body_type.includes('json')) {
+            bodyCode = `,\n  body: JSON.stringify(${bodyStr})`
           } else {
-            bodyCode = `,\n  body: ${body_type.includes('json') ? `JSON.stringify(${bodyStr})` : `\`${bodyStr}\``}`
+            bodyCode = `,\n  body: \`${bodyStr}\``
           }
         }
-        return `${body_type === 'form-data' && Array.isArray(body) ? 'const formData = new FormData();\n' + (body as any[]).filter(i => i.enabled).map(i => `formData.append("${i.key}", "${i.value}");`).join('\n') + '\n\n' : ''}fetch("${url}", {\n  method: "${method}",\n  headers: ${JSON.stringify(headers, null, 2)}${bodyCode}\n})\n.then(res => res.json())\n.then(console.log);`
+        return `${formDataSetup}fetch("${url}", {\n  method: "${method}",\n  headers: ${JSON.stringify(headers, null, 2)}${bodyCode}\n})\n  .then(res => res.json())\n  .then(console.log)\n  .catch(console.error);`
       }
       case 'js-axios': {
         let dataProp = ''
         if (hasBody) {
           if (body_type === 'x-www-form-urlencoded' && Array.isArray(body)) {
-            dataProp = `,\n  data: new URLSearchParams(${JSON.stringify(Object.fromEntries((body as any[]).filter(i => i.enabled).map(i => [i.key, i.value])))})`
+            dataProp = `,\n  data: new URLSearchParams(${JSON.stringify(Object.fromEntries((body as any[]).filter(i => i.enabled && i.key).map(i => [i.key, i.value || ''])))})`
+          } else if (body_type === 'form-data' && Array.isArray(body)) {
+            const formLines = (body as any[]).filter(i => i.enabled && i.key).map(i => `  formData.append("${i.key}", "${i.value || ''}");`).join('\n')
+            return `import axios from 'axios';\n\nconst formData = new FormData();\n${formLines}\n\naxios({\n  method: '${method}',\n  url: '${url}',\n  headers: ${JSON.stringify(headers, null, 2)},\n  data: formData\n}).then(res => console.log(res.data));`
+          } else if (body_type.includes('json')) {
+            dataProp = `,\n  data: ${bodyStr}`
           } else {
-            dataProp = `,\n  data: ${body_type.includes('json') ? bodyStr : `\`${bodyStr}\``}`
+            dataProp = `,\n  data: \`${bodyStr}\``
           }
         }
-        return `axios({\n  method: '${method}',\n  url: '${url}',\n  headers: ${JSON.stringify(headers, null, 2)}${dataProp}\n}).then(res => console.log(res.data));`
+        return `import axios from 'axios';\n\naxios({\n  method: '${method}',\n  url: '${url}',\n  headers: ${JSON.stringify(headers, null, 2)}${dataProp}\n}).then(res => console.log(res.data));`
       }
       case 'js-jquery': {
-        return `$.ajax({\n  url: "${url}",\n  method: "${method}",\n  headers: ${JSON.stringify(headers, null, 2)},\n  data: ${hasBody ? (body_type.includes('json') ? bodyStr : `\`${bodyStr}\``) : 'null'}\n}).done(res => console.log(res));`
+        return `$.ajax({\n  url: "${url}",\n  method: "${method}",\n  headers: ${JSON.stringify(headers, null, 2)},\n  data: ${hasBody ? (body_type.includes('json') ? bodyStr : `\`${bodyStr}\``) : 'null'},\n  success: console.log,\n  error: console.error\n});`
       }
       case 'node-native': {
         try {
           const urlObj = new URL(url)
-          return `const http = require("https");\n\nconst options = {\n  method: "${method}",\n  hostname: "${urlObj.hostname}",\n  path: "${urlObj.pathname}",\n  headers: ${JSON.stringify(headers, null, 2)}\n};\n\nconst req = http.request(options, (res) => {\n  res.on("data", (d) => process.stdout.write(d));\n});\n${hasBody ? `req.write(${body_type.includes('json') ? `JSON.stringify(${bodyStr})` : `\`${bodyStr}\``});` : ''}\nreq.end();`
-        } catch (e) {
-          return `// Invalid URL for Node Native: ${url}`
+          const protocol = urlObj.protocol === 'https:' ? 'https' : 'http'
+          const bodyWrite = hasBody
+            ? `\nreq.write(${body_type.includes('json') ? `JSON.stringify(${bodyStr})` : `\`${bodyStr}\``});`
+            : ''
+          return `const ${protocol} = require("${protocol}");\n\nconst options = {\n  method: "${method}",\n  hostname: "${urlObj.hostname}",\n  port: ${urlObj.port || (protocol === 'https' ? 443 : 80)},\n  path: "${urlObj.pathname}${urlObj.search}",\n  headers: ${JSON.stringify(headers, null, 2)}\n};\n\nconst req = ${protocol}.request(options, (res) => {\n  let data = '';\n  res.on("data", (chunk) => data += chunk);\n  res.on("end", () => console.log(JSON.parse(data)));\n});${bodyWrite}\nreq.on("error", console.error);\nreq.end();`
+        } catch {
+          return `// Invalid URL: ${url}`
         }
       }
+      case 'node-axios': {
+        let dataProp = ''
+        if (hasBody) {
+          dataProp = body_type.includes('json') ? `,\n  data: ${bodyStr}` : `,\n  data: \`${bodyStr}\``
+        }
+        return `const axios = require('axios');\n\naxios({\n  method: '${method}',\n  url: '${url}',\n  headers: ${JSON.stringify(headers, null, 2)}${dataProp}\n})\n  .then(res => console.log(res.data))\n  .catch(console.error);`
+      }
       case 'go-native': {
-        return `package main\nimport (\n\t"fmt"\n\t"net/http"\n\t"strings"\n)\nfunc main() {\n\tpayload := strings.NewReader(\`${hasBody ? bodyStr : ''}\`)\n\treq, _ := http.NewRequest("${method}", "${url}", payload)\n\t${Object.entries(headers).map(([k, v]) => `req.Header.Add("${k}", "${v}")`).join('\n\t')}\n\tres, _ := http.DefaultClient.Do(req)\n\tdefer res.Body.Close()\n\tfmt.Println(res.Status)\n}`
+        const bodyArg = hasBody ? `strings.NewReader(\`${bodyStr}\`)` : 'nil'
+        const imports = hasBody
+          ? `"fmt"\n\t"io"\n\t"net/http"\n\t"strings"`
+          : `"fmt"\n\t"io"\n\t"net/http"`
+        return `package main\n\nimport (\n\t${imports}\n)\n\nfunc main() {\n\tclient := &http.Client{}\n\treq, _ := http.NewRequest("${method}", "${url}", ${bodyArg})\n\t${Object.entries(headers).map(([k, v]) => `req.Header.Add("${k}", "${v}")`).join('\n\t')}\n\tres, err := client.Do(req)\n\tif err != nil {\n\t\tpanic(err)\n\t}\n\tdefer res.Body.Close()\n\tbody, _ := io.ReadAll(res.Body)\n\tfmt.Println(string(body))\n}`
       }
       case 'python-requests': {
         const isJson = body_type.includes('json')
-        return `import requests\n\nurl = "${url}"\npayload = ${hasBody ? (isJson ? bodyStr : `'''${bodyStr}'''`) : 'None'}\nheaders = ${JSON.stringify(headers, null, 2)}\n\nresponse = requests.request("${method}", url, ${isJson ? 'json' : 'data'}=payload, headers=headers)\nprint(response.text)`
+        const payloadLine = hasBody
+          ? isJson
+            ? `payload = ${bodyStr}`
+            : `payload = """${bodyStr}"""`
+          : `payload = None`
+        return `import requests\nimport json\n\nurl = "${url}"\n${payloadLine}\nheaders = ${JSON.stringify(headers, null, 2)}\n\nresponse = requests.request(\n    "${method}",\n    url,\n    ${isJson ? 'json=payload,' : 'data=payload,'}\n    headers=headers\n)\nprint(response.status_code)\nprint(response.json())`
       }
       case 'php-curl': {
-        return `<?php\n$curl = curl_init();\ncurl_setopt_array($curl, [\n  CURLOPT_URL => "${url}",\n  CURLOPT_CUSTOMREQUEST => "${method}",\n  CURLOPT_POSTFIELDS => '${bodyStr}',\n  CURLOPT_HTTPHEADER => ${JSON.stringify(Object.entries(headers).map(([k, v]) => `${k}: ${v}`))},\n]);\n$response = curl_exec($curl);\ncurl_close($curl);\necho $response;`
+        const headerArr = Object.entries(headers).map(([k, v]) => `"${k}: ${v}"`).join(',\n    ')
+        return `<?php\n$curl = curl_init();\n\ncurl_setopt_array($curl, [\n  CURLOPT_URL => "${url}",\n  CURLOPT_RETURNTRANSFER => true,\n  CURLOPT_CUSTOMREQUEST => "${method}",${hasBody ? `\n  CURLOPT_POSTFIELDS => '${bodyStr.replace(/'/g, "\\'")}',` : ''}\n  CURLOPT_HTTPHEADER => [\n    ${headerArr}\n  ],\n]);\n\n$response = curl_exec($curl);\n$err = curl_error($curl);\ncurl_close($curl);\n\nif ($err) {\n  echo "Error: " . $err;\n} else {\n  echo $response;\n}`
+      }
+      case 'php-guzzle': {
+        const isJson = body_type.includes('json')
+        const bodyOption = hasBody
+          ? isJson
+            ? `\n  'json' => json_decode('${bodyStr.replace(/'/g, "\\'")}', true),`
+            : `\n  'body' => '${bodyStr.replace(/'/g, "\\'")}',`
+          : ''
+        const headerLines = Object.entries(headers).map(([k, v]) => `    '${k}' => '${v}',`).join('\n')
+        return `<?php\nrequire 'vendor/autoload.php';\nuse GuzzleHttp\\Client;\n\n$client = new Client();\n$response = $client->request('${method}', '${url}', [${bodyOption}\n  'headers' => [\n${headerLines}\n  ],\n]);\n\necho $response->getStatusCode();\necho $response->getBody();`
+      }
+      case 'java-okhttp': {
+        const mediaType = headers['Content-Type'] || headers['content-type'] || 'application/json'
+        const bodyCode = hasBody
+          ? `MediaType mediaType = MediaType.parse("${mediaType}");\nRequestBody body = RequestBody.create(mediaType, "${bodyStr.replace(/"/g, '\\"').replace(/\n/g, '\\n')}");\n`
+          : ''
+        const headerLines = Object.entries(headers).map(([k, v]) => `  .addHeader("${k}", "${v}")`).join('\n')
+        return `import okhttp3.*;\n\nOkHttpClient client = new OkHttpClient();\n\n${bodyCode}Request request = new Request.Builder()\n  .url("${url}")\n  .method("${method}", ${hasBody ? 'body' : 'null'})\n${headerLines}\n  .build();\n\nResponse response = client.newCall(request).execute();\nSystem.out.println(response.body().string());`
+      }
+      case 'ruby-net-http': {
+        const urlVar = `uri = URI("${url}")`
+        const headerLines = Object.entries(headers).map(([k, v]) => `request["${k}"] = "${v}"`).join('\n')
+        return `require "uri"\nrequire "net/http"\nrequire "json"\n\n${urlVar}\nhttp = Net::HTTP.new(uri.host, uri.port)\nhttp.use_ssl = uri.scheme == "https"\n\nrequest = Net::HTTP::${method.charAt(0).toUpperCase() + method.slice(1).toLowerCase()}.new(uri)\n${headerLines}${hasBody ? `\nrequest.body = '${bodyStr.replace(/'/g, "\\'")}'` : ''}\n\nresponse = http.request(request)\nputs response.code\nputs response.body`
+      }
+      case 'csharp-restsharp': {
+        const headerLines = Object.entries(headers).map(([k, v]) => `request.AddHeader("${k}", "${v}");`).join('\n')
+        return `using RestSharp;\n\nvar client = new RestClient("${url}");\nvar request = new RestRequest(Method.${method.toUpperCase()});\n${headerLines}${hasBody ? `\nrequest.AddParameter("application/json", @"${bodyStr.replace(/"/g, '\\"')}", ParameterType.RequestBody);` : ''}\n\nIRestResponse response = client.Execute(request);\nConsole.WriteLine(response.Content);`
       }
       default: return `// Snippet for ${selectedLang} coming soon...`
     }
@@ -219,7 +277,16 @@ export const ExportCodeModal = ({
             <div className="flex-1 flex flex-col overflow-hidden bg-background relative">
               <Editor
                 height="100%"
-                language={selectedLang.startsWith('js') ? 'javascript' : selectedLang === 'go-native' ? 'go' : selectedLang === 'python-requests' ? 'python' : 'shell'}
+                language={
+                  selectedLang.startsWith('js') || selectedLang === 'node-axios' ? 'javascript'
+                  : selectedLang === 'go-native' ? 'go'
+                  : selectedLang === 'python-requests' ? 'python'
+                  : selectedLang === 'java-okhttp' ? 'java'
+                  : selectedLang === 'csharp-restsharp' ? 'csharp'
+                  : selectedLang === 'php-curl' || selectedLang === 'php-guzzle' ? 'php'
+                  : selectedLang === 'ruby-net-http' ? 'ruby'
+                  : 'shell'
+                }
                 theme={monacoTheme}
                 value={codeSnippet}
                 options={{ readOnly: true, minimap: { enabled: false }, fontSize: 13, automaticLayout: true, padding: { top: 20 }, scrollBeyondLastLine: false, wordWrap: 'on' }}

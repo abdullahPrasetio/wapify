@@ -147,7 +147,7 @@ export const KeyValueEditor = ({
                   <button
                     disabled={disabled}
                     onClick={() => handleRowChange(row.id, 'enabled', !row.enabled)}
-                    className={`transition-colors ${disabled ? 'text-muted/50 cursor-not-allowed' : isLastEmpty ? 'text-muted/20' : 'text-muted hover:text-primary'}`}
+                    className={`transition-colors ${disabled ? 'text-muted/50 cursor-not-allowed' : isLastEmpty ? 'text-muted/20 cursor-pointer' : 'text-muted hover:text-primary cursor-pointer'}`}
                   >
                     {row.enabled ? <CheckSquare size={14} /> : <Square size={14} />}
                   </button>
@@ -200,7 +200,7 @@ export const KeyValueEditor = ({
                           disabled={disabled}
                           title={isSecret ? 'Unmask value' : 'Mark as secret'}
                           onClick={() => onSecretToggle(row.key)}
-                          className={`transition-colors ${disabled ? 'text-muted/20 cursor-not-allowed' : isSecret ? 'text-amber-400 hover:text-amber-300' : 'text-muted hover:text-text'}`}
+                          className={`transition-colors ${disabled ? 'text-muted/20 cursor-not-allowed' : isSecret ? 'text-amber-400 hover:text-amber-300 cursor-pointer' : 'text-muted hover:text-text cursor-pointer'}`}
                         >
                           {isSecret ? <EyeOff size={13} /> : <Eye size={13} />}
                         </button>
@@ -208,7 +208,7 @@ export const KeyValueEditor = ({
                       <button
                         disabled={disabled}
                         onClick={() => removeRow(row.id)}
-                        className={`transition-all ${disabled ? 'text-muted/20 cursor-not-allowed' : 'text-muted hover:text-danger'}`}
+                        className={`transition-all ${disabled ? 'text-muted/20 cursor-not-allowed' : 'text-muted hover:text-danger cursor-pointer'}`}
                       >
                         <Trash2 size={14} />
                       </button>

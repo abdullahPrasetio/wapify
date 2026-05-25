@@ -112,7 +112,7 @@ const SortableScenarioItem = ({
           <div className="flex items-center gap-1.5 shrink-0 ml-2">
             <button 
               onClick={(e) => { e.stopPropagation(); onCopyAsCurl(); }}
-              className="p-1 rounded hover:bg-violet-500/20 text-muted hover:text-violet-400 transition-colors"
+              className="p-1 rounded hover:bg-violet-500/20 text-muted hover:text-violet-400 transition-colors cursor-pointer"
               title="Copy cURL to trigger this scenario"
             >
               <Terminal size={11} />
@@ -401,7 +401,7 @@ export const ScenariosPanel: React.FC<ScenariosPanelProps> = ({
     <div className="flex flex-col h-full bg-surface">
       {/* Top Header */}
       <div className="flex items-center gap-4 px-4 py-3 border-b border-white/10 bg-black/20">
-        <button onClick={onBack} className="p-1.5 rounded-lg hover:bg-white/5 text-muted transition-colors">
+        <button onClick={onBack} className="p-1.5 rounded-lg hover:bg-white/5 text-muted transition-colors cursor-pointer">
           <ChevronLeft size={18} />
         </button>
         <div className="flex flex-col">
@@ -417,13 +417,13 @@ export const ScenariosPanel: React.FC<ScenariosPanelProps> = ({
         <div className="flex items-center gap-2 bg-black/40 p-1 rounded-lg border border-white/5">
            <button 
              onClick={() => handleModeChange('auto', activeScenarioId)}
-             className={`px-3 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md transition-all ${endpoint.evaluation_mode === 'auto' ? 'bg-violet-500 text-white shadow-lg' : 'text-muted hover:text-foreground'}`}
+             className={`px-3 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md transition-all cursor-pointer ${endpoint.evaluation_mode === 'auto' ? 'bg-violet-500 text-white shadow-lg' : 'text-muted hover:text-foreground'}`}
            >
              Auto / Dynamic
            </button>
            <button 
              onClick={() => handleModeChange('manual', activeScenarioId)}
-             className={`px-3 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md transition-all ${endpoint.evaluation_mode === 'manual' ? 'bg-amber-500 text-white shadow-lg' : 'text-muted hover:text-foreground'}`}
+             className={`px-3 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md transition-all cursor-pointer ${endpoint.evaluation_mode === 'manual' ? 'bg-amber-500 text-white shadow-lg' : 'text-muted hover:text-foreground'}`}
            >
              Manual / Forced
            </button>
@@ -451,7 +451,7 @@ export const ScenariosPanel: React.FC<ScenariosPanelProps> = ({
         <div className="w-64 border-r border-white/10 flex flex-col bg-black/20">
           <div className="p-3 border-b border-white/10 flex items-center justify-between">
             <span className="text-[10px] font-black text-muted uppercase tracking-widest">Priority / Scenarios</span>
-            <button onClick={handleAddScenario} className="p-1 hover:text-violet-400 transition-colors" title="Add Scenario"><Plus size={14} /></button>
+            <button onClick={handleAddScenario} className="p-1 hover:text-violet-400 transition-colors cursor-pointer" title="Add Scenario"><Plus size={14} /></button>
           </div>
           <div className="flex-1 overflow-y-auto p-2 space-y-1">
             <DndContext 

@@ -21,7 +21,7 @@ export const HistoryDetailView = (): React.JSX.Element => {
         <p>History item not found</p>
         <button
           onClick={() => setActiveHistoryId(null)}
-          className="mt-4 text-primary text-sm flex items-center gap-1"
+          className="mt-4 text-primary text-sm flex items-center gap-1 cursor-pointer"
         >
           <ArrowLeft size={14} /> Back to Request Builder
         </button>
@@ -39,7 +39,7 @@ export const HistoryDetailView = (): React.JSX.Element => {
         <div className="flex items-center gap-4">
           <button
             onClick={() => setActiveHistoryId(null)}
-            className="p-1.5 rounded-full hover:bg-surface transition-colors text-muted hover:text-text"
+            className="p-1.5 rounded-full hover:bg-surface transition-colors text-muted hover:text-text cursor-pointer"
           >
             <ArrowLeft size={18} />
           </button>
@@ -64,7 +64,7 @@ export const HistoryDetailView = (): React.JSX.Element => {
           </div>
           <button
             onClick={() => setActiveHistoryId(null)}
-            className="p-1 text-muted hover:text-text transition-colors"
+            className="p-1 text-muted hover:text-text transition-colors cursor-pointer"
           >
             <X size={18} />
           </button>

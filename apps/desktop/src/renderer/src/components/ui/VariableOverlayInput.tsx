@@ -302,7 +302,7 @@ export const VariableOverlayInput: React.FC<VariableOverlayInputProps> = ({
                 e.preventDefault()
                 applyAutocomplete(varName)
               }}
-              className={`w-full text-left px-3 py-1.5 text-xs font-mono flex items-center justify-between gap-2 transition-colors ${
+              className={`w-full text-left px-3 py-1.5 text-xs font-mono flex items-center justify-between gap-2 transition-colors cursor-pointer ${
                 i === autocomplete.selectedIndex
                   ? 'bg-primary/20 text-primary'
                   : 'text-text hover:bg-surface/80'
@@ -335,7 +335,7 @@ export const VariableOverlayInput: React.FC<VariableOverlayInputProps> = ({
                 {`{{${activeVar}}}`}
               </span>
             </div>
-            <button onClick={() => setIsOpen(false)} className="text-muted hover:text-text">
+            <button onClick={() => setIsOpen(false)} className="text-muted hover:text-text cursor-pointer">
               <X size={14} />
             </button>
           </div>
@@ -363,7 +363,7 @@ export const VariableOverlayInput: React.FC<VariableOverlayInputProps> = ({
               <button
                 onClick={handleSaveVar}
                 disabled={!newValue.trim()}
-                className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-primary hover:bg-primary-hover text-white transition-all disabled:opacity-40 shadow-lg shadow-primary/20"
+                className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-primary hover:bg-primary-hover text-white transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shadow-lg shadow-primary/20"
               >
                 <Check size={12} />
                 Save Variable

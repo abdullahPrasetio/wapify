@@ -1180,7 +1180,7 @@ export const Sidebar = (): React.JSX.Element => {
               <div className="flex items-center gap-1"><Hash size={11} /> Environment</div>
               <EnvironmentModal />
             </div>
-            <select value={activeEnvironmentId ?? ''} onChange={(e) => setActiveEnvironment(e.target.value === '' ? null : Number(e.target.value))} className="w-full bg-background border border-border rounded text-xs px-2 py-1.5 text-text focus:border-primary outline-none">
+            <select value={activeEnvironmentId ?? ''} onChange={(e) => setActiveEnvironment(e.target.value === '' ? null : Number(e.target.value))} className="w-full bg-background border border-border rounded text-xs px-2 py-1.5 text-text focus:border-primary outline-none cursor-pointer">
               <option value="">No Environment</option>
               {environments.filter(e => e.is_global).length > 0 && (
                 <optgroup label="🌍 Global Environments">

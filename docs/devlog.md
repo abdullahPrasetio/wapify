@@ -1,4 +1,68 @@
 
+## [2026-05-25] — Environment Autocomplete, Script IntelliSense, History Replay & cURL Enhancements
+**Fase:** Fase 6 — UX & Power Features
+**Dikerjakan oleh:** Waluyo
+**Status:** ✅ Selesai
+
+### Yang Dikerjakan
+
+#### 🔐 Environment Variables — Autocomplete & Secret Masking
+- **Variable Autocomplete**: Mengetik `{{` di URL, header, body, atau field manapun memunculkan dropdown variabel dari environment aktif. Navigasi dengan ↑↓, konfirmasi Enter/Tab, tutup Escape.
+- **Secret Masking**: Nilai variabel dapat ditandai sebagai rahasia via tombol Eye di `KeyValueEditor`. Nilai tampil sebagai `••••••••` dan state tersimpan per-environment di `localStorage`.
+
+#### 🛠️ Pre-request & Post-response Scripts — IntelliSense & Snippets
+- **Monaco IntelliSense**: Object `wap` (dan `pm`) kini fully-typed di editor script via `addExtraLib`. Autocomplete, parameter hints, dan dokumentasi inline tersedia untuk `wap.environment`, `wap.request`, `wap.response`, `wap.test()`, `wap.expect()`, dll.
+- **Snippet Library**: Panel snippet di samping editor script dengan insert satu-klik — Pre-request (Set/Get variable, Timestamp, Bearer injection, Log) dan Tests (Assert 200/201/2xx, Save token, Log response).
+- **Fix TypeScript**: `monaco.languages.typescript` deprecated — dicast via `(monaco.languages as any).typescript` untuk `addExtraLib` dan `setCompilerOptions`.
+
+#### 🕓 History — Search & Replay
+- **Full-text Search**: Filter history real-time berdasarkan URL, method, atau status code di Sidebar. Dilengkapi tombol clear.
+- **Date Grouping**: Item history dikelompokkan per hari (Today, Yesterday, atau tanggal singkat).
+- **One-click Replay**: Tombol replay (↺) muncul saat hover — load method, URL, headers, body kembali ke editor request.
+
+#### 📋 cURL Import & Export
+- **Export cURL (`generateCurl`)**: Fungsi baru di `curlParser.ts` yang menghasilkan perintah `curl` valid dari workingRequest. Mendukung raw, urlencoded (`--data-urlencode`), dan form-data (`-F`). Tombol "Copy cURL" di Quick Actions bar.
+- **Export Code Modal — Semua Bahasa Lengkap**: `node-axios`, `php-guzzle`, `java-okhttp`, `ruby-net-http`, `csharp-restsharp` sebelumnya menampilkan "coming soon" — kini semua terisi penuh dengan snippet yang akurat.
+- **Fix `js-fetch` double-stringify**: Body JSON tidak lagi di-`JSON.stringify` dua kali.
+- **Monaco language mapping**: Syntax highlighting yang benar untuk setiap bahasa (Java, C#, PHP, Ruby, Go, dll).
+
+#### ⌨️ Keyboard Shortcut ⌘↵
+- **Monaco editor capture fix**: Cmd+Enter kini bekerja dari mana saja — termasuk saat fokus di Monaco editor (body, pre-request, tests) via `editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, ...)`.
+- `onSend` prop ditambahkan ke `EditorArea` dan di-register ke semua 3 Monaco editor saat mount.
+
+#### 🖱️ Cursor Pointer Global Audit
+- Audit menyeluruh ~60 elemen yang bisa diklik di seluruh app tanpa `cursor-pointer`.
+- Diperbaiki di: `MainArea`, `KeyValueEditor`, `VariableOverlayInput`, `HistoryDetailView`, `NotificationBell`, `ActivityLogView`, `ScenariosPanel`, `LoginPage`, dan semua `<select>` di sidebar, admin panels, dan modals.
+
+### Perubahan File
+- `apps/desktop/src/renderer/src/utils/curlParser.ts` — Tambah `generateCurl()`
+- `apps/desktop/src/renderer/src/components/modals/ExportCodeModal.tsx` — 6 bahasa baru, fix double-stringify, fix language mapping
+- `apps/desktop/src/renderer/src/components/modals/EnvironmentModal.tsx` — Secret masking state + localStorage helpers
+- `apps/desktop/src/renderer/src/components/ui/KeyValueEditor.tsx` — Secret toggle UI + cursor-pointer fixes
+- `apps/desktop/src/renderer/src/components/ui/VariableOverlayInput.tsx` — Autocomplete `{{` dropdown + cursor-pointer fixes
+- `apps/desktop/src/renderer/src/components/layout/MainArea.tsx` — IntelliSense setup, snippet panel, onSend prop, Monaco command, cursor-pointer fixes
+- `apps/desktop/src/renderer/src/components/layout/Sidebar.tsx` — History search, date grouping, replay button, env select cursor-pointer
+- `apps/desktop/src/renderer/src/components/layout/HistoryDetailView.tsx` — cursor-pointer fixes
+- `apps/desktop/src/renderer/src/components/layout/NotificationBell.tsx` — cursor-pointer fixes
+- `apps/desktop/src/renderer/src/components/layout/ActivityLogView.tsx` — cursor-pointer fixes
+- `apps/desktop/src/renderer/src/components/layout/ScenariosPanel.tsx` — cursor-pointer fixes
+- `apps/desktop/src/renderer/src/components/auth/LoginPage.tsx` — cursor-pointer fixes
+- `apps/desktop/src/renderer/src/components/admin/UserManagement.tsx` — cursor-pointer fixes
+- `apps/desktop/src/renderer/src/components/admin/TeamManagement.tsx` — cursor-pointer fixes
+- `apps/desktop/src/renderer/src/components/layout/MockServerPanel.tsx` — cursor-pointer fixes
+- `apps/desktop/src/renderer/src/components/layout/StandaloneMockPanel.tsx` — cursor-pointer fixes
+- `apps/desktop/src/renderer/src/components/modals/SaveRequestLocationModal.tsx` — cursor-pointer fixes
+- `apps/desktop/package.json` — Version bump ke 1.7.1
+- `RELEASE.md` — Update release notes v1.7.0 dan v1.7.1
+
+### Keputusan & Catatan
+- Secret masking disimpan di `localStorage` (bukan DB) karena ini preferensi tampilan personal, bukan data konfigurasi tim.
+- Autocomplete variabel menggunakan synthetic event `{ target: { value: newText } }` untuk menjaga kompatibilitas React onChange tanpa dispatch DOM event native.
+- `generateCurl` sengaja dibuat terpisah dari `ExportCodeModal` agar bisa digunakan langsung di toolbar tanpa membuka modal.
+- Monaco editor tidak memforward `keydown` ke `window`, sehingga Cmd+Enter harus didaftarkan via `editor.addCommand` di masing-masing editor instance.
+
+---
+
 ## [2026-05-25] — Context Menu Fix, Save As Flow & Collaboration Notifications
 **Fase:** Fase 7 — Kolaborasi Lanjutan & Mock Pro
 **Dikerjakan oleh:** Waluyo

@@ -258,7 +258,7 @@ export const SaveRequestLocationModal = ({
                 <select
                   value={selectedCollectionId || ''}
                   onChange={(e) => handleCollectionChange(Number(e.target.value))}
-                  className="w-full bg-background border border-border rounded-lg pl-10 pr-4 py-2.5 text-sm text-text focus:outline-none focus:border-primary transition-colors appearance-none"
+                  className="w-full bg-background border border-border rounded-lg pl-10 pr-4 py-2.5 text-sm text-text focus:outline-none focus:border-primary transition-colors appearance-none cursor-pointer"
                 >
                   <option value="" disabled>Select a collection</option>
                   {collections.map(c => (
