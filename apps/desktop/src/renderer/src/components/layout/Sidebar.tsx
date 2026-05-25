@@ -64,6 +64,7 @@ import { CollectionModal } from '../modals/CollectionModal'
 import type { ApiRequest, Collection, Folder, RequestExample } from '../../types'
 import { DocumentationPanel } from './DocumentationPanel'
 import { MockServerPanel } from './MockServerPanel'
+import { CollectionRunnerPanel } from './CollectionRunnerPanel'
 import { NotificationBell } from './NotificationBell'
 import { wsClient } from '../../api/websocket'
 
@@ -488,7 +489,6 @@ const CollectionItem = ({ collection }: { collection: Collection }): React.JSX.E
     deleteRequest,
     duplicateRequest,
     exportCollection,
-    runCollection,
     updateCollection
   } = useDataStore()
   const { setActiveView } = useAppStore()
@@ -500,8 +500,6 @@ const CollectionItem = ({ collection }: { collection: Collection }): React.JSX.E
   const [showMockServer, setShowMockServer] = useState(false)
   const [showRunner, setShowRunner] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
-  const [runnerState, setRunnerState] = useState<'idle' | 'running' | 'finished'>('idle')
-  const [runResults, setRunResults] = useState<any[]>([])
 
   const handleExpand = async (): Promise<void> => {
     if (!isExpanded && !requestsByCollection[collection.id]) {
@@ -584,40 +582,11 @@ const CollectionItem = ({ collection }: { collection: Collection }): React.JSX.E
       {showMockServer && <MockServerPanel collectionId={collection.id} collectionName={collection.name} requests={requests} onClose={() => setShowMockServer(false)} />}
 
       {showRunner && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-surface border border-border rounded-xl w-full max-w-2xl flex flex-col shadow-2xl overflow-hidden h-[600px]">
-            <div className="p-4 border-b border-border flex items-center justify-between bg-white/5">
-              <h2 className="text-base font-bold flex items-center gap-2">
-                <PlayCircle size={18} className="text-primary" /> Collection Runner: {collection.name}
-              </h2>
-              <button onClick={() => setShowRunner(false)} className="text-muted hover:text-text transition-colors"><X size={18} /></button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-6">
-              {runnerState === 'idle' ? (
-                <div className="text-center py-12">
-                  <button
-                    onClick={async () => {
-                      setRunnerState('running')
-                      await runCollection(collection.id, (res) => setRunResults(p => [...p, res]))
-                      setRunnerState('finished')
-                    }}
-                    className="px-12 py-3 bg-primary text-white rounded-lg font-bold shadow-lg"
-                  >Run Collection</button>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {runResults.map((r, i) => (
-                    <div key={i} className="bg-background/50 border border-border/50 rounded-lg p-3">
-                      <span className="text-xs font-bold mr-2 uppercase tracking-widest">{r.method}</span>
-                      <span className="text-xs">{r.name}</span>
-                      <span className={`float-right text-xs ${r.status < 300 ? 'text-success' : 'text-danger'}`}>{r.status} ({r.time}ms)</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+        <CollectionRunnerPanel
+          collectionId={collection.id}
+          collectionName={collection.name}
+          onClose={() => setShowRunner(false)}
+        />
       )}
 
       {showSettings && (

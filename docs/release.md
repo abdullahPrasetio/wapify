@@ -1,3 +1,31 @@
+# Wapbolt v1.8.0 — OpenAPI Import, Postman Export & Collection Runner ⚡
+
+Rilis terbesar sejak v1.6 — Phase 1 dari roadmap Foundation & Adoption kini lengkap. Wapbolt kini bisa membaca koleksi dari ekosistem OpenAPI/Postman dan menjalankan seluruh collection secara otomatis dengan laporan hasil yang detail.
+
+### ✨ Fitur Baru
+
+#### 📥 Import OpenAPI 3.0 & Swagger 2.0
+- Auto-detect format JSON/YAML, grouping endpoint by tags → folders.
+- Preview jumlah endpoint sebelum konfirmasi import.
+- Path params, query params, dan request body schema dikonversi otomatis.
+
+#### 📤 Export ke Postman Collection v2.1
+- Full fidelity: folder hierarchy, auth, pre/post scripts ikut terexport.
+- File hasil siap diimport ke Postman tanpa modifikasi.
+
+#### 🏃 Collection Runner — Versi Lengkap
+- Checklist per request, konfigurasi iterasi/delay/stop-on-failure.
+- Progress bar live + laporan detail: status, response time, test assertions.
+- Export hasil run ke JSON atau CSV.
+- Hasil run persisten — panel yang dibuka kembali langsung tampilkan hasil terakhir.
+
+### 🐛 Bug Fixes
+- **Modal runner hilang saat run** — fix dengan `createPortal`.
+- **`wap.setEnv` error di post-request script** — API `wap` di pre/post sekarang simetris.
+- **UI stuck di "running"** — diperbaiki dengan `try/finally`.
+
+---
+
 # Wapbolt v1.6.3 — Confluence Resilience & Variable Resolution 🛠️
 
 Rilis ini membawa peningkatan krusial pada ketahanan konektivitas Confluence, terutama untuk lingkungan korporat dengan firewall ketat, serta dukungan penuh untuk variabel environment.

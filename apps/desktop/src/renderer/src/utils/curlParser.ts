@@ -190,13 +190,17 @@ export const generateCurl = (opts: GenerateCurlOptions): string => {
     if (bodyType === 'x-www-form-urlencoded' && Array.isArray(body)) {
       const encoded = body
         .filter((r) => r.enabled && r.key)
-        .map((r) => `${encodeURIComponent(r.key)}=${encodeURIComponent(r.value)}`)
+        .map((r) => `${encodeURIComponent(r.key)}=${encodeURIComponent(r.value || '')}`)
         .join('&')
-      parts.push(`--data-urlencode '${encoded}'`)
+      parts.push(`--data '${encoded}'`)
     } else if (bodyType === 'form-data' && Array.isArray(body)) {
       body
         .filter((r) => r.enabled && r.key)
-        .forEach((r) => parts.push(`-F '${r.key}=${String(r.value).replace(/'/g, "'\\''")}'`))
+        .forEach((r) => {
+          const escapedKey = r.key.replace(/'/g, "'\\''")
+          const escapedVal = String(r.value || '').replace(/'/g, "'\\''")
+          parts.push(`-F '${escapedKey}=${escapedVal}'`)
+        })
     } else if (typeof body === 'string' && body.trim()) {
       parts.push(`--data-raw '${body.replace(/'/g, "'\\''")}'`)
     }

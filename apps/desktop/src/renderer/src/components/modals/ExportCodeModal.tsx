@@ -170,7 +170,7 @@ export const ExportCodeModal = ({
           const bodyWrite = hasBody
             ? `\nreq.write(${body_type.includes('json') ? `JSON.stringify(${bodyStr})` : `\`${bodyStr}\``});`
             : ''
-          return `const ${protocol} = require("${protocol}");\n\nconst options = {\n  method: "${method}",\n  hostname: "${urlObj.hostname}",\n  port: ${urlObj.port || (protocol === 'https' ? 443 : 80)},\n  path: "${urlObj.pathname}${urlObj.search}",\n  headers: ${JSON.stringify(headers, null, 2)}\n};\n\nconst req = ${protocol}.request(options, (res) => {\n  let data = '';\n  res.on("data", (chunk) => data += chunk);\n  res.on("end", () => console.log(JSON.parse(data)));\n});${bodyWrite}\nreq.on("error", console.error);\nreq.end();`
+          return `const ${protocol} = require("${protocol}");\n\nconst options = {\n  method: "${method}",\n  hostname: "${urlObj.hostname}",\n  port: ${urlObj.port || (protocol === 'https' ? 443 : 80)},\n  path: "${urlObj.pathname}${urlObj.search}",\n  headers: ${JSON.stringify(headers, null, 2)}\n};\n\nconst req = ${protocol}.request(options, (res) => {\n  let data = '';\n  res.on("data", (chunk) => data += chunk);\n  res.on("end", () => {\n    try { console.log(JSON.parse(data)); } catch { console.log(data); }\n  });\n});${bodyWrite}\nreq.on("error", console.error);\nreq.end();`
         } catch {
           return `// Invalid URL: ${url}`
         }

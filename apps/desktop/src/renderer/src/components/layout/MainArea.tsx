@@ -302,10 +302,12 @@ const EditorArea = ({
   const [headerBulkLocal, setHeaderBulkLocal] = useState('')
   const preEditorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null)
   const testsEditorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null)
+  const onSendRef = useRef(onSend)
+  onSendRef.current = onSend
 
   const registerSendShortcut = (editor: monaco.editor.IStandaloneCodeEditor) => {
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => {
-      onSend?.()
+      onSendRef.current?.()
     })
   }
 
@@ -1500,9 +1502,10 @@ export const MainArea = (): React.JSX.Element => {
                       bodyType: workingRequest.body_type
                     })
                     if (!curl) return
-                    navigator.clipboard.writeText(curl).then(() =>
-                      toast.success('cURL command copied to clipboard')
-                    )
+                    navigator.clipboard
+                      .writeText(curl)
+                      .then(() => toast.success('cURL command copied to clipboard'))
+                      .catch(() => toast.error('Clipboard access denied'))
                   }}
                   className="px-2 py-1 text-muted hover:text-text rounded text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 transition-colors"
                   title="Copy as cURL"

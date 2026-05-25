@@ -1,4 +1,40 @@
 
+## [2026-05-26] — Collection Runner Bug Fixes
+**Fase:** Phase 1 — Foundation & Adoption
+**Dikerjakan oleh:** Waluyo
+**Status:** ✅ Selesai
+
+### Yang Dikerjakan
+
+#### 🏃 Collection Runner — 3 Bug Fix Kritis
+
+**Bug 1: Modal Hilang Saat Run Berjalan**
+- **Root Cause:** `CollectionRunnerPanel` di-render sebagai child dari `CollectionItem` di Sidebar. Ketika `runCollection` memanggil `fetchCollectionContents`, store Zustand diupdate → Sidebar re-render. Jika `CollectionItem` unmount (perubahan `filteredCollections`), local state `showRunner` reset ke `false` → modal hilang.
+- **Fix:** Gunakan `createPortal(…, document.body)` — panel kini di-render langsung di `document.body`, sepenuhnya terlepas dari DOM tree Sidebar. Import `createPortal` ditambahkan dari `react-dom`.
+
+**Bug 2: Hasil Run Tidak Tampil (Hanya Toast)**
+- **Root Cause:** Saat modal hilang (bug 1), run tetap berjalan di background dan toast "Run completed" muncul — tapi hasil tidak bisa dilihat karena panel sudah tertutup.
+- **Fix:** Hasil run disimpan ke Zustand store (`lastRunResults`, `lastRunCollectionId`). Saat panel dibuka ulang untuk collection yang sama, state langsung diinisialisasi ke `'finished'` dengan hasil terakhir — tanpa perlu run ulang.
+
+**Bug 3: `handleRun` Tidak Ada Try/Catch**
+- **Root Cause:** Jika `runCollection` throw error, `setRunnerState('finished')` tidak dipanggil → UI stuck di state `'running'` selamanya.
+- **Fix:** Tambah `try/catch/finally` — state selalu transisi ke `'finished'` meski ada error.
+
+**Bug 4: `wap.setEnv` / `wap.environment` Tidak Ada di Post-request Script**
+- **Root Cause:** Object `wap` di post-request script runner hanya punya `response`, `expect`, dan `test` — tidak ada method environment mutation. Script Login yang menyimpan token via `wap.setEnv('token', ...)` atau `wap.environment.set(...)` gagal dengan `TypeError: wap.setEnv is not a function`.
+- **Fix:** Object `wap` di post-request dilengkapi: `setEnv`, `set`, `environment.set/get`, `collectionVariables.set/get` — identik dengan `wap` di pre-request script. Variable yang diset langsung masuk ke `vars` runtime (berlaku untuk request berikutnya dalam chain) dan dipersist via `updateActiveEnvironmentVariable`.
+
+### Perubahan File
+- `apps/desktop/src/renderer/src/components/layout/CollectionRunnerPanel.tsx` — `createPortal`, try/catch/finally di `handleRun`, inisialisasi dari `lastRunResults`
+- `apps/desktop/src/renderer/src/store/useDataStore.ts` — field `lastRunCollectionId` & `lastRunResults`, `set(...)` setelah run selesai, lengkapi `wap` object di post-request script
+
+### Keputusan & Catatan
+- `lastRunResults` sengaja **tidak** dimasukkan ke `partialize` (tidak dipersist ke localStorage) — hasil run bersifat sesi, bukan permanen.
+- Portal fix mengikuti pola yang sudah dipakai di `ContextMenu.tsx` (v1.6.5).
+- `wap` di pre dan post-request sekarang simetris — developer bisa pakai API yang sama di kedua lifecycle tanpa perlu hafal perbedaan.
+
+---
+
 ## [2026-05-25] — Environment Autocomplete, Script IntelliSense, History Replay & cURL Enhancements
 **Fase:** Fase 6 — UX & Power Features
 **Dikerjakan oleh:** Waluyo

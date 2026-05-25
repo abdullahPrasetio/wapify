@@ -185,6 +185,10 @@ interface DataState {
   activeEnvironmentId: number | null
   logs: LogEntry[]
 
+  // Collection Runner last results
+  lastRunCollectionId: number | null
+  lastRunResults: CollectionRunResult[]
+
   // Collaboration State
   presenceByRequest: Record<number, PresenceInfo[]>
   locksByRequest: Record<number, LockInfo>
@@ -238,6 +242,7 @@ interface DataState {
   createCollection: (name: string, description?: string, confluence_page_id?: string) => Promise<void>
   updateCollection: (id: number, name: string, description: string, confluence_page_id: string) => Promise<void>
   importCollection: (jsonContent: string, mode?: 'new' | 'overwrite', confirmName?: string) => Promise<void>
+  importOpenAPI: (jsonContent: string, mode?: 'new' | 'overwrite', confirmName?: string) => Promise<void>
   createRequest: (
     collectionId: number,
     folderId: number | null,
@@ -277,7 +282,11 @@ interface DataState {
   clearLogs: () => void
 
   saveExample: (requestId: number, name: string) => Promise<void>
-  runCollection: (collectionId: number, onProgress?: (result: CollectionRunResult) => void) => Promise<CollectionRunResult[]>
+  runCollection: (
+    collectionId: number,
+    onProgress?: (result: CollectionRunResult) => void,
+    options?: { selectedIds?: Set<number>; iterations?: number; delayMs?: number; stopOnFailure?: boolean }
+  ) => Promise<CollectionRunResult[]>
 }
 
 const replaceVariables = (text: string, variables: Record<string, string>): string => {
@@ -357,6 +366,9 @@ export const useDataStore = create<DataState>()(
         activeEnvironmentId: null,
         logs: [],
         expandedItems: {},
+
+        lastRunCollectionId: null,
+        lastRunResults: [],
 
         presenceByRequest: {},
         locksByRequest: {},
@@ -958,7 +970,32 @@ export const useDataStore = create<DataState>()(
             }
           } catch (err: unknown) {
             const message = err instanceof Error ? err.message : 'Invalid JSON'
-            toast.error('Import Error: ' + message)
+            toast.error(message.toLowerCase().includes('json') ? 'Invalid JSON — please check your file and try again.' : 'Import failed. Please try again.')
+          }
+        },
+
+        importOpenAPI: async (jsonContent: string, mode: 'new' | 'overwrite' = 'new', confirmName?: string) => {
+          const { activeTeamId } = get()
+          if (!activeTeamId) return
+
+          try {
+            const data = JSON.parse(jsonContent)
+            let url = `/api/v1/teams/${activeTeamId}/import-openapi?mode=${mode}`
+            if (mode === 'overwrite' && confirmName) {
+              url += `&confirm_name=${encodeURIComponent(confirmName)}`
+            }
+
+            const response = await apiClient.post(url, data)
+            if (response.status === 201 || response.status === 200) {
+              await get().fetchCollections(activeTeamId)
+              const count = (response.data as any)?.request_count
+              toast.success(`OpenAPI imported — ${count ?? 0} endpoint${count !== 1 ? 's' : ''} added`)
+            } else {
+              toast.error('Failed to import OpenAPI spec')
+            }
+          } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : 'Invalid JSON'
+            toast.error(message.toLowerCase().includes('json') ? 'Invalid JSON — please check your file and try again.' : 'Import failed. Please try again.')
           }
         },
 
@@ -1375,9 +1412,130 @@ export const useDataStore = create<DataState>()(
 
         exportCollection: async (id: number) => {
           try {
-            const res = await apiClient.get<ApiRequest[]>(`/api/v1/collections/${id}/requests`)
+            await get().fetchCollectionContents(id)
             const collection = get().collections.find((c) => c.id === id)
             if (!collection) return
+
+            const { foldersByCollection, requestsByCollection, requestsByFolder } = get()
+            const allFolders = foldersByCollection[id] || []
+            const rootRequests = requestsByCollection[id] || []
+
+            const buildPostmanUrl = (rawUrl: string) => {
+              try {
+                const u = new URL(rawUrl)
+                return {
+                  raw: rawUrl,
+                  protocol: u.protocol.replace(':', ''),
+                  host: u.hostname.split('.'),
+                  port: u.port || undefined,
+                  path: u.pathname.split('/').filter(Boolean),
+                  query: u.search
+                    ? [...u.searchParams.entries()].map(([key, value]) => ({ key, value }))
+                    : undefined
+                }
+              } catch {
+                return { raw: rawUrl }
+              }
+            }
+
+            const buildPostmanAuth = (authConfig: Record<string, unknown>) => {
+              if (!authConfig || authConfig.type === 'No Auth') return undefined
+              const type = String(authConfig.type || '').toLowerCase()
+              if (type === 'bearer' || type === 'bearer token') {
+                return { type: 'bearer', bearer: [{ key: 'token', value: String(authConfig.token || ''), type: 'string' }] }
+              }
+              if (type === 'basic') {
+                return {
+                  type: 'basic',
+                  basic: [
+                    { key: 'username', value: String(authConfig.username || ''), type: 'string' },
+                    { key: 'password', value: String(authConfig.password || ''), type: 'string' }
+                  ]
+                }
+              }
+              if (type === 'api key' || type === 'apikey') {
+                return {
+                  type: 'apikey',
+                  apikey: [
+                    { key: 'key', value: String(authConfig.key || ''), type: 'string' },
+                    { key: 'value', value: String(authConfig.value || ''), type: 'string' },
+                    { key: 'in', value: String(authConfig.in || 'header'), type: 'string' }
+                  ]
+                }
+              }
+              return undefined
+            }
+
+            const buildPostmanBody = (req: ApiRequest) => {
+              const bodyType = req.body_type || 'raw-json'
+              if (bodyType === 'none') return undefined
+              if (bodyType === 'raw-json' || bodyType === 'raw') {
+                const raw = typeof req.body === 'string' ? req.body : JSON.stringify(req.body, null, 2)
+                return { mode: 'raw', raw, options: { raw: { language: 'json' } } }
+              }
+              if (bodyType === 'form-data') {
+                const formdata = Array.isArray(req.body)
+                  ? req.body.map((item: any) => ({ key: item.key, value: item.value, type: 'text' }))
+                  : []
+                return { mode: 'formdata', formdata }
+              }
+              if (bodyType === 'x-www-form-urlencoded') {
+                const urlencoded = Array.isArray(req.body)
+                  ? req.body.map((item: any) => ({ key: item.key, value: item.value }))
+                  : []
+                return { mode: 'urlencoded', urlencoded }
+              }
+              return { mode: 'raw', raw: typeof req.body === 'string' ? req.body : JSON.stringify(req.body) }
+            }
+
+            const buildPostmanEvents = (req: ApiRequest) => {
+              const events: { listen: string; script: { type: string; exec: string[] } }[] = []
+              if (req.pre_request_script?.trim()) {
+                events.push({
+                  listen: 'prerequest',
+                  script: { type: 'text/javascript', exec: req.pre_request_script.split('\n') }
+                })
+              }
+              if (req.post_request_script?.trim()) {
+                events.push({
+                  listen: 'test',
+                  script: { type: 'text/javascript', exec: req.post_request_script.split('\n') }
+                })
+              }
+              return events.length > 0 ? events : undefined
+            }
+
+            const requestToPostmanItem = (req: ApiRequest) => {
+              const auth = buildPostmanAuth(req.auth_config as Record<string, unknown>)
+              const body = buildPostmanBody(req)
+              const event = buildPostmanEvents(req)
+              const item: Record<string, unknown> = {
+                name: req.name,
+                request: {
+                  method: req.method,
+                  header: Object.entries(req.headers || {}).map(([key, value]) => ({ key, value })),
+                  url: buildPostmanUrl(req.url),
+                  description: req.description || undefined,
+                  ...(auth && { auth }),
+                  ...(body && { body })
+                }
+              }
+              if (event) item.event = event
+              return item
+            }
+
+            const buildFolderItems = (parentId: number | null): unknown[] => {
+              const folders = allFolders.filter((f) => f.parent_folder_id === parentId)
+              const requests = parentId === null ? rootRequests : (requestsByFolder[parentId] || [])
+
+              const folderItems = folders.map((folder) => ({
+                name: folder.name,
+                item: buildFolderItems(folder.id)
+              }))
+
+              const requestItems = requests.map(requestToPostmanItem)
+              return [...folderItems, ...requestItems]
+            }
 
             const exportData = {
               info: {
@@ -1385,28 +1543,17 @@ export const useDataStore = create<DataState>()(
                 description: collection.description,
                 schema: 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json'
               },
-              item: res.data.map((r) => ({
-                name: r.name,
-                request: {
-                  method: r.method,
-                  url: r.url,
-                  header: Object.entries(r.headers || {}).map(([key, value]) => ({ key, value })),
-                  body: {
-                    mode: 'raw',
-                    raw: typeof r.body === 'string' ? r.body : JSON.stringify(r.body)
-                  }
-                }
-              }))
+              item: buildFolderItems(null)
             }
 
             const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' })
             const url = URL.createObjectURL(blob)
             const a = document.createElement('a')
             a.href = url
-            a.download = `${collection.name}.wapbolt_collection.json`
+            a.download = `${collection.name}.postman_collection.json`
             a.click()
             URL.revokeObjectURL(url)
-            toast.success('Collection exported successfully')
+            toast.success('Collection exported as Postman v2.1')
           } catch (err) {
             toast.error('Failed to export collection')
           }
@@ -1937,26 +2084,21 @@ export const useDataStore = create<DataState>()(
           }
         },
 
-        runCollection: async (collectionId, onProgress) => {
+        runCollection: async (collectionId, onProgress, options = {}) => {
+          const { selectedIds, iterations = 1, delayMs = 0, stopOnFailure = false } = options
           const { fetchCollectionContents, environments, activeEnvironmentId, updateActiveEnvironmentVariable } = get()
 
-          // Ensure we have the latest content
           await fetchCollectionContents(collectionId)
 
           const { requestsByCollection, requestsByFolder, foldersByCollection } = get()
 
-          // Flatten all requests (recursive)
           const allRequests: ApiRequest[] = []
-
-          // Add root requests
           const rootRequests = requestsByCollection[collectionId] || []
           allRequests.push(...rootRequests)
 
-          // Add folder requests (recursive helper)
           const addFolderRequests = (folderId: number) => {
             const folderRequests = requestsByFolder[folderId] || []
             allRequests.push(...folderRequests)
-
             const subfolders = (foldersByCollection[collectionId] || []).filter(f => f.parent_folder_id === folderId)
             subfolders.forEach(f => addFolderRequests(f.id))
           }
@@ -1964,7 +2106,11 @@ export const useDataStore = create<DataState>()(
           const rootFolders = (foldersByCollection[collectionId] || []).filter(f => f.parent_folder_id === null)
           rootFolders.forEach(f => addFolderRequests(f.id))
 
-          if (allRequests.length === 0) {
+          const requestsToRun = selectedIds && selectedIds.size > 0
+            ? allRequests.filter(r => selectedIds.has(r.id))
+            : allRequests
+
+          if (requestsToRun.length === 0) {
             toast.error('No requests found in this collection')
             return []
           }
@@ -1973,8 +2119,9 @@ export const useDataStore = create<DataState>()(
           const vars = { ...(activeEnv?.variables || {}) }
           const results: CollectionRunResult[] = []
 
-          // Sequential execution
-          for (const req of allRequests) {
+          let shouldStop = false
+          for (let iter = 0; iter < iterations && !shouldStop; iter++) {
+          for (const req of requestsToRun) {
             const normalizedReq = normalizeRequest(req)
             const workingRequest = {
               method: normalizedReq.method,
@@ -2066,6 +2213,32 @@ export const useDataStore = create<DataState>()(
                     test: (name: string, fn: () => void) => {
                       try { fn(); testResults.push({ name, status: 'passed' }) }
                       catch (err: any) { testResults.push({ name, status: 'failed', error: err.message || String(err) }) }
+                    },
+                    environment: {
+                      set: (key: string, val: unknown) => {
+                        const strVal = String(val)
+                        vars[key] = strVal
+                        updateActiveEnvironmentVariable(key, strVal)
+                      },
+                      get: (key: string) => vars[key]
+                    },
+                    collectionVariables: {
+                      set: (key: string, val: unknown) => {
+                        const strVal = String(val)
+                        vars[key] = strVal
+                        updateActiveEnvironmentVariable(key, strVal)
+                      },
+                      get: (key: string) => vars[key]
+                    },
+                    set: (key: string, val: unknown) => {
+                      const strVal = String(val)
+                      vars[key] = strVal
+                      updateActiveEnvironmentVariable(key, strVal)
+                    },
+                    setEnv: (key: string, val: unknown) => {
+                      const strVal = String(val)
+                      vars[key] = strVal
+                      updateActiveEnvironmentVariable(key, strVal)
                     }
                   }
                   const AsyncFunction = Object.getPrototypeOf(async function () { }).constructor
@@ -2100,6 +2273,10 @@ export const useDataStore = create<DataState>()(
                 test_results: testResults
               }).catch(err => console.error('Failed to save runner history:', err))
 
+              const isFailed = result.status >= 400 ||
+                (result.testResults ?? []).some((t) => t.status === 'failed')
+              if (stopOnFailure && isFailed) { shouldStop = true; break }
+
             } catch (err: any) {
               const result: CollectionRunResult = {
                 requestId: req.id,
@@ -2112,10 +2289,17 @@ export const useDataStore = create<DataState>()(
               }
               results.push(result)
               if (onProgress) onProgress(result)
+              if (stopOnFailure) { shouldStop = true; break }
+            }
+
+            if (delayMs > 0 && !shouldStop) {
+              await new Promise<void>((resolve) => setTimeout(resolve, delayMs))
             }
           }
+          } // end outer iterations loop
 
-          toast.success(`Run completed for ${collectionId}`)
+          set({ lastRunCollectionId: collectionId, lastRunResults: results })
+          toast.success(`Run completed — ${results.length} request${results.length !== 1 ? 's' : ''} executed`)
           return results
         }
       }),

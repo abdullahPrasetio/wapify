@@ -47,6 +47,7 @@ type PostmanReq struct {
 	} `json:"body"`
 	Description      string                 `json:"description,omitempty"`
 	FieldValidations map[string]interface{} `json:"field_validations,omitempty"`
+	AuthConfig       map[string]interface{} `json:"auth_config,omitempty"`
 }
 
 type PostmanResponse struct {
@@ -65,11 +66,387 @@ func SetupCollectionRoutes(app *fiber.App) {
 	app.Get("/api/v1/teams/:id/collections", middleware.RequireAuth, ListCollections)
 	app.Post("/api/v1/teams/:id/collections", middleware.RequireAuth, CreateCollection)
 	app.Post("/api/v1/teams/:id/import", middleware.RequireAuth, ImportPostman)
+	app.Post("/api/v1/teams/:id/import-openapi", middleware.RequireAuth, ImportOpenAPI)
 
 	// Collection CRUD
 	app.Get("/api/v1/collections/:id", middleware.RequireAuth, GetCollection)
 	app.Put("/api/v1/collections/:id", middleware.RequireAuth, UpdateCollection)
 	app.Delete("/api/v1/collections/:id", middleware.RequireAuth, DeleteCollection)
+}
+
+// ─── OpenAPI / Swagger Import ────────────────────────────────────────────────
+
+type OpenAPIInfo struct {
+	Title       string `json:"title"`
+	Description string `json:"description"`
+	Version     string `json:"version"`
+}
+
+type OpenAPIServer struct {
+	URL string `json:"url"`
+}
+
+type OpenAPITag struct {
+	Name string `json:"name"`
+}
+
+type OpenAPIParameter struct {
+	Name     string `json:"name"`
+	In       string `json:"in"` // "header", "query", "path"
+	Required bool   `json:"required"`
+	Example  string `json:"example"`
+	Schema   *struct {
+		Type    string `json:"type"`
+		Example string `json:"example"`
+	} `json:"schema"`
+}
+
+type OpenAPIMediaType struct {
+	Schema *struct {
+		Type       string                 `json:"type"`
+		Properties map[string]interface{} `json:"properties"`
+		Example    interface{}            `json:"example"`
+	} `json:"schema"`
+	Example interface{} `json:"example"`
+}
+
+type OpenAPIRequestBody struct {
+	Content map[string]OpenAPIMediaType `json:"content"`
+}
+
+type OpenAPIOperation struct {
+	OperationID string                 `json:"operationId"`
+	Summary     string                 `json:"summary"`
+	Description string                 `json:"description"`
+	Tags        []string               `json:"tags"`
+	Parameters  []OpenAPIParameter     `json:"parameters"`
+	RequestBody *OpenAPIRequestBody    `json:"requestBody"`
+	Security    []map[string][]string  `json:"security"`
+}
+
+type OpenAPIPathItem struct {
+	Get     *OpenAPIOperation `json:"get"`
+	Post    *OpenAPIOperation `json:"post"`
+	Put     *OpenAPIOperation `json:"put"`
+	Patch   *OpenAPIOperation `json:"patch"`
+	Delete  *OpenAPIOperation `json:"delete"`
+	Head    *OpenAPIOperation `json:"head"`
+	Options *OpenAPIOperation `json:"options"`
+}
+
+// Swagger 2.0 support
+type SwaggerSpec struct {
+	Swagger  string                     `json:"swagger"`
+	Info     OpenAPIInfo                `json:"info"`
+	Host     string                     `json:"host"`
+	BasePath string                     `json:"basePath"`
+	Schemes  []string                   `json:"schemes"`
+	Paths    map[string]OpenAPIPathItem `json:"paths"`
+	Tags     []OpenAPITag               `json:"tags"`
+}
+
+type OpenAPISecurityScheme struct {
+	Type   string `json:"type"`   // "http", "apiKey", "oauth2", "openIdConnect"
+	Scheme string `json:"scheme"` // "bearer", "basic"
+	In     string `json:"in"`     // "header", "query", "cookie" (for apiKey)
+	Name   string `json:"name"`   // header/query param name (for apiKey)
+}
+
+type OpenAPIComponents struct {
+	SecuritySchemes map[string]OpenAPISecurityScheme `json:"securitySchemes"`
+}
+
+type OpenAPISpec struct {
+	OpenAPI    string                     `json:"openapi"`
+	Swagger    string                     `json:"swagger"`
+	Info       OpenAPIInfo                `json:"info"`
+	Servers    []OpenAPIServer            `json:"servers"`
+	Paths      map[string]OpenAPIPathItem `json:"paths"`
+	Tags       []OpenAPITag               `json:"tags"`
+	Security   []map[string][]string      `json:"security"`
+	Components OpenAPIComponents          `json:"components"`
+}
+
+// resolveOpenAPIAuth maps an OpenAPI security scheme to Wapbolt auth_config format.
+func resolveOpenAPIAuth(schemes map[string]OpenAPISecurityScheme, security []map[string][]string) map[string]interface{} {
+	if len(security) == 0 || len(schemes) == 0 {
+		return nil
+	}
+	for _, req := range security {
+		for schemeName := range req {
+			scheme, ok := schemes[schemeName]
+			if !ok {
+				continue
+			}
+			switch strings.ToLower(scheme.Type) {
+			case "http":
+				switch strings.ToLower(scheme.Scheme) {
+				case "bearer":
+					return map[string]interface{}{"type": "Bearer Token", "token": ""}
+				case "basic":
+					return map[string]interface{}{"type": "Basic Auth", "username": "", "password": ""}
+				}
+			case "apikey":
+				in := scheme.In
+				if in == "" {
+					in = "header"
+				}
+				return map[string]interface{}{"type": "API Key", "key": scheme.Name, "value": "", "in": in}
+			case "oauth2":
+				return map[string]interface{}{"type": "Bearer Token", "token": ""}
+			}
+		}
+	}
+	return nil
+}
+
+func ImportOpenAPI(c *fiber.Ctx) error {
+	teamID := c.Params("id")
+	if !isEditorOrAbove(c, parseUint(teamID)) {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Forbidden", "code": "FORBIDDEN"})
+	}
+
+	mode := c.Query("mode", "new")
+	confirmName := c.Query("confirm_name", "")
+	userID := uint(c.Locals("user_id").(float64))
+	tid := parseUint(teamID)
+
+	// Parse raw body to detect version
+	var raw map[string]interface{}
+	if err := c.BodyParser(&raw); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid JSON", "code": "BAD_REQUEST"})
+	}
+
+	// Re-encode to parse into typed struct
+	rawBytes, err := json.Marshal(raw)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Failed to process request body", "code": "BAD_REQUEST"})
+	}
+
+	var spec OpenAPISpec
+	if err := json.Unmarshal(rawBytes, &spec); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid OpenAPI JSON", "code": "BAD_REQUEST"})
+	}
+
+	// Detect Swagger 2.0 and handle host/basePath
+	baseURL := ""
+	isSwagger2 := spec.Swagger != "" && strings.HasPrefix(spec.Swagger, "2")
+	if isSwagger2 {
+		var sw SwaggerSpec
+		json.Unmarshal(rawBytes, &sw)
+		scheme := "https"
+		if len(sw.Schemes) > 0 {
+			scheme = sw.Schemes[0]
+		}
+		host := sw.Host
+		if host == "" {
+			host = "localhost"
+		}
+		baseURL = scheme + "://" + host + sw.BasePath
+	} else if len(spec.Servers) > 0 {
+		baseURL = strings.TrimRight(spec.Servers[0].URL, "/")
+	}
+
+	collectionName := spec.Info.Title
+	if collectionName == "" {
+		collectionName = "Imported API"
+	}
+
+	// Build tag → folder name map; requests without tags go to root
+	type parsedRequest struct {
+		tag  string
+		item PostmanItem
+	}
+	var parsedRequests []parsedRequest
+
+	methods := []struct {
+		name string
+		op   func(pi OpenAPIPathItem) *OpenAPIOperation
+	}{
+		{"GET", func(pi OpenAPIPathItem) *OpenAPIOperation { return pi.Get }},
+		{"POST", func(pi OpenAPIPathItem) *OpenAPIOperation { return pi.Post }},
+		{"PUT", func(pi OpenAPIPathItem) *OpenAPIOperation { return pi.Put }},
+		{"PATCH", func(pi OpenAPIPathItem) *OpenAPIOperation { return pi.Patch }},
+		{"DELETE", func(pi OpenAPIPathItem) *OpenAPIOperation { return pi.Delete }},
+		{"HEAD", func(pi OpenAPIPathItem) *OpenAPIOperation { return pi.Head }},
+		{"OPTIONS", func(pi OpenAPIPathItem) *OpenAPIOperation { return pi.Options }},
+	}
+
+	for path, pathItem := range spec.Paths {
+		for _, m := range methods {
+			op := m.op(pathItem)
+			if op == nil {
+				continue
+			}
+
+			fullURL := baseURL + path
+			name := op.Summary
+			if name == "" {
+				name = op.OperationID
+			}
+			if name == "" {
+				name = m.name + " " + path
+			}
+
+			// Build headers from parameters where in=header
+			headers := []struct {
+				Key   string `json:"key"`
+				Value string `json:"value"`
+			}{}
+			for _, p := range op.Parameters {
+				if p.In == "header" {
+					val := p.Example
+					if val == "" && p.Schema != nil {
+						val = p.Schema.Example
+					}
+					headers = append(headers, struct {
+						Key   string `json:"key"`
+						Value string `json:"value"`
+					}{Key: p.Name, Value: val})
+				}
+			}
+
+			// Build body from requestBody
+			var body *struct {
+				Mode string `json:"mode"`
+				Raw  string `json:"raw"`
+			}
+			if op.RequestBody != nil {
+				if mt, ok := op.RequestBody.Content["application/json"]; ok {
+					var example interface{}
+					if mt.Example != nil {
+						example = mt.Example
+					} else if mt.Schema != nil && mt.Schema.Example != nil {
+						example = mt.Schema.Example
+					} else if mt.Schema != nil && mt.Schema.Properties != nil {
+						example = mt.Schema.Properties
+					}
+					if example != nil {
+						b, _ := json.MarshalIndent(example, "", "  ")
+						body = &struct {
+							Mode string `json:"mode"`
+							Raw  string `json:"raw"`
+						}{Mode: "raw", Raw: string(b)}
+					}
+				}
+			}
+
+			tag := ""
+			if len(op.Tags) > 0 {
+				tag = op.Tags[0]
+			}
+
+			// Resolve auth: prefer operation-level security, fall back to global
+			opSecurity := op.Security
+			if opSecurity == nil {
+				opSecurity = spec.Security
+			}
+			authConfig := resolveOpenAPIAuth(spec.Components.SecuritySchemes, opSecurity)
+
+			item := PostmanItem{
+				Name: name,
+				Request: &PostmanReq{
+					Method:      m.name,
+					URL:         fullURL,
+					Header:      headers,
+					Body:        body,
+					Description: op.Description,
+					AuthConfig:  authConfig,
+				},
+			}
+			parsedRequests = append(parsedRequests, parsedRequest{tag: tag, item: item})
+		}
+	}
+
+	// Group into folders by tag
+	tagOrder := []string{}
+	tagMap := map[string][]PostmanItem{}
+	for _, pr := range parsedRequests {
+		if _, exists := tagMap[pr.tag]; !exists {
+			tagOrder = append(tagOrder, pr.tag)
+		}
+		tagMap[pr.tag] = append(tagMap[pr.tag], pr.item)
+	}
+
+	// Build PostmanCollection structure
+	var topItems []PostmanItem
+	for _, tag := range tagOrder {
+		items := tagMap[tag]
+		if tag == "" {
+			topItems = append(topItems, items...)
+		} else {
+			topItems = append(topItems, PostmanItem{Name: tag, Item: items})
+		}
+	}
+
+	postman := PostmanCollection{
+		Info: struct {
+			Name        string `json:"name"`
+			Description string `json:"description"`
+		}{Name: collectionName, Description: spec.Info.Description},
+		Item: topItems,
+	}
+
+	var collection repository.Collection
+
+	err = repository.DB.Transaction(func(tx *gorm.DB) error {
+		if mode == "overwrite" {
+			err := tx.Where("team_id = ? AND name = ?", tid, collectionName).First(&collection).Error
+			if err != nil {
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					return fmt.Errorf("collection '%s' not found for overwrite", collectionName)
+				}
+				return err
+			}
+			if confirmName != collection.Name {
+				return fmt.Errorf("confirmation name mismatch: expected '%s', got '%s'", collection.Name, confirmName)
+			}
+			if err := tx.Where("collection_id = ?", collection.ID).Delete(&repository.Folder{}).Error; err != nil {
+				return err
+			}
+			if err := tx.Where("collection_id = ?", collection.ID).Delete(&repository.Request{}).Error; err != nil {
+				return err
+			}
+			collection.Description = spec.Info.Description
+			if err := tx.Save(&collection).Error; err != nil {
+				return err
+			}
+		} else {
+			collection = repository.Collection{
+				Name:        collectionName,
+				Description: spec.Info.Description,
+				TeamID:      tid,
+				CreatedByID: &userID,
+			}
+			if err := tx.Create(&collection).Error; err != nil {
+				return err
+			}
+		}
+		return processPostmanItems(tx, postman.Item, collection.ID, nil, userID)
+	})
+
+	if err != nil {
+		code := "INTERNAL_SERVER_ERROR"
+		status := fiber.StatusInternalServerError
+		if strings.Contains(err.Error(), "not found") || strings.Contains(err.Error(), "mismatch") {
+			code = "BAD_REQUEST"
+			status = fiber.StatusBadRequest
+		}
+		return c.Status(status).JSON(fiber.Map{"error": err.Error(), "code": code})
+	}
+
+	WSHub.BroadcastEntityUpdate(tid, "TEAM", tid)
+	action := "IMPORTED_OPENAPI_COLLECTION"
+	if mode == "overwrite" {
+		action = "UPDATED_COLLECTION_VIA_OPENAPI_IMPORT"
+	}
+	LogActivity(repository.DB, tid, userID, action, "TEAM", tid, map[string]interface{}{"collection_name": collectionName})
+
+	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
+		"message":       "OpenAPI import successful",
+		"collection_id": collection.ID,
+		"request_count": len(parsedRequests),
+	})
 }
 
 func ImportPostman(c *fiber.Ctx) error {
@@ -197,6 +574,10 @@ func processPostmanItems(tx *gorm.DB, items []PostmanItem, collectionID uint, fo
 				}
 			}
 
+			authConfig := repository.JSONB{"type": "No Auth"}
+			if item.Request.AuthConfig != nil {
+				authConfig = repository.JSONB(item.Request.AuthConfig)
+			}
 			request := repository.Request{
 				Name:             item.Name,
 				CollectionID:     collectionID,
@@ -208,7 +589,7 @@ func processPostmanItems(tx *gorm.DB, items []PostmanItem, collectionID uint, fo
 				Description:      item.Request.Description,
 				FieldValidations: item.Request.FieldValidations,
 				CreatedByID:      &userID,
-				AuthConfig:       repository.JSONB{"type": "No Auth"},
+				AuthConfig:       authConfig,
 			}
 			if err := tx.Create(&request).Error; err != nil {
 				return err
