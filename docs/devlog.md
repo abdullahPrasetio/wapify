@@ -1,4 +1,33 @@
 
+## [2026-05-25] — Context Menu Fix, Save As Flow & Collaboration Notifications
+**Fase:** Fase 7 — Kolaborasi Lanjutan & Mock Pro
+**Dikerjakan oleh:** Waluyo
+**Status:** ✅ Selesai
+
+### Yang Dikerjakan
+- **Context Menu Portal Fix**: Konversi `ContextMenu.tsx` untuk menggunakan `createPortal` agar posisi menu tidak rusak akibat CSS `transform` dari dnd-kit.
+- **Folder Action Button**: Tombol tiga titik (`...`) pada item folder di sidebar untuk mengakses context menu tanpa right-click (aksesibilitas TestSprite TC).
+- **Save As untuk Saved Request**: Hapus guard `typeof requestId === 'string'` — modal `SaveRequestLocationModal` kini selalu dirender dan bisa dibuka dari request manapun.
+- **Folder Lazy Loading di Save As Modal**: Panggil `fetchCollectionContents` saat modal dibuka dan saat koleksi diganti, agar folder tidak kosong.
+- **Duplicate dari Request Panel**: Tambah Radix `DropdownMenu` di samping tombol Save dengan opsi "Save As..." dan "Duplicate" — sebelumnya hanya ada di right-click sidebar.
+- **WS Status Indicator**: Indikator real-time (hijau/kuning/merah) di sidebar header menampilkan status koneksi kolaborasi.
+- **Collaboration Notifications**: Event connect/reconnect WebSocket kini dicatat sebagai notifikasi persisten di bell icon, bukan hanya toast ephemeral.
+- **`_wasConnected` flag**: Diferensiasi "Collaboration Connected" vs "Collaboration Reconnected" di WebSocket client.
+- **Type fixes**: `importCollection` signature diperbarui, `flattenTree` yang tidak terpakai dihapus.
+- **`window.api` optional chaining**: Mencegah crash di browser mode (non-Electron).
+
+### Perubahan File
+- `apps/desktop/src/renderer/src/components/ui/ContextMenu.tsx` — createPortal fix
+- `apps/desktop/src/renderer/src/components/layout/Sidebar.tsx` — folder button, WS indicator, optional chaining
+- `apps/desktop/src/renderer/src/components/layout/MainArea.tsx` — Save dropdown dengan Duplicate & Save As
+- `apps/desktop/src/renderer/src/components/modals/SaveRequestLocationModal.tsx` — folder lazy load, name fallback, cleanup
+- `apps/desktop/src/renderer/src/store/useDataStore.ts` — importCollection type fix
+- `apps/desktop/src/renderer/src/store/useNotificationStore.ts` — addLocalNotification
+- `apps/desktop/src/renderer/src/api/websocket.ts` — _wasConnected, local notification on connect/reconnect
+- `apps/desktop/src/renderer/src/App.tsx` — WsStatusBadge component
+
+---
+
 ## [2026-05-22] — Mock Server Enhancements & Bulk Transfer
 **Fase:** Fase 7 — Kolaborasi Lanjutan & Mock Pro
 **Dikerjakan oleh:** Waluyo
