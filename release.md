@@ -1,5 +1,14 @@
 # Wapbolt Release Notes
 
+## [v1.7.1] — 2026-05-25
+
+### 📋 Export cURL
+- **Copy as cURL**: Tombol "Copy cURL" baru di Quick Actions bar — satu klik langsung meng-copy seluruh request (method, URL, headers, body) sebagai perintah `curl` yang valid ke clipboard.
+- **Semua body type didukung**: raw JSON/text, `x-www-form-urlencoded` (via `--data-urlencode`), dan `form-data` (via `-F`).
+- **Multi-line format**: Output diformat dengan `\` line-continuation agar mudah dibaca dan di-paste ke terminal.
+
+---
+
 ## [v1.7.0] — 2026-05-25
 ### ⚡ Environment Autocomplete, Script IntelliSense & History Replay
 

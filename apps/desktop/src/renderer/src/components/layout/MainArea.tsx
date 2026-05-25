@@ -13,7 +13,7 @@ import { SaveRequestLocationModal } from '../modals/SaveRequestLocationModal'
 import { ImportCurlModal } from '../modals/ImportCurlModal'
 import { ExportCodeModal } from '../modals/ExportCodeModal'
 import { ComingSoonModal } from '../modals/ComingSoonModal'
-import { parseCurlCommand } from '../../utils/curlParser'
+import { parseCurlCommand, generateCurl } from '../../utils/curlParser'
 import Editor, { loader } from '@monaco-editor/react'
 import * as monaco from 'monaco-editor'
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
@@ -1480,6 +1480,26 @@ export const MainArea = (): React.JSX.Element => {
                 >
                   <TerminalIcon size={12} />
                   Import cURL
+                </button>
+                <button
+                  onClick={() => {
+                    const curl = generateCurl({
+                      method: workingRequest.method,
+                      url: workingRequest.url,
+                      headers: workingRequest.headers,
+                      body: workingRequest.body,
+                      bodyType: workingRequest.body_type
+                    })
+                    if (!curl) return
+                    navigator.clipboard.writeText(curl).then(() =>
+                      toast.success('cURL command copied to clipboard')
+                    )
+                  }}
+                  className="px-2 py-1 text-muted hover:text-text rounded text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 transition-colors"
+                  title="Copy as cURL"
+                >
+                  <Copy size={12} />
+                  Copy cURL
                 </button>
                 <button
                   onClick={() => setIsExportCodeOpen(true)}
