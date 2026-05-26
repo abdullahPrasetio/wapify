@@ -1,5 +1,6 @@
 import { useAppStore } from '../../store/useAppStore'
 import { useDataStore, AuthConfig, WorkingRequest } from '../../store/useDataStore'
+import { apiClient } from '../../api/client'
 import { useAuthStore } from '../../store/useAuthStore'
 import { KeyValueEditor } from '../ui/KeyValueEditor'
 import { VariableOverlayInput } from '../ui/VariableOverlayInput'
@@ -301,6 +302,16 @@ const EditorArea = ({
   const [showPassword, setShowPassword] = useState(false)
   const [isHeaderBulk, setIsHeaderBulk] = useState(false)
   const [headerBulkLocal, setHeaderBulkLocal] = useState('')
+  const [gqlSchema, setGqlSchema] = useState<string | null>(null)
+  const [gqlSchemaLoading, setGqlSchemaLoading] = useState(false)
+  const [gqlRightTab, setGqlRightTab] = useState<'variables' | 'schema'>('variables')
+  const prevGqlUrlRef = useRef<string>('')
+  useEffect(() => {
+    if (workingRequest.body_type === 'graphql' && workingRequest.url !== prevGqlUrlRef.current) {
+      prevGqlUrlRef.current = workingRequest.url
+      setGqlSchema(null)
+    }
+  }, [workingRequest.url, workingRequest.body_type])
   const preEditorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null)
   const testsEditorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null)
   const onSendRef = useRef(onSend)
@@ -384,7 +395,8 @@ const EditorArea = ({
               { id: 'form-data', label: 'form-data' },
               { id: 'x-www-form-urlencoded', label: 'urlencoded' },
               { id: 'raw-json', label: 'raw' },
-              { id: 'binary', label: 'binary' }
+              { id: 'binary', label: 'binary' },
+              { id: 'graphql', label: 'GraphQL' }
             ].map(t => (
               <button
                 key={t.id}
@@ -534,6 +546,146 @@ const EditorArea = ({
               <span className="text-[10px] text-muted uppercase tracking-widest">Feature coming soon</span>
             </div>
           )}
+
+          {workingRequest.body_type === 'graphql' && (() => {
+            const parseGqlBody = (raw: unknown) => {
+              try {
+                const parsed = JSON.parse(typeof raw === 'string' ? raw : '{}')
+                return { query: parsed.query || '', variables: parsed.variables || '{}', operationName: parsed.operationName || '' }
+              } catch { return { query: '', variables: '{}', operationName: '' } }
+            }
+            const gqlBody = parseGqlBody(workingRequest.body)
+
+            // Read current body at call-time to avoid stale closure
+            const updateGql = (patch: Partial<typeof gqlBody>) => {
+              const current = parseGqlBody(workingRequest.body)
+              onUpdate({ body: JSON.stringify({ ...current, ...patch }) })
+            }
+
+            const loadSchema = async () => {
+              if (!workingRequest.url) { toast.error('Set request URL first'); return }
+              setGqlSchemaLoading(true)
+              try {
+                const introspectionBody = JSON.stringify({
+                  query: `{
+                    __schema {
+                      types {
+                        name kind description
+                        fields {
+                          name description
+                          args { name description type { name kind ofType { name kind } } defaultValue }
+                          type { name kind ofType { name kind ofType { name kind } } }
+                        }
+                        enumValues { name description }
+                        inputFields { name description type { name kind ofType { name kind } } }
+                        interfaces { name }
+                        possibleTypes { name }
+                      }
+                      queryType { name }
+                      mutationType { name }
+                      subscriptionType { name }
+                    }
+                  }`
+                })
+                const headers = { 'Content-Type': 'application/json', ...workingRequest.headers }
+                const res = await apiClient.executeRequest<any>(
+                  'POST', workingRequest.url, headers, introspectionBody, 'raw-json'
+                )
+                const schema = res.data?.data?.__schema || res.data
+                setGqlSchema(JSON.stringify(schema, null, 2))
+                toast.success('Schema loaded')
+              } catch (e) {
+                toast.error(`Schema load failed: ${e instanceof Error ? e.message : String(e)}`)
+              } finally {
+                setGqlSchemaLoading(false)
+              }
+            }
+
+            return (
+              <div className="absolute inset-0 flex flex-col">
+                {/* Operation Name + Load Schema toolbar */}
+                <div className="flex items-center gap-3 px-4 py-2 border-b border-border bg-background/50 shrink-0">
+                  <span className="text-[10px] font-bold text-muted uppercase tracking-widest">Operation</span>
+                  <input
+                    type="text"
+                    value={gqlBody.operationName}
+                    onChange={e => updateGql({ operationName: e.target.value })}
+                    placeholder="operationName (optional)"
+                    className="flex-1 bg-transparent text-xs text-text border border-border rounded px-2 py-1 outline-none focus:border-primary"
+                  />
+                  <button
+                    onClick={loadSchema}
+                    disabled={gqlSchemaLoading}
+                    className="flex items-center gap-1.5 px-3 py-1 rounded text-[10px] font-black uppercase tracking-widest bg-surface border border-border text-muted hover:text-primary hover:border-primary transition-colors cursor-pointer disabled:opacity-50"
+                  >
+                    {gqlSchemaLoading ? <RefreshCw size={10} className="animate-spin" /> : <BookOpen size={10} />}
+                    {gqlSchemaLoading ? 'Loading...' : 'Load Schema'}
+                  </button>
+                </div>
+
+                {/* Main split: query left, variables/schema right */}
+                <div className="flex-1 flex min-h-0">
+                  {/* Query editor */}
+                  <div className="flex-1 flex flex-col border-r border-border min-w-0">
+                    <div className="px-3 py-1.5 border-b border-border bg-background/30">
+                      <span className="text-[9px] font-black uppercase tracking-widest text-muted">Query</span>
+                    </div>
+                    <div className="flex-1">
+                      <Editor
+                        height="100%"
+                        language="graphql"
+                        theme={monacoTheme}
+                        value={gqlBody.query}
+                        onChange={val => updateGql({ query: val || '' })}
+                        onMount={registerSendShortcut}
+                        options={{ minimap: { enabled: false }, fontSize, automaticLayout: true, padding: { top: 8 }, readOnly: isLocked }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Variables / Schema tab panel */}
+                  <div className="w-[45%] flex flex-col min-w-0">
+                    <div className="flex items-center border-b border-border bg-background/30 shrink-0">
+                      {(['variables', 'schema'] as const).map(tab => (
+                        <button
+                          key={tab}
+                          onClick={() => setGqlRightTab(tab)}
+                          className={`px-3 py-1.5 text-[9px] font-black uppercase tracking-widest transition-colors cursor-pointer ${gqlRightTab === tab ? 'text-primary border-b-2 border-primary' : 'text-muted hover:text-text'}`}
+                        >
+                          {tab}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="flex-1 min-h-0">
+                      {gqlRightTab === 'variables' ? (
+                        <Editor
+                          height="100%"
+                          language="json"
+                          theme={monacoTheme}
+                          value={gqlBody.variables}
+                          onChange={val => updateGql({ variables: val || '{}' })}
+                          onMount={registerSendShortcut}
+                          options={{ minimap: { enabled: false }, fontSize, automaticLayout: true, padding: { top: 8 }, readOnly: isLocked }}
+                        />
+                      ) : (
+                        <div className="h-full overflow-auto p-3">
+                          {gqlSchema ? (
+                            <pre className="text-[10px] font-mono text-muted whitespace-pre-wrap">{gqlSchema}</pre>
+                          ) : (
+                            <div className="h-full flex flex-col items-center justify-center opacity-40 gap-2">
+                              <BookOpen size={32} />
+                              <span className="text-[10px] font-bold uppercase tracking-widest">No schema loaded</span>
+                              <span className="text-[9px] text-muted">Click "Load Schema" to fetch via introspection</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )
+          })()}
         </div>
       </div>
 

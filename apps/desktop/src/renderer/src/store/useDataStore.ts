@@ -45,6 +45,20 @@ const normalizeRequest = (req: ApiRequest): ApiRequest => {
     } else if (!Array.isArray(body)) {
       body = []
     }
+  } else if (bodyType === 'graphql') {
+    // Normalize graphql body to JSON string with expected shape
+    if (typeof body !== 'string') {
+      body = JSON.stringify({ query: '', variables: '{}', operationName: '' })
+    } else {
+      try {
+        const parsed = JSON.parse(body)
+        if (typeof parsed !== 'object' || !('query' in parsed)) {
+          body = JSON.stringify({ query: String(body), variables: '{}', operationName: '' })
+        }
+      } catch {
+        body = JSON.stringify({ query: '', variables: '{}', operationName: '' })
+      }
+    }
   }
 
   return {
@@ -800,6 +814,7 @@ export const useDataStore = create<DataState>()(
                   'raw-text': 'text/plain',
                   'x-www-form-urlencoded': 'application/x-www-form-urlencoded',
                   'form-data': null, // Browser/Executor will set boundary
+                  'graphql': 'application/json',
                   none: null,
                   binary: 'application/octet-stream'
                 }
@@ -1714,6 +1729,29 @@ export const useDataStore = create<DataState>()(
             }))
             : replaceVariables(workingRequest.body, vars)
 
+          // GraphQL: override method to POST and serialize body as { query, variables, operationName }
+          const isGraphQL = workingRequest.body_type === 'graphql'
+          const finalMethod = isGraphQL ? 'POST' : workingRequest.method
+          const finalBodyType = isGraphQL ? 'raw-json' : workingRequest.body_type
+          const finalBody: any = (() => {
+            if (!isGraphQL) return substitutedBody
+            try {
+              const gql = JSON.parse(typeof substitutedBody === 'string' ? substitutedBody : '{}')
+              const variables = (() => {
+                try { return JSON.parse(gql.variables || '{}') } catch { return {} }
+              })()
+              const payload: Record<string, unknown> = { query: gql.query || '' }
+              if (Object.keys(variables).length > 0) payload.variables = variables
+              if (gql.operationName) payload.operationName = gql.operationName
+              return JSON.stringify(payload)
+            } catch {
+              return JSON.stringify({ query: '' })
+            }
+          })()
+          if (isGraphQL && !substitutedHeaders['Content-Type']) {
+            substitutedHeaders['Content-Type'] = 'application/json'
+          }
+
           // Inject Auth into URL if type is API Key and addTo is query
           if (
             workingRequest.auth_config.type === 'API Key' &&
@@ -1741,21 +1779,21 @@ export const useDataStore = create<DataState>()(
 
           try {
             const response = await apiClient.executeRequest(
-              workingRequest.method,
+              finalMethod,
               substitutedUrl,
               substitutedHeaders,
-              substitutedBody,
-              workingRequest.body_type
+              finalBody,
+              finalBodyType
             )
 
             // Log network activity to console
-            addLog('network', `${workingRequest.method} ${substitutedUrl}`, {
+            addLog('network', `${finalMethod} ${substitutedUrl}`, {
               request: {
-                method: workingRequest.method,
+                method: finalMethod,
                 url: substitutedUrl,
                 headers: substitutedHeaders,
-                body: substitutedBody,
-                body_type: workingRequest.body_type
+                body: finalBody,
+                body_type: finalBodyType
               },
               response: {
                 status: response.status,

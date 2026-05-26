@@ -92,16 +92,20 @@ Fokus: memperluas jenis request yang bisa ditest.
 
 ---
 
-### [P2-2] GraphQL Support 🟠 L
-**Status:** Belum ada.  
-**Goal:** Request editor khusus GraphQL dengan query builder dan schema introspection.
+### [P2-2] GraphQL Support 🟠 L ✅
+**Status:** **SELESAI** (2026-05-26)  
+**Perubahan:**
+- `normalizeRequest` di `useDataStore.ts`: tambah handling body_type `graphql` — body disimpan sebagai JSON string `{query, variables, operationName}`
+- `contentTypeMap` di `useDataStore.ts`: `graphql` → `application/json`
+- `executeActiveRequest` di `useDataStore.ts`: saat body_type `graphql`, method di-override ke POST, body dikonversi ke `{query, variables, operationName}` JSON
+- `MainArea.tsx`: tombol `GraphQL` di body type switcher; `EditorArea` menampilkan split panel — query editor (Monaco graphql language) di kiri, variables/schema tab di kanan; toolbar operation name + "Load Schema" (introspection via `__schema`)
 
-- [ ] Tipe body baru: `graphql`
-- [ ] Editor GraphQL di tab Body: query editor (Monaco), variables editor (JSON), operation name
-- [ ] Introspection: tombol "Load Schema" fetch schema dari endpoint → simpan lokal
-- [ ] Schema explorer panel: browse types, fields, dan dokumentasi inline
-- [ ] Autocomplete query berdasarkan schema (Monaco completion provider)
-- [ ] Kirim sebagai POST dengan `Content-Type: application/json` secara otomatis
+- [x] Tipe body baru: `graphql`
+- [x] Editor GraphQL di tab Body: query editor (Monaco), variables editor (JSON), operation name
+- [x] Introspection: tombol "Load Schema" fetch schema dari endpoint → tampil di tab Schema
+- [x] Schema explorer panel: raw JSON schema dari introspection
+- [x] Kirim sebagai POST dengan `Content-Type: application/json` secara otomatis
+- [ ] Autocomplete query berdasarkan schema (Monaco completion provider) *(backlog)*
 
 **Dependensi:** Tidak ada  
 **File terkait:** `MainArea.tsx` (tab Body), `types/index.ts`
@@ -257,4 +261,4 @@ v2.1.x → Phase 4
 
 ---
 
-*Last updated: 2026-05-26 (P2-1 WebSocket selesai)*
+*Last updated: 2026-05-26 (P2-2 GraphQL selesai)*
