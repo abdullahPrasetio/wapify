@@ -13,6 +13,7 @@ import { SaveRequestLocationModal } from '../modals/SaveRequestLocationModal'
 import { ImportCurlModal } from '../modals/ImportCurlModal'
 import { ExportCodeModal } from '../modals/ExportCodeModal'
 import { ComingSoonModal } from '../modals/ComingSoonModal'
+import { WebSocketPanel } from './WebSocketPanel'
 import { parseCurlCommand, generateCurl } from '../../utils/curlParser'
 import Editor, { loader } from '@monaco-editor/react'
 import * as monaco from 'monaco-editor'
@@ -1274,8 +1275,11 @@ export const MainArea = (): React.JSX.Element => {
     window.addEventListener('wapbolt:trigger-save-modal', handleTriggerSaveModal)
 
     const handleKeyDown = (e: KeyboardEvent): void => {
-      // Ctrl/Cmd + Enter for Send
+      // Ctrl/Cmd + Enter for Send — skip in WS mode (WebSocketPanel handles its own Cmd+Enter)
       if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+        const { tabs, activeTabId } = useDataStore.getState()
+        const activeTab = tabs.find((t) => t.requestId === activeTabId)
+        if ((activeTab?.workingRequest?.request_type ?? 'http') === 'ws') return
         e.preventDefault()
         executeActiveRequest()
       }
@@ -1349,8 +1353,8 @@ export const MainArea = (): React.JSX.Element => {
 
         {/* Top half: Request Builder */}
         <div
-          className="flex flex-col min-h-0 border-b border-border bg-background relative shrink-0"
-          style={{ height: `${builderHeight}%` }}
+          className={`flex flex-col min-h-0 border-b border-border bg-background relative ${(workingRequest.request_type ?? 'http') === 'ws' ? 'flex-1' : 'shrink-0'}`}
+          style={(workingRequest.request_type ?? 'http') === 'http' ? { height: `${builderHeight}%` } : undefined}
         >
           {/* New Request Header: Path & Name */}
           <div className="px-4 py-3 flex items-center justify-between border-b border-border/50">
@@ -1432,20 +1436,46 @@ export const MainArea = (): React.JSX.Element => {
 
           {/* URL Bar Area */}
           <div className="p-4 flex flex-col gap-3">
-            <div className="flex gap-2">
-              <div className="flex-1 flex shadow-sm rounded border border-border focus-within:border-primary transition-colors bg-surface overflow-hidden">
-                <RequestForm
-                  method={workingRequest.method}
-                  url={workingRequest.url}
-                  isLocked={isLockedByOthers}
-                  onUpdate={(update): void => {
-                    if (update.url !== undefined) {
-                      handleUrlChange(update.url)
+            {/* Protocol toggle */}
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-black text-muted uppercase tracking-widest">Protocol</span>
+              {(['http', 'ws'] as const).map((proto) => (
+                <button
+                  key={proto}
+                  onClick={() => {
+                    if (proto === 'ws' && workingRequest.url && !workingRequest.url.startsWith('ws')) {
+                      const url = workingRequest.url.replace(/^https:\/\//, 'wss://').replace(/^http:\/\//, 'ws://')
+                      setWorkingRequest({ request_type: proto, url })
+                    } else if (proto === 'http' && workingRequest.url) {
+                      const url = workingRequest.url.replace(/^wss:\/\//, 'https://').replace(/^ws:\/\//, 'http://')
+                      setWorkingRequest({ request_type: proto, url })
                     } else {
-                      setWorkingRequest(update)
+                      setWorkingRequest({ request_type: proto })
                     }
                   }}
-                />
+                  className={`px-3 py-0.5 rounded text-[10px] font-black uppercase tracking-widest border transition-colors ${(workingRequest.request_type ?? 'http') === proto ? (proto === 'ws' ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/40' : 'bg-primary/20 text-primary border-primary/40') : 'text-muted border-border hover:text-text'}`}
+                >
+                  {proto === 'ws' ? 'WebSocket' : 'HTTP'}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex gap-2">
+              <div className="flex-1 flex shadow-sm rounded border border-border focus-within:border-primary transition-colors bg-surface overflow-hidden">
+                {(workingRequest.request_type ?? 'http') === 'http' && (
+                  <RequestForm
+                    method={workingRequest.method}
+                    url={workingRequest.url}
+                    isLocked={isLockedByOthers}
+                    onUpdate={(update): void => {
+                      if (update.url !== undefined) {
+                        handleUrlChange(update.url)
+                      } else {
+                        setWorkingRequest(update)
+                      }
+                    }}
+                  />
+                )}
 
                 {/* Navbar Environment Selector */}
                 <div className="border-l border-border flex items-center bg-surface/50 px-2 group">
@@ -1467,19 +1497,21 @@ export const MainArea = (): React.JSX.Element => {
                 </div>
               </div>
 
-              <div className="flex shadow-sm rounded overflow-hidden">
-                <button
-                  onClick={executeActiveRequest}
-                  disabled={activeTabRequest.isSending}
-                  className="bg-primary hover:bg-primary-hover text-white px-6 py-2 text-sm font-bold transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer rounded"
-                >
-                  {activeTabRequest.isSending ? (
-                    <RefreshCw size={14} className="animate-spin" />
-                  ) : (
-                    <span>Send</span>
-                  )}
-                </button>
-              </div>
+              {(workingRequest.request_type ?? 'http') === 'http' && (
+                <div className="flex shadow-sm rounded overflow-hidden">
+                  <button
+                    onClick={executeActiveRequest}
+                    disabled={activeTabRequest.isSending}
+                    className="bg-primary hover:bg-primary-hover text-white px-6 py-2 text-sm font-bold transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer rounded"
+                  >
+                    {activeTabRequest.isSending ? (
+                      <RefreshCw size={14} className="animate-spin" />
+                    ) : (
+                      <span>Send</span>
+                    )}
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Quick Actions (Moved below URL Bar) */}
@@ -1581,80 +1613,93 @@ export const MainArea = (): React.JSX.Element => {
             </div>
           </div>
 
-          {/* Tabs Area */}
-          <div className="flex px-4 border-b border-border bg-background shrink-0 items-center justify-between">
-            <div className="flex items-center">
-              <div
-                className={`px-3 py-2 text-xs font-medium cursor-pointer border-b-2 transition-colors flex items-center gap-1.5 ${activeTab === 'Docs' ? 'border-primary text-primary' : 'border-transparent text-muted hover:text-text'
-                  }`}
-                onClick={() => setComingSoon({ isOpen: true, feature: 'Documentation' })}
-              >
-                <BookOpen size={14} />
-                Docs
+          {/* WebSocket Panel replaces tabs+editor+response when WS mode is active */}
+          {(workingRequest.request_type ?? 'http') === 'ws' && (
+            <WebSocketPanel key={`ws-${activeTabRequest.requestId}`} />
+          )}
+
+          {/* Tabs Area — HTTP only */}
+          {(workingRequest.request_type ?? 'http') === 'http' && (
+            <div className="flex px-4 border-b border-border bg-background shrink-0 items-center justify-between">
+              <div className="flex items-center">
+                <div
+                  className={`px-3 py-2 text-xs font-medium cursor-pointer border-b-2 transition-colors flex items-center gap-1.5 ${activeTab === 'Docs' ? 'border-primary text-primary' : 'border-transparent text-muted hover:text-text'
+                    }`}
+                  onClick={() => setComingSoon({ isOpen: true, feature: 'Documentation' })}
+                >
+                  <BookOpen size={14} />
+                  Docs
+                </div>
+
+                {REQUEST_TABS.map((tab) => (
+                  <div
+                    key={tab}
+                    onClick={(): void => setActiveTab(tab)}
+                    className={`px-3 py-2 text-xs font-medium cursor-pointer border-b-2 transition-colors flex items-center gap-1.5 ${activeTab === tab
+                      ? 'border-primary text-primary'
+                      : 'border-transparent text-muted hover:text-text'
+                      }`}
+                  >
+                    {tab}
+                    {((tab === 'Body' &&
+                      workingRequest.body_type !== 'none') ||
+                      (tab === 'Pre-request' && workingRequest.pre_request_script) ||
+                      (tab === 'Tests' && workingRequest.post_request_script) ||
+                      (tab === 'Headers' && Object.keys(workingRequest.headers || {}).length > 0) ||
+                      (tab === 'Auth' && workingRequest.auth_config?.type !== 'No Auth')) && (
+                        <div className="w-1.5 h-1.5 rounded-full bg-success shadow-[0_0_4px_rgba(34,197,94,0.6)]" />
+                      )}
+                    {tab === 'Headers' && Object.keys(workingRequest.headers || {}).length > 0 && (
+                      <span className="text-[10px] text-muted-foreground opacity-70">
+                        ({Object.keys(workingRequest.headers).length})
+                      </span>
+                    )}
+                  </div>
+                ))}
               </div>
 
-              {REQUEST_TABS.map((tab) => (
-                <div
-                  key={tab}
-                  onClick={(): void => setActiveTab(tab)}
-                  className={`px-3 py-2 text-xs font-medium cursor-pointer border-b-2 transition-colors flex items-center gap-1.5 ${activeTab === tab
-                    ? 'border-primary text-primary'
-                    : 'border-transparent text-muted hover:text-text'
-                    }`}
+              <div className="flex items-center gap-4 pr-2">
+                <button
+                  onClick={() => setComingSoon({ isOpen: true, feature: 'Cookies Management' })}
+                  className="text-[11px] font-bold text-primary hover:underline"
                 >
-                  {tab}
-                  {((tab === 'Body' &&
-                    workingRequest.body_type !== 'none') ||
-                    (tab === 'Pre-request' && workingRequest.pre_request_script) ||
-                    (tab === 'Tests' && workingRequest.post_request_script) ||
-                    (tab === 'Headers' && Object.keys(workingRequest.headers || {}).length > 0) ||
-                    (tab === 'Auth' && workingRequest.auth_config?.type !== 'No Auth')) && (
-                      <div className="w-1.5 h-1.5 rounded-full bg-success shadow-[0_0_4px_rgba(34,197,94,0.6)]" />
-                    )}
-                  {tab === 'Headers' && Object.keys(workingRequest.headers || {}).length > 0 && (
-                    <span className="text-[10px] text-muted-foreground opacity-70">
-                      ({Object.keys(workingRequest.headers).length})
-                    </span>
-                  )}
-                </div>
-              ))}
+                  Cookies
+                </button>
+              </div>
             </div>
+          )}
 
-            <div className="flex items-center gap-4 pr-2">
-              <button
-                onClick={() => setComingSoon({ isOpen: true, feature: 'Cookies Management' })}
-                className="text-[11px] font-bold text-primary hover:underline"
-              >
-                Cookies
-              </button>
+          {/* Tab Content — HTTP only */}
+          {(workingRequest.request_type ?? 'http') === 'http' && (
+            <div className="flex-1 overflow-hidden relative">
+              <EditorArea
+                key={`editor-${activeTabRequest.requestId}`}
+                activeTab={activeTab}
+                requestId={activeTabRequest.requestId}
+                workingRequest={workingRequest}
+                isLocked={isLockedByOthers}
+                onUpdate={(update): void => setWorkingRequest(update)}
+                onSetVar={setSettingVar}
+                onSend={executeActiveRequest}
+              />
             </div>
-          </div>
-
-          {/* Tab Content */}
-          <div className="flex-1 overflow-hidden relative">
-            <EditorArea
-              key={`editor-${activeTabRequest.requestId}`}
-              activeTab={activeTab}
-              requestId={activeTabRequest.requestId}
-              workingRequest={workingRequest}
-              isLocked={isLockedByOthers}
-              onUpdate={(update): void => setWorkingRequest(update)}
-              onSetVar={setSettingVar}
-              onSend={executeActiveRequest}
-            />
-          </div>
+          )}
         </div>
 
-        {/* Resizer Bar */}
-        <div
-          className={`h-1.5 w-full cursor-row-resize hover:bg-primary/40 transition-colors z-20 shrink-0 ${isResizing ? 'bg-primary/60' : 'bg-transparent'}`}
-          onMouseDown={() => setIsResizing(true)}
-        />
+        {/* Resizer Bar — HTTP only */}
+        {(workingRequest.request_type ?? 'http') === 'http' && (
+          <div
+            className={`h-1.5 w-full cursor-row-resize hover:bg-primary/40 transition-colors z-20 shrink-0 ${isResizing ? 'bg-primary/60' : 'bg-transparent'}`}
+            onMouseDown={() => setIsResizing(true)}
+          />
+        )}
 
-        {/* Bottom half: Response Area */}
-        <div className="flex-1 flex flex-col min-h-0">
-          <ResponseArea />
-        </div>
+        {/* Bottom half: Response Area — HTTP only */}
+        {(workingRequest.request_type ?? 'http') === 'http' && (
+          <div className="flex-1 flex flex-col min-h-0">
+            <ResponseArea />
+          </div>
+        )}
       </div>
 
       {/* Right Sidebar: Collaboration Panel */}

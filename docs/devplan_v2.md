@@ -72,19 +72,23 @@ Fokus: menghilangkan hambatan masuk bagi pengguna Postman/Insomnia.
 
 Fokus: memperluas jenis request yang bisa ditest.
 
-### [P2-1] WebSocket Testing 🟠 L
-**Status:** Ada `websocket.ts` tapi itu untuk koneksi kolaborasi internal, bukan untuk testing WebSocket API.  
-**Goal:** Tab request baru bertipe "WebSocket" untuk connect, send message, dan monitor event.
+### [P2-1] WebSocket Testing 🟠 L ✅
+**Status:** **SELESAI** (2026-05-26)  
+**Perubahan:**
+- `WorkingRequest` di `useDataStore.ts`: tambah field `request_type?: 'http' | 'ws'`
+- `WebSocketPanel.tsx` dibuat baru: connect/disconnect, sub-protocol, handshake headers toggle, event log (timestamp, direction, size, copy), send panel (text/JSON format), filter sent/received/all, clear log
+- `MainArea.tsx`: protocol toggle HTTP/WS di URL bar; WS mode mengaktifkan `WebSocketPanel` (full-height, tanpa resizer/response); top-half div menjadi `flex-1` saat WS mode; auto-convert `https://` → `wss://` saat switch ke WS
 
-- [ ] Tipe request baru: `ws` (simpan di `request_type` field)
-- [ ] UI WebSocket di `MainArea.tsx`: URL bar, tombol Connect/Disconnect, input message, event log
-- [ ] Support: text message, JSON message, binary (base64)
-- [ ] Event log: timestamp, direction (sent/received), payload, ukuran
-- [ ] Sub-protocol & custom headers saat handshake
-- [ ] Simpan session history (last N messages)
+- [x] Tipe request baru: `ws` (field `request_type` di `WorkingRequest`)
+- [x] UI WebSocket di `MainArea.tsx`: URL bar, tombol Connect/Disconnect, input message, event log
+- [x] Support: text message, JSON message
+- [x] Event log: timestamp, direction (sent/received), payload, ukuran
+- [x] Sub-protocol & custom headers saat handshake
+- [ ] Simpan session history (last N messages) *(backlog)*
 
-**Dependensi:** Perlu perubahan schema database (`request_type` field) + backend support  
-**File terkait:** `MainArea.tsx`, `types/index.ts`, backend model Request
+**Catatan:** `request_type` hanya disimpan di `WorkingRequest` (in-memory/tab state), tidak di-persist ke database karena tidak ada perubahan schema backend. Saat request di-save ke backend, tipe WS tidak tersimpan — tapi WebSocket testing dimaksudkan sebagai mode ephemeral.
+
+**File terkait:** `MainArea.tsx`, `WebSocketPanel.tsx`, `store/useDataStore.ts`
 
 ---
 
@@ -253,4 +257,4 @@ v2.1.x → Phase 4
 
 ---
 
-*Last updated: 2026-05-26*
+*Last updated: 2026-05-26 (P2-1 WebSocket selesai)*

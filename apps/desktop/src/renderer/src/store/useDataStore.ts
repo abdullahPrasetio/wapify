@@ -90,6 +90,8 @@ export interface WorkingRequest {
   post_request_script: string
   /** Validation metadata per field — stored separately, never sent to target API */
   field_validations: FieldValidations
+  /** Request protocol type: 'http' for normal HTTP requests, 'ws' for WebSocket testing */
+  request_type?: 'http' | 'ws'
 }
 
 export interface LogEntry {
