@@ -1,5 +1,32 @@
 # Wapbolt Release Notes
 
+## [v2.1.0] — 2026-05-27
+
+### 🔥 Chaos Mode & Error Simulation (Mock Server)
+
+- **Chaos Mode** (collection-level): toggle di header MockServerPanel — paksa error rate min 50% seluruh endpoint. Cache 5s TTL mencegah N+1 DB query.
+- **Error Injection** (per-endpoint): field `error_rate` (0–100%) + `error_status_code`, slider dengan live preview, status code di-clamp 400–599.
+- **Delay Range** (per-endpoint): field `delay_max_ms` baru untuk simulasi random delay range; badge di card.
+
+### 📋 Mock Request Logs
+
+- Tab **"Request Logs"** di MockServerPanel: setiap request ke mock server di-log async (goroutine + `recover()` guard) ke `mock_request_logs`.
+- Kolom: timestamp, method, path, status, latency, matched/unmatched, chaos-injected.
+- API: `GET /api/v1/collections/:id/mock/logs`.
+
+### 🔍 Global Search yang Diperluas
+
+- Scope: requests, collections, folders, environment variables (key+value), history, navigation.
+- Grouped results per kategori + **fuzzy search** dengan skor relevansi.
+- Navigasi keyboard `↑↓ Enter` flat across semua grup.
+
+### 🛠 Hardening
+
+- `collectionID` path param divalidasi (`parseUint`) — HTTP 400 jika invalid.
+- Goroutine log dilindungi `defer recover()` — panic DB tidak crash server.
+
+---
+
 ## [v2.0.1] — 2026-05-27
 
 ### 🐛 Bug Fixes & Hardening

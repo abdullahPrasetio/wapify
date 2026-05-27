@@ -209,29 +209,40 @@ Fokus: mempercepat workflow sehari-hari.
 
 ---
 
-### [P3-4] Global Search yang Diperluas 🟡 M
-**Status:** `GlobalSearchModal.tsx` ada, belum tahu scope search-nya.  
-**Goal:** Search bisa menemukan request, folder, koleksi, environment variable, dan history sekaligus.
+### [P3-4] Global Search yang Diperluas 🟡 M ✅
+**Status:** **SELESAI** (2026-05-27)  
+**Perubahan:**
+- `GlobalSearchModal.tsx` dirombak total: grouped results per kategori (Requests, Collections, Folders, Env Vars, History, Navigation), fuzzy search (`fuzzyMatch` + `fuzzyScore`), max 6 hasil per grup
+- Folder results: dari `foldersByCollection` di store — action toggle expand collection + folder
+- Env variable results: search by key across all environments — badge Global/Env, subtitle tampilkan env name + preview value
+- History results: dari `history` store — action `setActiveHistoryId` buka history-detail view, subtitle menampilkan timestamp + response time + status code
+- Keyboard navigation menggunakan flat index across all groups, auto-scroll via `data-result-index` selector
 
-- [ ] Search scope: requests (nama + URL), koleksi, folder, environment variables (key), history
-- [ ] Hasil dikelompokkan per kategori
-- [ ] Preview singkat: method badge + URL untuk request, nilai untuk variable
-- [ ] Navigasi keyboard (↑↓ Enter) di hasil search
-- [ ] Fuzzy search (tidak harus exact match)
+- [x] Search scope: requests (nama + URL), koleksi, folder, environment variables (key), history
+- [x] Hasil dikelompokkan per kategori
+- [x] Preview singkat: method badge + URL untuk request, nilai untuk variable
+- [x] Navigasi keyboard (↑↓ Enter) di hasil search
+- [x] Fuzzy search (tidak harus exact match)
 
-**Dependensi:** Tidak ada  
 **File terkait:** `GlobalSearchModal.tsx`, `useDataStore.ts`
 
 ---
 
-### [P3-5] Mock Server — Scenario Delay & Error Simulation 🟡 M
-**Status:** Mock Server sudah ada (`MockServerPanel.tsx`, `ScenariosPanel.tsx`).  
+### [P3-5] Mock Server — Scenario Delay & Error Simulation 🟡 M ✅
+**Status:** **SELESAI** (2026-05-27)  
 **Goal:** Simulasi kondisi edge case: response lambat, random error, network failure.
 
-- [ ] Per-endpoint config: response delay (fixed / random range dalam ms)
-- [ ] Error simulation: random % chance return error (4xx/5xx)
-- [ ] Chaos mode: aktifkan simulasi failure untuk seluruh mock server
-- [ ] Log request ke mock server: timestamp, matched endpoint, latency simulasi
+- [x] Per-endpoint config: response delay (fixed / random range dalam ms) — field `delay_ms` + `delay_max_ms`
+- [x] Error simulation: random % chance return error (4xx/5xx) — field `error_rate` + `error_status_code`
+- [x] Chaos mode: aktifkan simulasi failure untuk seluruh collection — toggle di header MockServerPanel
+- [x] Log request ke mock server: timestamp, matched endpoint, latency simulasi — tab "Request Logs"
+
+**Perubahan:**
+- `backend/migrations/000028_mock_chaos_and_logs.up.sql` — tambah kolom `delay_max_ms`, `error_rate`, `error_status_code` di `mock_endpoints`; kolom `chaos_mode` di `collections`; tabel baru `mock_request_logs`
+- `backend/internal/repository/models.go` — update `MockEndpoint`, `Collection`, tambah `MockRequestLog`
+- `backend/internal/api/mock_server.go` — `serveMockEndpoint` dengan chaos/error inject + async log; handler `updateCollectionChaosMode` + `listMockRequestLogs`
+- `apps/desktop/src/renderer/src/types/index.ts` — update `MockEndpoint`, tambah `MockRequestLog`
+- `apps/desktop/src/renderer/src/components/layout/MockServerPanel.tsx` — chaos toggle header, tab Logs, form delay range + error injection slider, card badge error rate
 
 **Dependensi:** Backend mock server  
 **File terkait:** `MockServerPanel.tsx`, `ScenariosPanel.tsx`
@@ -285,4 +296,4 @@ v2.2.x → Phase 4
 
 ---
 
-*Last updated: 2026-05-27 (v2.0.1 — bug fixes & hardening setelah review findings P3)*
+*Last updated: 2026-05-27 (v2.1.0 — P3-4 Global Search + P3-5 Mock Chaos & Request Logs)*

@@ -242,12 +242,28 @@ export interface MockEndpoint {
   response_headers: Record<string, string>
   response_body: string
   delay_ms: number
+  delay_max_ms: number
+  error_rate: number
+  error_status_code: number
   is_active: boolean
   evaluation_mode: 'auto' | 'manual'
   active_scenario_id: number | null
   created_at: string
   updated_at: string
   scenarios?: MockScenario[]
+}
+
+export interface MockRequestLog {
+  id: number
+  endpoint_id: number | null
+  collection_id: number | null
+  method: string
+  path: string
+  matched: boolean
+  injected_error: boolean
+  status_code: number
+  latency_ms: number
+  created_at: string
 }
 
 export interface MockScenario {
