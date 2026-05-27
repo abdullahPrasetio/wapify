@@ -1,6 +1,6 @@
 {
   "name": "wapbolt-desktop",
-  "version": "1.9.1",
+  "version": "1.9.2",
   "description": "An Electron application with React and TypeScript",
   "main": "./out/main/index.js",
   "author": {
@@ -32,6 +32,7 @@
     "@electron-toolkit/utils": "^4.0.0",
     "@monaco-editor/react": "^4.7.0",
     "@radix-ui/react-context-menu": "^2.2.16",
+    "ajv": "^6.15.0",
     "axios": "^1.15.2",
     "clsx": "^2.1.1",
     "curlconverter": "^4.12.0",

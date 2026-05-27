@@ -112,7 +112,7 @@ export function WebSocketPanel(): React.JSX.Element {
 
         if (isBinary) {
           payload = '[Binary data]'
-          size = typeof event.data.size === 'number' ? event.data.size : 0
+          size = event.data instanceof Blob ? event.data.size : 0
         } else {
           payload = String(event.data)
           size = new TextEncoder().encode(payload).length
@@ -277,15 +277,11 @@ export function WebSocketPanel(): React.JSX.Element {
         {showHeaders && (
           <div className="px-4 pb-3">
             <KeyValueEditor
-              value={Object.entries(workingRequest.headers || {}).map(([key, value]) => ({ key, value, enabled: true }))}
-              onChange={(rows) => {
-                const headers: Record<string, string> = {}
-                rows.filter((r) => r.enabled && r.key).forEach((r) => { headers[r.key] = r.value })
-                setWorkingRequest({ headers })
+              initialData={workingRequest.headers || {}}
+              onChange={(data: Record<string, string>) => {
+                setWorkingRequest({ headers: data })
               }}
               disabled={isConnected || isConnecting}
-              keyPlaceholder="Header"
-              valuePlaceholder="Value"
             />
           </div>
         )}

@@ -82,6 +82,22 @@ export interface RequestExample {
   updated_at: string
 }
 
+// ─── Extraction Rule Types ────────────────────────────────────────────────────
+
+export interface ExtractionRule {
+  id: string
+  variableName: string
+  jsonPath: string
+  enabled: boolean
+}
+
+export interface SchemaAssertion {
+  id: string
+  name: string
+  schema: string
+  enabled: boolean
+}
+
 // ─── Field Validation Types ───────────────────────────────────────────────────
 
 /** Rules that can be applied to a header or body field */
@@ -142,6 +158,8 @@ export interface ApiRequest {
   order_index: number
   pre_request_script: string
   post_request_script: string
+  extraction_rules?: ExtractionRule[]
+  schema_assertions?: SchemaAssertion[]
   created_at: string
   updated_at: string
   examples?: RequestExample[]

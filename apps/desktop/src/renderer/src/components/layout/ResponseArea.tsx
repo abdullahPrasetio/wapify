@@ -5,23 +5,54 @@ import * as monaco from 'monaco-editor'
 
 // Configure Monaco to use the bundled version (OFFLINE)
 loader.config({ monaco })
-import { Clock, Database, Globe, ChevronDown, ChevronRight } from 'lucide-react'
+import { Clock, Database, Globe, ChevronDown, ChevronRight, Zap, X } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { PromptModal } from '../modals/PromptModal'
+import type { ExtractionRule } from '../../types'
 
 export const ResponseArea = (): React.JSX.Element => {
-  const { tabs, activeTabId, logs, clearLogs, saveExample } = useDataStore()
+  const { tabs, activeTabId, logs, clearLogs, saveExample, setWorkingRequest, locksByRequest } = useDataStore()
   const { fontSize, theme } = useAppStore()
   const monacoTheme = theme === 'system'
     ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'vs-dark' : 'vs')
     : (theme === 'dark' ? 'vs-dark' : 'vs')
   const [activeTab, setActiveTab] = useState<'Body' | 'Headers' | 'Tests' | 'Console'>('Body')
   const [isPromptOpen, setIsPromptOpen] = useState(false)
+  const [showExtract, setShowExtract] = useState(false)
+  const [extractPath, setExtractPath] = useState('')
+  const [extractVar, setExtractVar] = useState('')
 
   const activeTabRequest = tabs.find((t) => t.requestId === activeTabId)
 
   if (!activeTabRequest) return <></>
+
+  const workingRequest = activeTabRequest.workingRequest
+
+  const isLocked = typeof activeTabId === 'number' && !!locksByRequest[activeTabId]
+
+  const handleAddExtractionRule = () => {
+    if (isLocked) {
+      toast.error('Request is locked by another user')
+      return
+    }
+    if (!extractPath.trim() || !extractVar.trim()) {
+      toast.error('Both JSON Path and Variable Name are required')
+      return
+    }
+    const existing: ExtractionRule[] = workingRequest.extraction_rules || []
+    const newRule: ExtractionRule = {
+      id: crypto.randomUUID(),
+      jsonPath: extractPath.trim(),
+      variableName: extractVar.trim(),
+      enabled: true
+    }
+    setWorkingRequest({ extraction_rules: [...existing, newRule] })
+    setExtractPath('')
+    setExtractVar('')
+    setShowExtract(false)
+    toast.success(`Extraction rule added: ${extractVar} ← ${extractPath}`)
+  }
 
   const { lastResponse, isSending, testResults } = activeTabRequest
 
@@ -108,6 +139,12 @@ export const ResponseArea = (): React.JSX.Element => {
               Save as Example
             </button>
             <button
+              onClick={() => setShowExtract((v) => !v)}
+              className={`flex items-center gap-1 text-[10px] font-bold transition-colors px-2 py-1 rounded ${showExtract ? 'bg-primary text-white' : 'text-primary bg-primary/10 hover:bg-primary/20'}`}
+            >
+              <Zap size={10} /> Extract
+            </button>
+            <button
               onClick={(): void => {
                 navigator.clipboard.writeText(formattedData)
                 toast.success('Response copied to clipboard')
@@ -117,6 +154,39 @@ export const ResponseArea = (): React.JSX.Element => {
               Copy
             </button>
           </div>
+        </div>
+      )}
+
+      {/* Extract Panel */}
+      {showExtract && lastResponse && (
+        <div className="shrink-0 border-b border-border bg-surface/30 px-4 py-3 flex items-end gap-3">
+          <div className="flex-1">
+            <label className="text-[9px] font-black text-muted uppercase tracking-widest mb-1 block">JSON Path</label>
+            <input
+              value={extractPath}
+              onChange={(e) => setExtractPath(e.target.value)}
+              placeholder="e.g. data.token"
+              className="w-full bg-background border border-border rounded px-2 py-1 text-xs font-mono text-text focus:outline-none focus:border-primary"
+            />
+          </div>
+          <div className="flex-1">
+            <label className="text-[9px] font-black text-muted uppercase tracking-widest mb-1 block">Variable Name</label>
+            <input
+              value={extractVar}
+              onChange={(e) => setExtractVar(e.target.value)}
+              placeholder="e.g. authToken"
+              className="w-full bg-background border border-border rounded px-2 py-1 text-xs font-mono text-text focus:outline-none focus:border-primary"
+            />
+          </div>
+          <button
+            onClick={handleAddExtractionRule}
+            className="px-3 py-1.5 bg-primary text-white rounded text-[10px] font-bold hover:bg-primary/80 transition-colors"
+          >
+            Add Rule
+          </button>
+          <button onClick={() => setShowExtract(false)} className="text-muted hover:text-text">
+            <X size={14} />
+          </button>
         </div>
       )}
 

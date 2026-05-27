@@ -19,7 +19,7 @@ import { parseCurlCommand, generateCurl } from '../../utils/curlParser'
 import Editor, { loader } from '@monaco-editor/react'
 import * as monaco from 'monaco-editor'
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import type { FieldValidationRule, FieldValidations } from '../../types'
+import type { FieldValidationRule, FieldValidations, ExtractionRule, SchemaAssertion } from '../../types'
 import { toast } from 'sonner'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 
@@ -305,6 +305,7 @@ const EditorArea = ({
   const [gqlSchema, setGqlSchema] = useState<string | null>(null)
   const [gqlSchemaLoading, setGqlSchemaLoading] = useState(false)
   const [gqlRightTab, setGqlRightTab] = useState<'variables' | 'schema'>('variables')
+  const [testsSubTab, setTestsSubTab] = useState<'script' | 'extract' | 'schema'>('script')
   const prevGqlUrlRef = useRef<string>('')
   useEffect(() => {
     if (workingRequest.body_type === 'graphql' && workingRequest.url !== prevGqlUrlRef.current) {
@@ -779,36 +780,220 @@ const EditorArea = ({
       </div>
 
       {/* --- TESTS TAB --- */}
-      <div className={`h-full flex flex-col ${activeTab === 'Tests' ? 'flex' : 'hidden'}`}>
-        <div className="p-2 bg-background/50 border-b border-border flex items-center justify-between shrink-0">
-          <span className="text-[9px] text-muted font-black uppercase tracking-[0.2em] flex items-center gap-2">
-            <RefreshCw size={12} className="text-primary" /> Script: After response
-          </span>
-          <span className="text-[9px] text-muted/50 italic">wap.test / wap.response / wap.environment.set</span>
-        </div>
-        <div className="flex-1 flex overflow-hidden">
-          <div className="flex-1 overflow-hidden">
-            <Editor
-              height="100%"
-              defaultLanguage="javascript"
-              theme={monacoTheme}
-              value={workingRequest.post_request_script || ''}
-              onMount={(editor) => { testsEditorRef.current = editor; registerSendShortcut(editor) }}
-              onChange={(val) => onUpdate({ post_request_script: val || '' })}
-              options={{
-                minimap: { enabled: false },
-                fontSize: fontSize,
-                scrollBeyondLastLine: false,
-                padding: { top: 10 },
-                readOnly: isLocked,
-                suggestOnTriggerCharacters: true,
-                quickSuggestions: true,
-              }}
-            />
+      {(() => {
+        const extractionRules: ExtractionRule[] = workingRequest.extraction_rules || []
+        const schemaAssertions: SchemaAssertion[] = workingRequest.schema_assertions || []
+        const addExtractRule = () => {
+          const newRule: ExtractionRule = { id: crypto.randomUUID(), variableName: '', jsonPath: '', enabled: true }
+          onUpdate({ extraction_rules: [...extractionRules, newRule] })
+        }
+        const updateExtractRule = (id: string, patch: Partial<ExtractionRule>) => {
+          onUpdate({ extraction_rules: extractionRules.map((r) => (r.id === id ? { ...r, ...patch } : r)) })
+        }
+        const deleteExtractRule = (id: string) => {
+          onUpdate({ extraction_rules: extractionRules.filter((r) => r.id !== id) })
+        }
+        const addSchemaAssertion = () => {
+          const newAssertion: SchemaAssertion = { id: crypto.randomUUID(), name: 'Schema Check', schema: '{\n  "type": "object"\n}', enabled: true }
+          onUpdate({ schema_assertions: [...schemaAssertions, newAssertion] })
+        }
+        const updateSchemaAssertion = (id: string, patch: Partial<SchemaAssertion>) => {
+          onUpdate({ schema_assertions: schemaAssertions.map((a) => (a.id === id ? { ...a, ...patch } : a)) })
+        }
+        const deleteSchemaAssertion = (id: string) => {
+          onUpdate({ schema_assertions: schemaAssertions.filter((a) => a.id !== id) })
+        }
+        return (
+          <div className={`h-full flex flex-col ${activeTab === 'Tests' ? 'flex' : 'hidden'}`}>
+            {/* Sub-tabs */}
+            <div className="flex border-b border-border bg-surface/10 shrink-0">
+              {([
+                { id: 'script', label: 'Script' },
+                { id: 'extract', label: `Extract (${extractionRules.filter((r) => r.enabled).length})` },
+                { id: 'schema', label: `Schema (${schemaAssertions.filter((a) => a.enabled).length})` }
+              ] as { id: 'script' | 'extract' | 'schema'; label: string }[]).map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => setTestsSubTab(t.id)}
+                  className={`px-4 py-2 text-[10px] font-bold uppercase tracking-wide border-b-2 transition-colors ${testsSubTab === t.id ? 'border-primary text-primary' : 'border-transparent text-muted hover:text-text'}`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Script sub-tab */}
+            {testsSubTab === 'script' && (
+              <>
+                <div className="p-2 bg-background/50 border-b border-border flex items-center justify-between shrink-0">
+                  <span className="text-[9px] text-muted font-black uppercase tracking-[0.2em] flex items-center gap-2">
+                    <RefreshCw size={12} className="text-primary" /> Script: After response
+                  </span>
+                  <span className="text-[9px] text-muted/50 italic">wap.test / wap.response / wap.environment.set</span>
+                </div>
+                <div className="flex-1 flex overflow-hidden">
+                  <div className="flex-1 overflow-hidden">
+                    <Editor
+                      height="100%"
+                      defaultLanguage="javascript"
+                      theme={monacoTheme}
+                      value={workingRequest.post_request_script || ''}
+                      onMount={(editor) => { testsEditorRef.current = editor; registerSendShortcut(editor) }}
+                      onChange={(val) => onUpdate({ post_request_script: val || '' })}
+                      options={{
+                        minimap: { enabled: false },
+                        fontSize: fontSize,
+                        scrollBeyondLastLine: false,
+                        padding: { top: 10 },
+                        readOnly: isLocked,
+                        suggestOnTriggerCharacters: true,
+                        quickSuggestions: true,
+                      }}
+                    />
+                  </div>
+                  {!isLocked && <ScriptSnippetsPanel mode="tests" onInsert={(code) => insertSnippet(testsEditorRef, code)} />}
+                </div>
+              </>
+            )}
+
+            {/* Extract sub-tab */}
+            {testsSubTab === 'extract' && (
+              <div className="flex-1 overflow-auto p-4 space-y-3">
+                <div className="flex items-center justify-between mb-2">
+                  <div>
+                    <p className="text-xs font-bold text-text">Variable Extraction Rules</p>
+                    <p className="text-[10px] text-muted mt-0.5">Extract values from JSON response and save to environment variables automatically after each request.</p>
+                  </div>
+                  {!isLocked && (
+                    <button
+                      onClick={addExtractRule}
+                      className="flex items-center gap-1 px-3 py-1.5 bg-primary/10 text-primary rounded text-[10px] font-bold hover:bg-primary/20 transition-colors"
+                    >
+                      <Plus size={12} /> Add Rule
+                    </button>
+                  )}
+                </div>
+                {extractionRules.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-muted opacity-50">
+                    <Zap size={32} className="mb-3 opacity-30" />
+                    <p className="text-xs italic">No extraction rules. Add one to auto-extract response values into environment variables.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-[1fr_1fr_auto_auto] gap-2 px-2 pb-1 border-b border-border">
+                      <span className="text-[9px] font-black text-muted uppercase">JSON Path</span>
+                      <span className="text-[9px] font-black text-muted uppercase">Variable Name</span>
+                      <span className="text-[9px] font-black text-muted uppercase">On</span>
+                      <span />
+                    </div>
+                    {extractionRules.map((rule) => (
+                      <div key={rule.id} className="grid grid-cols-[1fr_1fr_auto_auto] gap-2 items-center p-2 rounded bg-surface/30 border border-border/50">
+                        <input
+                          value={rule.jsonPath}
+                          disabled={isLocked}
+                          onChange={(e) => updateExtractRule(rule.id, { jsonPath: e.target.value })}
+                          placeholder="e.g. data.token"
+                          className="bg-background border border-border rounded px-2 py-1 text-xs font-mono text-text focus:outline-none focus:border-primary disabled:opacity-50"
+                        />
+                        <input
+                          value={rule.variableName}
+                          disabled={isLocked}
+                          onChange={(e) => updateExtractRule(rule.id, { variableName: e.target.value })}
+                          placeholder="e.g. authToken"
+                          className="bg-background border border-border rounded px-2 py-1 text-xs font-mono text-text focus:outline-none focus:border-primary disabled:opacity-50"
+                        />
+                        <button
+                          disabled={isLocked}
+                          onClick={() => updateExtractRule(rule.id, { enabled: !rule.enabled })}
+                          className={`px-2 py-0.5 rounded text-[9px] font-black uppercase transition-colors ${rule.enabled ? 'bg-primary/20 text-primary' : 'bg-surface text-muted border border-border'} disabled:opacity-50`}
+                        >
+                          {rule.enabled ? 'ON' : 'OFF'}
+                        </button>
+                        {!isLocked && (
+                          <button onClick={() => deleteExtractRule(rule.id)} className="text-muted hover:text-danger transition-colors">
+                            <XCircle size={14} />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Schema sub-tab */}
+            {testsSubTab === 'schema' && (
+              <div className="flex-1 overflow-hidden flex flex-col">
+                <div className="flex items-center justify-between p-3 border-b border-border shrink-0">
+                  <div>
+                    <p className="text-xs font-bold text-text">JSON Schema Assertions</p>
+                    <p className="text-[10px] text-muted mt-0.5">Validate response body against JSON Schema. Results appear in "Test Results" tab.</p>
+                  </div>
+                  {!isLocked && (
+                    <button
+                      onClick={addSchemaAssertion}
+                      className="flex items-center gap-1 px-3 py-1.5 bg-primary/10 text-primary rounded text-[10px] font-bold hover:bg-primary/20 transition-colors"
+                    >
+                      <Plus size={12} /> Add Schema
+                    </button>
+                  )}
+                </div>
+                {schemaAssertions.length === 0 ? (
+                  <div className="flex-1 flex flex-col items-center justify-center text-muted opacity-50">
+                    <ShieldCheck size={32} className="mb-3 opacity-30" />
+                    <p className="text-xs italic">No schema assertions. Add one to validate response structure.</p>
+                  </div>
+                ) : (
+                  <div className="flex-1 overflow-auto p-3 space-y-4">
+                    {schemaAssertions.map((assertion) => (
+                      <div key={assertion.id} className="border border-border rounded-lg overflow-hidden">
+                        <div className="flex items-center gap-2 p-2 bg-surface/30 border-b border-border">
+                          <input
+                            value={assertion.name}
+                            disabled={isLocked}
+                            onChange={(e) => updateSchemaAssertion(assertion.id, { name: e.target.value })}
+                            className="flex-1 bg-transparent text-xs font-semibold text-text focus:outline-none disabled:opacity-50"
+                            placeholder="Assertion name..."
+                          />
+                          <button
+                            disabled={isLocked}
+                            onClick={() => updateSchemaAssertion(assertion.id, { enabled: !assertion.enabled })}
+                            className={`px-2 py-0.5 rounded text-[9px] font-black uppercase transition-colors ${assertion.enabled ? 'bg-primary/20 text-primary' : 'bg-surface text-muted border border-border'} disabled:opacity-50`}
+                          >
+                            {assertion.enabled ? 'ON' : 'OFF'}
+                          </button>
+                          {!isLocked && (
+                            <button onClick={() => deleteSchemaAssertion(assertion.id)} className="text-muted hover:text-danger transition-colors">
+                              <XCircle size={14} />
+                            </button>
+                          )}
+                        </div>
+                        <div style={{ height: '200px' }}>
+                          <Editor
+                            height="200px"
+                            defaultLanguage="json"
+                            theme={monacoTheme}
+                            value={assertion.schema}
+                            onChange={(val) => updateSchemaAssertion(assertion.id, { schema: val || '' })}
+                            options={{
+                              minimap: { enabled: false },
+                              fontSize: fontSize - 1,
+                              scrollBeyondLastLine: false,
+                              padding: { top: 8, bottom: 8 },
+                              readOnly: isLocked,
+                              lineNumbers: 'off',
+                            }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
-          {!isLocked && <ScriptSnippetsPanel mode="tests" onInsert={(code) => insertSnippet(testsEditorRef, code)} />}
-        </div>
-      </div>
+        )
+      })()}
 
       {/* --- AUTH TAB --- */}
       <div className={`p-6 h-full overflow-auto ${activeTab === 'Auth' ? 'block' : 'hidden'}`}>
@@ -1796,7 +1981,7 @@ export const MainArea = (): React.JSX.Element => {
                     {((tab === 'Body' &&
                       workingRequest.body_type !== 'none') ||
                       (tab === 'Pre-request' && workingRequest.pre_request_script) ||
-                      (tab === 'Tests' && workingRequest.post_request_script) ||
+                      (tab === 'Tests' && (workingRequest.post_request_script || (workingRequest.extraction_rules || []).length > 0 || (workingRequest.schema_assertions || []).length > 0)) ||
                       (tab === 'Headers' && Object.keys(workingRequest.headers || {}).length > 0) ||
                       (tab === 'Auth' && workingRequest.auth_config?.type !== 'No Auth')) && (
                         <div className="w-1.5 h-1.5 rounded-full bg-success shadow-[0_0_4px_rgba(34,197,94,0.6)]" />

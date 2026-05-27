@@ -11,11 +11,19 @@ import type {
   Environment,
   IpcResponse,
   RequestHistory,
-  FieldValidations
+  FieldValidations,
+  ExtractionRule,
+  SchemaAssertion
 } from '../types'
 import { toast } from 'sonner'
 import moment from 'moment'
 import _ from 'lodash'
+import Ajv from 'ajv'
+
+const ajv = new Ajv({ allErrors: true })
+
+const PROTO_POLLUTION_RE = /(__proto__|constructor|prototype)/i
+const isSafeJsonPath = (path: string): boolean => !PROTO_POLLUTION_RE.test(path)
 
 /**
  * Ensures a request object has the correct data structure for UI.
@@ -68,7 +76,9 @@ const normalizeRequest = (req: ApiRequest): ApiRequest => {
     headers: req.headers || {},
     auth_config: (req.auth_config as AuthConfig) || { type: 'No Auth' },
     pre_request_script: req.pre_request_script || '',
-    post_request_script: req.post_request_script || ''
+    post_request_script: req.post_request_script || '',
+    extraction_rules: Array.isArray(req.extraction_rules) ? req.extraction_rules : [],
+    schema_assertions: Array.isArray(req.schema_assertions) ? req.schema_assertions : []
   }
 }
 
@@ -106,6 +116,8 @@ export interface WorkingRequest {
   field_validations: FieldValidations
   /** Request protocol type: 'http' for normal HTTP requests, 'ws' for WebSocket testing */
   request_type?: 'http' | 'ws'
+  extraction_rules: ExtractionRule[]
+  schema_assertions: SchemaAssertion[]
 }
 
 export interface LogEntry {
@@ -652,7 +664,9 @@ export const useDataStore = create<DataState>()(
               auth_config: (normalizedRequest.auth_config as AuthConfig) || { type: 'No Auth' },
               pre_request_script: normalizedRequest.pre_request_script || '',
               post_request_script: normalizedRequest.post_request_script || '',
-              field_validations: (normalizedRequest.field_validations as FieldValidations) || { headers: {}, body: {} }
+              field_validations: (normalizedRequest.field_validations as FieldValidations) || { headers: {}, body: {} },
+              extraction_rules: (normalizedRequest as any).extraction_rules || [],
+              schema_assertions: (normalizedRequest as any).schema_assertions || []
             },
             lastResponse: null,
             isSending: false,
@@ -682,7 +696,9 @@ export const useDataStore = create<DataState>()(
               auth_config: (initialData.auth_config as AuthConfig) || { type: 'No Auth' },
               pre_request_script: initialData.pre_request_script || '',
               post_request_script: initialData.post_request_script || '',
-              field_validations: { headers: {}, body: {} }
+              field_validations: { headers: {}, body: {} },
+              extraction_rules: (initialData as any).extraction_rules || [],
+              schema_assertions: (initialData as any).schema_assertions || []
             }, lastResponse: null,
             isSending: false,
             isDirty: true,
@@ -718,7 +734,9 @@ export const useDataStore = create<DataState>()(
               auth_config: { type: 'No Auth' },
               pre_request_script: '',
               post_request_script: '',
-              field_validations: { headers: {}, body: {} }
+              field_validations: { headers: {}, body: {} },
+              extraction_rules: [],
+              schema_assertions: []
             },
             lastResponse: {
               status: example.response_status,
@@ -1071,7 +1089,9 @@ export const useDataStore = create<DataState>()(
                         auth_config: (normalizedReq.auth_config as AuthConfig) || { type: 'No Auth' },
                         pre_request_script: normalizedReq.pre_request_script || '',
                         post_request_script: normalizedReq.post_request_script || '',
-                        field_validations: (normalizedReq.field_validations as FieldValidations) || { headers: {}, body: {} }
+                        field_validations: (normalizedReq.field_validations as FieldValidations) || { headers: {}, body: {} },
+                        extraction_rules: (normalizedReq as any).extraction_rules || [],
+                        schema_assertions: (normalizedReq as any).schema_assertions || []
                       },
                       isDirty: false
                     }
@@ -1094,7 +1114,9 @@ export const useDataStore = create<DataState>()(
                     auth_config: (normalizedReq.auth_config as AuthConfig) || { type: 'No Auth' },
                     pre_request_script: normalizedReq.pre_request_script || '',
                     post_request_script: normalizedReq.post_request_script || '',
-                    field_validations: (normalizedReq.field_validations as FieldValidations) || { headers: {}, body: {} }
+                    field_validations: (normalizedReq.field_validations as FieldValidations) || { headers: {}, body: {} },
+                    extraction_rules: (normalizedReq as any).extraction_rules || [],
+                    schema_assertions: (normalizedReq as any).schema_assertions || []
                   },
                   lastResponse: null,
                   isSending: false,
@@ -1803,6 +1825,64 @@ export const useDataStore = create<DataState>()(
               }
             })
 
+            // --- 2a. Variable Extraction Rules ---
+            const extractionRules = workingRequest.extraction_rules || []
+            if (extractionRules.length > 0) {
+              for (const rule of extractionRules) {
+                if (!rule.enabled || !rule.variableName || !rule.jsonPath) continue
+                if (!isSafeJsonPath(rule.jsonPath)) {
+                  addLog('warn', `[Extract] Blocked unsafe path: "${rule.jsonPath}"`)
+                  continue
+                }
+                try {
+                  const extracted = _.get(response.data, rule.jsonPath)
+                  if (extracted !== undefined) {
+                    const strVal = String(extracted)
+                    vars[rule.variableName] = strVal
+                    updateActiveEnvironmentVariable(rule.variableName, strVal)
+                    addLog('info', `[Extract] ${rule.variableName} = ${strVal}`)
+                  } else {
+                    addLog('warn', `[Extract] Path "${rule.jsonPath}" returned undefined`)
+                  }
+                } catch (err: unknown) {
+                  addLog('error', `[Extract] Failed for "${rule.jsonPath}": ${err instanceof Error ? err.message : String(err)}`)
+                }
+              }
+            }
+
+            // --- 2b. Schema Assertions ---
+            const schemaAssertions = workingRequest.schema_assertions || []
+            const schemaTestResults: { name: string; status: 'passed' | 'failed'; error?: string }[] = []
+            if (schemaAssertions.length > 0) {
+              for (const assertion of schemaAssertions) {
+                if (!assertion.enabled) continue
+                try {
+                  const schema = JSON.parse(assertion.schema)
+                  const validate = ajv.compile(schema)
+                  const valid = validate(response.data)
+                  if (valid) {
+                    schemaTestResults.push({ name: assertion.name || 'Schema Assertion', status: 'passed' })
+                  } else {
+                    const errors = (validate.errors || [])
+                      .map((e) => `${e.dataPath || '(root)'} ${e.message}`)
+                      .join('; ')
+                    schemaTestResults.push({ name: assertion.name || 'Schema Assertion', status: 'failed', error: errors })
+                  }
+                } catch (err: unknown) {
+                  schemaTestResults.push({
+                    name: assertion.name || 'Schema Assertion',
+                    status: 'failed',
+                    error: `Invalid schema: ${err instanceof Error ? err.message : String(err)}`
+                  })
+                }
+              }
+              if (schemaTestResults.some((r) => r.status === 'failed')) {
+                schemaTestResults.filter((r) => r.status === 'failed').forEach((r) =>
+                  toast.error(`Schema Failed: ${r.name} — ${r.error}`)
+                )
+              }
+            }
+
             // --- 2. Post-request Script (Tests) Execution ---
             if (workingRequest.post_request_script) {
               try {
@@ -1940,10 +2020,11 @@ export const useDataStore = create<DataState>()(
                 )
                 await fn(wap, wap, moment, _, mockConsole)
 
-                // Update tab with results
+                // Update tab with results (merge script results + schema assertions)
+                const allTestResults = [...testResults, ...schemaTestResults]
                 set((state) => ({
                   tabs: state.tabs.map((t) =>
-                    t.requestId === activeTabId ? { ...t, testResults } : t
+                    t.requestId === activeTabId ? { ...t, testResults: allTestResults } : t
                   )
                 }))
 
@@ -1955,6 +2036,13 @@ export const useDataStore = create<DataState>()(
                 const errorMessage = err instanceof Error ? err.message : String(err)
                 toast.error(`Test Script Error: ${errorMessage}`)
               }
+            } else if (schemaTestResults.length > 0) {
+              // No post-request script but schema assertions exist
+              set((state) => ({
+                tabs: state.tabs.map((t) =>
+                  t.requestId === activeTabId ? { ...t, testResults: schemaTestResults } : t
+                )
+              }))
             }
 
             // Update tab with response
@@ -2170,7 +2258,9 @@ export const useDataStore = create<DataState>()(
               body: normalizedReq.body as string,
               auth_config: (normalizedReq.auth_config as AuthConfig) || { type: 'No Auth' },
               pre_request_script: normalizedReq.pre_request_script || '',
-              post_request_script: normalizedReq.post_request_script || ''
+              post_request_script: normalizedReq.post_request_script || '',
+              extraction_rules: (normalizedReq as any).extraction_rules || [],
+              schema_assertions: (normalizedReq as any).schema_assertions || []
             }
 
             // 1. Pre-request Script
@@ -2232,6 +2322,40 @@ export const useDataStore = create<DataState>()(
                 substitutedBody
               )
               const time = Date.now() - start
+
+              // 2a. Variable Extraction Rules (Runner)
+              for (const rule of (workingRequest.extraction_rules || [])) {
+                if (!rule.enabled || !rule.variableName || !rule.jsonPath) continue
+                if (!isSafeJsonPath(rule.jsonPath)) continue
+                try {
+                  const extracted = _.get(response.data, rule.jsonPath)
+                  if (extracted !== undefined) {
+                    vars[rule.variableName] = String(extracted)
+                    updateActiveEnvironmentVariable(rule.variableName, String(extracted))
+                  }
+                } catch { /* ignore */ }
+              }
+
+              // 2b. Schema Assertions (Runner)
+              const runnerSchemaResults: { name: string; status: 'passed' | 'failed'; error?: string }[] = []
+              if ((workingRequest.schema_assertions || []).length > 0) {
+                for (const assertion of (workingRequest.schema_assertions || [])) {
+                  if (!assertion.enabled) continue
+                  try {
+                    const schema = JSON.parse(assertion.schema)
+                    const validate = ajv.compile(schema)
+                    const valid = validate(response.data)
+                    if (valid) {
+                      runnerSchemaResults.push({ name: assertion.name || 'Schema Assertion', status: 'passed' })
+                    } else {
+                      const errors = (validate.errors || []).map((e) => `${e.dataPath || '(root)'} ${e.message}`).join('; ')
+                      runnerSchemaResults.push({ name: assertion.name || 'Schema Assertion', status: 'failed', error: errors })
+                    }
+                  } catch (err: unknown) {
+                    runnerSchemaResults.push({ name: assertion.name || 'Schema Assertion', status: 'failed', error: `Invalid schema: ${err instanceof Error ? err.message : String(err)}` })
+                  }
+                }
+              }
 
               // 2. Post-request Script (Tests)
               const testResults: { name: string; status: 'passed' | 'failed'; error?: string }[] = []
@@ -2296,7 +2420,7 @@ export const useDataStore = create<DataState>()(
                 url: substitutedUrl,
                 status: response.status,
                 time,
-                testResults
+                testResults: [...testResults, ...runnerSchemaResults]
               }
               results.push(result)
               if (onProgress) onProgress(result)
