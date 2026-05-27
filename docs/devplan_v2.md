@@ -260,13 +260,23 @@ Fokus: mempercepat workflow sehari-hari.
 - [ ] Output: JUnit XML, JSON report untuk CI/CD integration
 - [ ] Support environment file sebagai flag `--env`
 
-### [P4-3] Request Response Time Chart 🟢 S
-- [ ] Grafik response time dari N run terakhir per request
-- [ ] Tampil di bawah response area atau di History
+### [P4-3] Request Response Time Chart 🟢 S ✅
+**Status:** **SELESAI** (2026-05-27)  
+**Perubahan:**
+- `ResponseArea.tsx`: tab baru **"Timing"** — lazy fetch history saat tab dibuka, SVG sparkline chart (line + dots berwarna per status code), stats bar (runs/min/avg/max/2xx/err), scrollable run list
 
-### [P4-4] SSE (Server-Sent Events) Support 🟢 M
-- [ ] Tipe request `sse`: connect ke SSE endpoint, tampilkan stream events secara real-time
-- [ ] Event log dengan timestamp dan data per event
+- [x] Grafik response time dari N run terakhir per request
+- [x] Tampil di bawah response area atau di History
+
+### [P4-4] SSE (Server-Sent Events) Support 🟢 M ✅
+**Status:** **SELESAI** (2026-05-27)  
+**Perubahan:**
+- `WorkingRequest.request_type` diperluas: `'http' | 'ws' | 'sse'`
+- `SSEPanel.tsx` dibuat baru: tombol Connect/Disconnect, event log dengan timestamp, event type badge, filter by event name, copy per-event, empty state, auto-scroll
+- `MainArea.tsx`: tombol protocol `SSE` ditambah di toggle bar (hijau/emerald), URL input muncul untuk mode SSE, `SSEPanel` dirender menggantikan editor+response seperti WebSocket mode
+
+- [x] Tipe request `sse`: connect ke SSE endpoint, tampilkan stream events secara real-time
+- [x] Event log dengan timestamp dan data per event
 
 ---
 

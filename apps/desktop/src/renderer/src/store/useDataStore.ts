@@ -114,8 +114,8 @@ export interface WorkingRequest {
   post_request_script: string
   /** Validation metadata per field — stored separately, never sent to target API */
   field_validations: FieldValidations
-  /** Request protocol type: 'http' for normal HTTP requests, 'ws' for WebSocket testing */
-  request_type?: 'http' | 'ws'
+  /** Request protocol type: 'http' for normal HTTP requests, 'ws' for WebSocket, 'sse' for Server-Sent Events */
+  request_type?: 'http' | 'ws' | 'sse'
   extraction_rules: ExtractionRule[]
   schema_assertions: SchemaAssertion[]
 }
@@ -281,6 +281,7 @@ interface DataState {
   updateCollection: (id: number, name: string, description: string, confluence_page_id: string) => Promise<void>
   importCollection: (jsonContent: string, mode?: 'new' | 'overwrite', confirmName?: string) => Promise<void>
   importOpenAPI: (jsonContent: string, mode?: 'new' | 'overwrite', confirmName?: string) => Promise<void>
+  importInsomnia: (jsonContent: string, mode?: 'new' | 'overwrite', confirmName?: string) => Promise<void>
   createRequest: (
     collectionId: number,
     folderId: number | null,
@@ -1044,6 +1045,110 @@ export const useDataStore = create<DataState>()(
               toast.success(`OpenAPI imported — ${count ?? 0} endpoint${count !== 1 ? 's' : ''} added`)
             } else {
               toast.error('Failed to import OpenAPI spec')
+            }
+          } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : 'Invalid JSON'
+            toast.error(message.toLowerCase().includes('json') ? 'Invalid JSON — please check your file and try again.' : 'Import failed. Please try again.')
+          }
+        },
+
+        importInsomnia: async (jsonContent: string, mode: 'new' | 'overwrite' = 'new', confirmName?: string) => {
+          const { activeTeamId } = get()
+          if (!activeTeamId) return
+
+          try {
+            const insomnia = JSON.parse(jsonContent)
+            if (!insomnia.resources || insomnia.__export_format !== 4) {
+              toast.error('Not a valid Insomnia v4 export file.')
+              return
+            }
+
+            const resources: any[] = insomnia.resources
+            const workspace = resources.find((r) => r._type === 'workspace')
+            const collectionName = workspace?.name || 'Insomnia Import'
+
+            // Build folder map: id → { name, parentId }
+            const folderMap: Record<string, { name: string; parentId: string }> = {}
+            for (const r of resources) {
+              if (r._type === 'request_group' && typeof r._id === 'string' && typeof r.name === 'string') {
+                folderMap[r._id] = { name: r.name, parentId: typeof r.parentId === 'string' ? r.parentId : '' }
+              }
+            }
+
+            // Convert a single Insomnia request → Postman v2.1 item
+            const convertRequest = (r: any): any => {
+              const headers = (r.headers || []).map((h: any) => ({ key: h.name, value: h.value, disabled: !h.enabled }))
+              let body: any = { mode: 'raw', raw: '' }
+              if (r.body) {
+                const mime = r.body.mimeType || ''
+                if (mime.includes('json')) {
+                  body = { mode: 'raw', raw: r.body.text || '', options: { raw: { language: 'json' } } }
+                } else if (mime.includes('x-www-form-urlencoded')) {
+                  body = { mode: 'urlencoded', urlencoded: (r.body.params || []).map((p: any) => ({ key: p.name, value: p.value, disabled: !p.enabled })) }
+                } else if (mime.includes('form-data') || mime.includes('multipart')) {
+                  body = { mode: 'formdata', formdata: (r.body.params || []).map((p: any) => ({ key: p.name, value: p.value, disabled: !p.enabled })) }
+                } else if (r.body.text) {
+                  body = { mode: 'raw', raw: r.body.text }
+                }
+              }
+
+              let auth: any = { type: 'noauth' }
+              if (r.authentication?.type === 'bearer') {
+                auth = { type: 'bearer', bearer: [{ key: 'token', value: r.authentication.token || '' }] }
+              } else if (r.authentication?.type === 'basic') {
+                auth = { type: 'basic', basic: [{ key: 'username', value: r.authentication.username || '' }, { key: 'password', value: r.authentication.password || '' }] }
+              } else if (r.authentication?.type === 'apikey') {
+                auth = { type: 'apikey', apikey: [{ key: 'key', value: r.authentication.key || '' }, { key: 'value', value: r.authentication.value || '' }] }
+              }
+
+              return {
+                name: r.name,
+                request: {
+                  method: (r.method || 'GET').toUpperCase(),
+                  url: { raw: r.url || '' },
+                  header: headers,
+                  body,
+                  auth,
+                  description: r.description || '',
+                },
+              }
+            }
+
+            // Build Postman v2.1 structure: folders → items recursively
+            const MAX_DEPTH = 20
+            const buildItems = (parentId: string, depth = 0): any[] => {
+              if (depth >= MAX_DEPTH) return []
+              const items: any[] = []
+              for (const [fId, f] of Object.entries(folderMap)) {
+                if (f.parentId === parentId) {
+                  items.push({ name: f.name, item: buildItems(fId, depth + 1) })
+                }
+              }
+              for (const r of resources) {
+                if (r._type === 'request' && typeof r.parentId === 'string' && r.parentId === parentId) {
+                  items.push(convertRequest(r))
+                }
+              }
+              return items
+            }
+
+            const postman = {
+              info: {
+                name: collectionName,
+                schema: 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json',
+              },
+              item: buildItems(workspace?._id || ''),
+            }
+
+            let url = `/api/v1/teams/${activeTeamId}/import?mode=${mode}`
+            if (mode === 'overwrite' && confirmName) url += `&confirm_name=${encodeURIComponent(confirmName)}`
+
+            const response = await apiClient.post(url, postman)
+            if (response.status === 201 || response.status === 200) {
+              await get().fetchCollections(activeTeamId)
+              toast.success(mode === 'overwrite' ? 'Collection overwritten successfully' : `Insomnia collection "${collectionName}" imported successfully`)
+            } else {
+              toast.error('Failed to import Insomnia collection')
             }
           } catch (err: unknown) {
             const message = err instanceof Error ? err.message : 'Invalid JSON'

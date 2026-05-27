@@ -5,24 +5,47 @@ import * as monaco from 'monaco-editor'
 
 // Configure Monaco to use the bundled version (OFFLINE)
 loader.config({ monaco })
-import { Clock, Database, Globe, ChevronDown, ChevronRight, Zap, X, Camera, GitCompare } from 'lucide-react'
-import { useState } from 'react'
+import { Clock, Database, Globe, ChevronDown, ChevronRight, Zap, X, Camera, GitCompare, BarChart2 } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
+import type { RequestHistory } from '../../types'
 import { toast } from 'sonner'
 import { PromptModal } from '../modals/PromptModal'
 import { ResponseDiffModal } from '../modals/ResponseDiffModal'
 import type { ExtractionRule } from '../../types'
 
 export const ResponseArea = (): React.JSX.Element => {
-  const { tabs, activeTabId, logs, clearLogs, saveExample, setWorkingRequest, locksByRequest, responseSnapshots, saveResponseSnapshot, deleteResponseSnapshot } = useDataStore()
+  const {
+    tabs,
+    activeTabId,
+    logs,
+    clearLogs,
+    saveExample,
+    setWorkingRequest,
+    locksByRequest,
+    responseSnapshots,
+    saveResponseSnapshot,
+    deleteResponseSnapshot,
+    history,
+    fetchHistory,
+    historyLoading,
+  } = useDataStore()
   const { fontSize, theme } = useAppStore()
   const monacoTheme = theme === 'system'
     ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'vs-dark' : 'vs')
     : (theme === 'dark' ? 'vs-dark' : 'vs')
-  const [activeTab, setActiveTab] = useState<'Body' | 'Headers' | 'Tests' | 'Console'>('Body')
+  const [activeTab, setActiveTab] = useState<'Body' | 'Headers' | 'Tests' | 'Console' | 'Timing'>('Body')
   const [isPromptOpen, setIsPromptOpen] = useState(false)
   const [showExtract, setShowExtract] = useState(false)
   const [extractPath, setExtractPath] = useState('')
   const [extractVar, setExtractVar] = useState('')
+
+  const loadHistoryOnce = useCallback(() => {
+    if (history.length === 0 && !historyLoading) fetchHistory()
+  }, [history.length, historyLoading, fetchHistory])
+
+  useEffect(() => {
+    if (activeTab === 'Timing') loadHistoryOnce()
+  }, [activeTab, loadHistoryOnce])
 
   const activeTabRequest = tabs.find((t) => t.requestId === activeTabId)
 
@@ -91,7 +114,11 @@ export const ResponseArea = (): React.JSX.Element => {
 
   const formattedData = typeof data === 'object' ? JSON.stringify(data, null, 2) : String(data)
 
-  const TABS = ['Body', 'Headers', 'Test Results', 'Console']
+  const TABS = ['Body', 'Headers', 'Test Results', 'Console', 'Timing']
+
+  const requestHistory = typeof activeTabId === 'number'
+    ? history.filter((h) => h.request_id === activeTabId).slice(-30).reverse()
+    : []
 
   const handleSaveExample = (name: string) => {
     if (typeof activeTabId === 'number') {
@@ -225,13 +252,15 @@ export const ResponseArea = (): React.JSX.Element => {
               if (tab === 'Body') setActiveTab('Body')
               else if (tab === 'Headers') setActiveTab('Headers')
               else if (tab === 'Test Results') setActiveTab('Tests')
+              else if (tab === 'Timing') setActiveTab('Timing')
               else setActiveTab('Console')
             }}
             className={`px-4 py-2 text-xs font-semibold cursor-pointer border-b-2 transition-colors relative ${
               (activeTab === 'Body' && tab === 'Body') ||
               (activeTab === 'Headers' && tab === 'Headers') ||
               (activeTab === 'Tests' && tab === 'Test Results') ||
-              (activeTab === 'Console' && tab === 'Console')
+              (activeTab === 'Console' && tab === 'Console') ||
+              (activeTab === 'Timing' && tab === 'Timing')
                 ? 'border-primary text-primary'
                 : 'border-transparent text-muted hover:text-text'
             }`}
@@ -349,6 +378,47 @@ export const ResponseArea = (): React.JSX.Element => {
                       No test results to display. Add tests in the "Tests" tab.
                     </p>
                   </div>
+                )}
+              </div>
+            )}
+
+            {activeTab === 'Timing' && (
+              <div className="h-full flex flex-col overflow-hidden">
+                {historyLoading ? (
+                  <div className="flex-1 flex items-center justify-center text-muted text-xs">
+                    Loading history...
+                  </div>
+                ) : requestHistory.length === 0 ? (
+                  <div className="flex-1 flex flex-col items-center justify-center text-muted opacity-50 italic py-20 gap-2">
+                    <BarChart2 size={32} className="opacity-20" />
+                    <p className="text-xs">No history for this request yet.</p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="shrink-0 px-4 pt-4 pb-2">
+                      <ResponseTimeChart runs={requestHistory} />
+                    </div>
+                    <div className="shrink-0 px-4 pb-3">
+                      <ResponseTimeStats runs={requestHistory} />
+                    </div>
+                    <div className="flex-1 overflow-auto px-4 pb-4 space-y-1">
+                      {requestHistory.map((run, i) => {
+                        const sc = run.status_code
+                        const color = sc >= 200 && sc < 300 ? 'text-success' : sc >= 400 ? 'text-danger' : 'text-warning'
+                        const dot = sc >= 200 && sc < 300 ? 'bg-success' : sc >= 400 ? 'bg-danger' : 'bg-warning'
+                        return (
+                          <div key={run.id} className="flex items-center gap-3 px-3 py-2 rounded bg-surface/30 border border-border/50 hover:bg-surface/50 transition-colors">
+                            <span className="text-[10px] text-muted w-4 shrink-0 font-mono">{requestHistory.length - i}</span>
+                            <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${dot}`} />
+                            <span className={`text-xs font-black w-10 shrink-0 ${color}`}>{sc}</span>
+                            <span className="text-[10px] font-bold text-muted uppercase w-10 shrink-0">{run.method}</span>
+                            <span className="text-xs font-semibold text-text">{run.response_time} ms</span>
+                            <span className="text-[10px] text-muted ml-auto">{new Date(run.created_at).toLocaleTimeString()}</span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </>
                 )}
               </div>
             )}
@@ -522,6 +592,72 @@ function getStatusText(status: number): string {
     500: 'Internal Server Error'
   }
   return texts[status] ?? ''
+}
+
+function ResponseTimeChart({ runs }: { runs: RequestHistory[] }): React.JSX.Element {
+  const W = 600
+  const H = 72
+  const PAD = { top: 8, right: 8, bottom: 8, left: 8 }
+  const iW = W - PAD.left - PAD.right
+  const iH = H - PAD.top - PAD.bottom
+
+  const times = runs.map((r) => r.response_time)
+  const minT = Math.min(...times)
+  const maxT = Math.max(...times)
+  const range = maxT - minT || 1
+
+  const x = (i: number): number => PAD.left + (i / Math.max(runs.length - 1, 1)) * iW
+  const y = (t: number): number => PAD.top + iH - ((t - minT) / range) * iH
+
+  const points = runs.map((r, i) => `${x(i)},${y(r.response_time)}`).join(' ')
+
+  const dotColor = (sc: number): string =>
+    sc >= 200 && sc < 300 ? '#22c55e' : sc >= 400 ? '#ef4444' : '#f59e0b'
+
+  return (
+    <div className="rounded-lg border border-border bg-surface/20 overflow-hidden">
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-16" preserveAspectRatio="none">
+        {/* fill area */}
+        <polyline
+          points={`${x(0)},${H - PAD.bottom} ${points} ${x(runs.length - 1)},${H - PAD.bottom}`}
+          fill="rgba(99,102,241,0.08)"
+          stroke="none"
+        />
+        {/* line */}
+        <polyline points={points} fill="none" stroke="rgba(99,102,241,0.6)" strokeWidth="1.5" strokeLinejoin="round" />
+        {/* dots */}
+        {runs.map((r, i) => (
+          <circle key={r.id} cx={x(i)} cy={y(r.response_time)} r="3" fill={dotColor(r.status_code)} />
+        ))}
+      </svg>
+    </div>
+  )
+}
+
+function ResponseTimeStats({ runs }: { runs: RequestHistory[] }): React.JSX.Element {
+  const times = runs.map((r) => r.response_time)
+  const min = Math.min(...times)
+  const max = Math.max(...times)
+  const avg = Math.round(times.reduce((a, b) => a + b, 0) / times.length)
+  const pass = runs.filter((r) => r.status_code >= 200 && r.status_code < 300).length
+
+  return (
+    <div className="flex items-center gap-6 px-1 mt-2">
+      {[
+        { label: 'Runs', value: runs.length },
+        { label: 'Min', value: `${min} ms` },
+        { label: 'Avg', value: `${avg} ms` },
+        { label: 'Max', value: `${max} ms` },
+        { label: '2xx', value: pass },
+        { label: 'Err', value: runs.length - pass },
+      ].map(({ label, value }) => (
+        <div key={label} className="flex flex-col items-center">
+          <span className="text-[9px] font-black text-muted uppercase tracking-widest">{label}</span>
+          <span className="text-xs font-bold text-text">{value}</span>
+        </div>
+      ))}
+    </div>
+  )
 }
 
 function calculateSize(data: unknown): string {

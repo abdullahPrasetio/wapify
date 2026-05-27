@@ -16,6 +16,7 @@ import { ExportCodeModal } from '../modals/ExportCodeModal'
 import { ComingSoonModal } from '../modals/ComingSoonModal'
 import { KeyboardShortcutsModal } from '../modals/KeyboardShortcutsModal'
 import { WebSocketPanel } from './WebSocketPanel'
+import { SSEPanel } from './SSEPanel'
 import { parseCurlCommand, generateCurl } from '../../utils/curlParser'
 import Editor, { loader } from '@monaco-editor/react'
 import * as monaco from 'monaco-editor'
@@ -1631,7 +1632,7 @@ export const MainArea = (): React.JSX.Element => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
         const { tabs, activeTabId } = useDataStore.getState()
         const activeTab = tabs.find((t) => t.requestId === activeTabId)
-        if ((activeTab?.workingRequest?.request_type ?? 'http') === 'ws') return
+        if ((activeTab?.workingRequest?.request_type ?? 'http') !== 'http') return
         e.preventDefault()
         executeActiveRequest()
       }
@@ -1706,7 +1707,7 @@ export const MainArea = (): React.JSX.Element => {
 
         {/* Top half: Request Builder */}
         <div
-          className={`flex flex-col min-h-0 border-b border-border bg-background relative ${(workingRequest.request_type ?? 'http') === 'ws' ? 'flex-1' : 'shrink-0'}`}
+          className={`flex flex-col min-h-0 border-b border-border bg-background relative ${(workingRequest.request_type ?? 'http') !== 'http' ? 'flex-1' : 'shrink-0'}`}
           style={(workingRequest.request_type ?? 'http') === 'http' ? { height: `${builderHeight}%` } : undefined}
         >
           {/* New Request Header: Path & Name */}
@@ -1792,25 +1793,38 @@ export const MainArea = (): React.JSX.Element => {
             {/* Protocol toggle */}
             <div className="flex items-center gap-2">
               <span className="text-[10px] font-black text-muted uppercase tracking-widest">Protocol</span>
-              {(['http', 'ws'] as const).map((proto) => (
-                <button
-                  key={proto}
-                  onClick={() => {
-                    if (proto === 'ws' && workingRequest.url && !workingRequest.url.startsWith('ws')) {
-                      const url = workingRequest.url.replace(/^https:\/\//, 'wss://').replace(/^http:\/\//, 'ws://')
-                      setWorkingRequest({ request_type: proto, url })
-                    } else if (proto === 'http' && workingRequest.url) {
-                      const url = workingRequest.url.replace(/^wss:\/\//, 'https://').replace(/^ws:\/\//, 'http://')
-                      setWorkingRequest({ request_type: proto, url })
-                    } else {
-                      setWorkingRequest({ request_type: proto })
-                    }
-                  }}
-                  className={`px-3 py-0.5 rounded text-[10px] font-black uppercase tracking-widest border transition-colors ${(workingRequest.request_type ?? 'http') === proto ? (proto === 'ws' ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/40' : 'bg-primary/20 text-primary border-primary/40') : 'text-muted border-border hover:text-text'}`}
-                >
-                  {proto === 'ws' ? 'WebSocket' : 'HTTP'}
-                </button>
-              ))}
+              {(['http', 'ws', 'sse'] as const).map((proto) => {
+                const active = (workingRequest.request_type ?? 'http') === proto
+                const activeClass =
+                  proto === 'ws'
+                    ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/40'
+                    : proto === 'sse'
+                      ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+                      : 'bg-primary/20 text-primary border-primary/40'
+                const label = proto === 'ws' ? 'WebSocket' : proto === 'sse' ? 'SSE' : 'HTTP'
+                return (
+                  <button
+                    key={proto}
+                    onClick={() => {
+                      if (proto === 'ws' && workingRequest.url && !workingRequest.url.startsWith('ws')) {
+                        const url = workingRequest.url.replace(/^https:\/\//, 'wss://').replace(/^http:\/\//, 'ws://')
+                        setWorkingRequest({ request_type: proto, url })
+                      } else if (proto === 'sse' && workingRequest.url) {
+                        const url = workingRequest.url.replace(/^wss:\/\//, 'https://').replace(/^ws:\/\//, 'http://')
+                        setWorkingRequest({ request_type: proto, url })
+                      } else if (proto === 'http' && workingRequest.url) {
+                        const url = workingRequest.url.replace(/^wss:\/\//, 'https://').replace(/^ws:\/\//, 'http://')
+                        setWorkingRequest({ request_type: proto, url })
+                      } else {
+                        setWorkingRequest({ request_type: proto })
+                      }
+                    }}
+                    className={`px-3 py-0.5 rounded text-[10px] font-black uppercase tracking-widest border transition-colors ${active ? activeClass : 'text-muted border-border hover:text-text'}`}
+                  >
+                    {label}
+                  </button>
+                )
+              })}
             </div>
 
             <div className="flex gap-2">
@@ -1827,6 +1841,14 @@ export const MainArea = (): React.JSX.Element => {
                         setWorkingRequest(update)
                       }
                     }}
+                  />
+                )}
+                {(workingRequest.request_type === 'ws' || workingRequest.request_type === 'sse') && (
+                  <input
+                    value={workingRequest.url}
+                    onChange={(e) => setWorkingRequest({ url: e.target.value })}
+                    placeholder={workingRequest.request_type === 'sse' ? 'https://api.example.com/events' : 'wss://...'}
+                    className="flex-1 bg-transparent text-sm text-text px-3 py-2 focus:outline-none font-mono"
                   />
                 )}
 
@@ -1969,6 +1991,11 @@ export const MainArea = (): React.JSX.Element => {
           {/* WebSocket Panel replaces tabs+editor+response when WS mode is active */}
           {(workingRequest.request_type ?? 'http') === 'ws' && (
             <WebSocketPanel key={`ws-${activeTabRequest.requestId}`} />
+          )}
+
+          {/* SSE Panel replaces tabs+editor+response when SSE mode is active */}
+          {workingRequest.request_type === 'sse' && (
+            <SSEPanel key={`sse-${activeTabRequest.requestId}`} />
           )}
 
           {/* Tabs Area — HTTP only */}
