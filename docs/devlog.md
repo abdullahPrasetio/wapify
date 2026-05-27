@@ -1,4 +1,50 @@
 
+## [2026-05-27] — SSE Support, Timing Chart & Insomnia Import (v2.2.0)
+**Fase:** Phase 4 — Polish & Ecosystem
+**Dikerjakan oleh:** Waluyo
+**Status:** ✅ Selesai
+
+### Yang Dikerjakan
+
+#### 📡 P4-4 — SSE (Server-Sent Events) Support
+- `WorkingRequest.request_type` diperluas: `'http' | 'ws' | 'sse'`.
+- Komponen baru `SSEPanel.tsx`: tombol Connect/Disconnect, status badge (Disconnected/Connecting/Connected/Error), event log dengan timestamp, event type badge, filter by event name, copy per-event, auto-scroll, empty state.
+- Listener named events: `update`, `ping`, `error`, `close`, `data`, `event` via `addEventListener` (di luar default `onmessage`).
+- `MainArea.tsx`: toggle protocol SSE ditambah, URL input muncul untuk SSE mode, `SSEPanel` dirender menggantikan editor+response (pola sama seperti WebSocket).
+- **Fix:** Switch ke SSE dari WS mode kini konvert `wss://` → `https://` agar `EventSource` dapat konek.
+
+#### ⏱ P4-3 — Response Time Chart (Timing Tab)
+- Tab baru **"Timing"** di `ResponseArea.tsx` — lazy-load history hanya saat tab dibuka pertama kali.
+- Komponen `ResponseTimeChart`: SVG sparkline pure (no library) dengan polyline + dots, `viewBox` scaling, warna dot per status code (hijau 2xx / merah 4xx-5xx / kuning lainnya).
+- Komponen `ResponseTimeStats`: stats bar — jumlah runs, min/avg/max ms, count 2xx, count error.
+- Scrollable run list: method badge, timestamp, status code, response time per baris.
+
+#### 📥 P4-1 — Import dari Insomnia v4
+- Fungsi `importInsomnia()` di `useDataStore.ts`: parse Insomnia v4 JSON (`__export_format: 4`), konversi ke Postman v2.1 di frontend, reuse endpoint `/api/v1/teams/:id/import` tanpa perubahan backend.
+- Mendukung body mode: JSON, URL-encoded, form-data, raw. Auth: Bearer, Basic, API Key.
+- `buildItems()` rekursif dengan `MAX_DEPTH = 20` — mencegah stack overflow pada export corrupt/circular.
+- Guard `typeof r._id/name/parentId === 'string'` per item — mencegah silent TypeError pada export malformed.
+
+#### 🛠 Bug Fixes (dari finding.md)
+- SSE URL conversion saat switch dari WS mode.
+- `buildItems()` depth limit.
+- `importInsomnia` resource shape validation.
+
+### Perubahan File
+- `apps/desktop/src/renderer/src/components/layout/SSEPanel.tsx` — komponen baru
+- `apps/desktop/src/renderer/src/components/layout/MainArea.tsx` — SSE toggle, URL conversion fix
+- `apps/desktop/src/renderer/src/components/layout/ResponseArea.tsx` — Timing tab, chart, stats
+- `apps/desktop/src/renderer/src/store/useDataStore.ts` — `importInsomnia()`, `request_type: 'sse'`, depth limit
+- `docs/releases/v2.2.0.md` — Release notes baru
+- `apps/desktop/package.json` — versi bump 2.1.0 → 2.2.0
+
+### Keputusan & Catatan
+- SSE menggunakan `EventSource` browser API langsung dari renderer — subject to CORS. Untuk endpoint yang butuh custom headers, solusinya query param token atau routing lewat main process (IPC). Dicatat sebagai limitasi known.
+- SVG sparkline dibuat pure tanpa library (recharts/d3) untuk menghindari dependency tambahan — cukup untuk use case ini.
+- Insomnia import dikonversi ke Postman v2.1 di frontend untuk reuse endpoint `/import` yang sudah ada tanpa perlu backend change.
+
+---
+
 ## [2026-05-27] — Request Chaining, Schema Validation & WebSocket Fixes (v1.9.2)
 **Fase:** Phase 2 — Protocol & Testing Power
 **Dikerjakan oleh:** Waluyo

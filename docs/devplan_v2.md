@@ -251,9 +251,16 @@ Fokus: mempercepat workflow sehari-hari.
 
 ## Phase 4 — Polish & Ecosystem (v2.1.x)
 
-### [P4-1] Import dari Insomnia 🟢 M
-- [ ] Parser format Insomnia v4 JSON → Wapbolt format
-- [ ] Mapping resource (request groups → folders, environments, auth)
+### [P4-1] Import dari Insomnia 🟢 M ✅
+**Status:** **SELESAI** (2026-05-27)  
+**Perubahan:**
+- `useDataStore.ts`: fungsi `importInsomnia()` — parse Insomnia v4 JSON, konversi ke Postman v2.1 di frontend, reuse endpoint `/import` existing
+- Mendukung body: JSON, URL-encoded, form-data, raw; auth: Bearer, Basic, API Key
+- Folder rekursif via `buildItems()` dengan depth limit `MAX_DEPTH = 20`
+- Shape validation per resource item sebelum diproses (guard TypeError)
+
+- [x] Parser format Insomnia v4 JSON → Wapbolt format
+- [x] Mapping resource (request groups → folders, environments, auth)
 
 ### [P4-2] CLI Runner (Newman-style) 🟢 XL
 - [ ] Binary `wapbolt-cli` yang bisa run collection dari terminal
@@ -301,9 +308,10 @@ v1.9.2 → P2-3 (Request Chaining) + P2-4 (Schema Validation)
 v2.0.0 → P3-1 (Response Diff) + P3-2 (Keyboard Shortcuts) + P3-3 (File Upload)
 v2.0.1 → Bug fixes & hardening (file upload error handling, snapshot cap, type safety, CSP, custom event)
 v2.1.0 → P3-4 (Global Search) + P3-5 (Mock Scenarios)
-v2.2.x → Phase 4
+v2.2.0 → P4-1 (Insomnia Import) + P4-3 (Timing Chart) + P4-4 (SSE)
+v2.x.x → P4-2 (CLI Runner)
 ```
 
 ---
 
-*Last updated: 2026-05-27 (v2.1.0 — P3-4 Global Search + P3-5 Mock Chaos & Request Logs)*
+*Last updated: 2026-05-27 (v2.2.0 — P4-1 Insomnia Import + P4-3 Timing Chart + P4-4 SSE)*
