@@ -1,4 +1,4 @@
-import { ChevronDown, Play, Users, Loader2, Save } from 'lucide-react'
+import { ChevronDown, Play, Users, Loader2, Save, Keyboard } from 'lucide-react'
 import { useAuthStore } from '../../store/useAuthStore'
 import { useDataStore } from '../../store/useDataStore'
 import { EnvironmentModal } from '../modals/EnvironmentModal'
@@ -85,6 +85,15 @@ export const Header = (): React.JSX.Element => {
           </div>
           <EnvironmentModal />
         </div>
+
+        {/* Keyboard shortcuts hint */}
+        <button
+          onClick={() => window.dispatchEvent(new CustomEvent('wapbolt:open-shortcuts'))}
+          className="text-muted hover:text-text transition-colors p-1"
+          title="Keyboard Shortcuts (Shift+?)"
+        >
+          <Keyboard size={14} />
+        </button>
 
         {/* User / Team indicator */}
         <div className="flex items-center gap-1.5 text-muted">

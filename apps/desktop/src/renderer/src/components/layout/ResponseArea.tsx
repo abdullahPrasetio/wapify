@@ -5,14 +5,15 @@ import * as monaco from 'monaco-editor'
 
 // Configure Monaco to use the bundled version (OFFLINE)
 loader.config({ monaco })
-import { Clock, Database, Globe, ChevronDown, ChevronRight, Zap, X } from 'lucide-react'
+import { Clock, Database, Globe, ChevronDown, ChevronRight, Zap, X, Camera, GitCompare } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { PromptModal } from '../modals/PromptModal'
+import { ResponseDiffModal } from '../modals/ResponseDiffModal'
 import type { ExtractionRule } from '../../types'
 
 export const ResponseArea = (): React.JSX.Element => {
-  const { tabs, activeTabId, logs, clearLogs, saveExample, setWorkingRequest, locksByRequest } = useDataStore()
+  const { tabs, activeTabId, logs, clearLogs, saveExample, setWorkingRequest, locksByRequest, responseSnapshots, saveResponseSnapshot, deleteResponseSnapshot } = useDataStore()
   const { fontSize, theme } = useAppStore()
   const monacoTheme = theme === 'system'
     ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'vs-dark' : 'vs')
@@ -53,6 +54,8 @@ export const ResponseArea = (): React.JSX.Element => {
     setShowExtract(false)
     toast.success(`Extraction rule added: ${extractVar} ← ${extractPath}`)
   }
+
+  const [isDiffOpen, setIsDiffOpen] = useState(false)
 
   const { lastResponse, isSending, testResults } = activeTabRequest
 
@@ -109,6 +112,13 @@ export const ResponseArea = (): React.JSX.Element => {
         defaultValue={`Success - ${status} ${getStatusText(status)}`}
         submitText="Save"
       />
+      <ResponseDiffModal
+        isOpen={isDiffOpen}
+        onClose={() => setIsDiffOpen(false)}
+        snapshots={responseSnapshots[String(activeTabId)] || []}
+        currentResponse={lastResponse}
+        onDeleteSnapshot={(id) => deleteResponseSnapshot(activeTabId!, id)}
+      />
       {/* Response Header Info */}
       {lastResponse && (
         <div className="h-10 px-4 border-b border-border flex items-center justify-between bg-surface/30 shrink-0">
@@ -138,6 +148,22 @@ export const ResponseArea = (): React.JSX.Element => {
             >
               Save as Example
             </button>
+            <button
+              onClick={() => saveResponseSnapshot(activeTabId!)}
+              className="flex items-center gap-1 text-[10px] font-bold text-primary bg-primary/10 hover:bg-primary/20 transition-colors px-2 py-1 rounded"
+              title="Save snapshot of this response"
+            >
+              <Camera size={10} /> Snapshot
+            </button>
+            {(responseSnapshots[String(activeTabId)] || []).length > 0 && (
+              <button
+                onClick={() => setIsDiffOpen(true)}
+                className="flex items-center gap-1 text-[10px] font-bold text-secondary bg-secondary/10 hover:bg-secondary/20 transition-colors px-2 py-1 rounded"
+                title="Compare snapshots"
+              >
+                <GitCompare size={10} /> Compare ({(responseSnapshots[String(activeTabId)] || []).length})
+              </button>
+            )}
             <button
               onClick={() => setShowExtract((v) => !v)}
               className={`flex items-center gap-1 text-[10px] font-bold transition-colors px-2 py-1 rounded ${showExtract ? 'bg-primary text-white' : 'text-primary bg-primary/10 hover:bg-primary/20'}`}

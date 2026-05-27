@@ -170,6 +170,16 @@ export interface RequestTab {
   testResults: { name: string; status: 'passed' | 'failed'; error?: string }[]
 }
 
+export interface ResponseSnapshot {
+  id: string
+  label: string
+  timestamp: number
+  status: number
+  timing: number
+  data: unknown
+  headers: Record<string, string[]>
+}
+
 export interface CollectionRunResult {
   requestId: number
   name: string
@@ -310,6 +320,12 @@ interface DataState {
   clearLogs: () => void
 
   saveExample: (requestId: number, name: string) => Promise<void>
+
+  // Response Snapshots
+  responseSnapshots: Record<string, ResponseSnapshot[]>
+  saveResponseSnapshot: (requestId: number | string, label?: string) => void
+  deleteResponseSnapshot: (requestId: number | string, snapshotId: string) => void
+
   runCollection: (
     collectionId: number,
     onProgress?: (result: CollectionRunResult) => void,
@@ -397,6 +413,7 @@ export const useDataStore = create<DataState>()(
 
         lastRunCollectionId: null,
         lastRunResults: [],
+        responseSnapshots: {},
 
         presenceByRequest: {},
         locksByRequest: {},
@@ -2174,6 +2191,40 @@ export const useDataStore = create<DataState>()(
           } catch (err: unknown) {
             toast.error('Failed to save example')
           }
+        },
+
+        saveResponseSnapshot: (requestId, label) => {
+          const { tabs, responseSnapshots } = get()
+          const tab = tabs.find((t) => t.requestId === requestId)
+          if (!tab?.lastResponse) {
+            toast.error('No response to snapshot')
+            return
+          }
+          const MAX_SNAPSHOTS = 10
+          const key = String(requestId)
+          const existing = responseSnapshots[key] || []
+          if (existing.length >= MAX_SNAPSHOTS) {
+            toast.error(`Max ${MAX_SNAPSHOTS} snapshots per request`)
+            return
+          }
+          const snapshot: ResponseSnapshot = {
+            id: crypto.randomUUID(),
+            label: label || `Snapshot ${existing.length + 1} — ${tab.lastResponse.status}`,
+            timestamp: Date.now(),
+            status: tab.lastResponse.status,
+            timing: tab.lastResponse.timing,
+            data: tab.lastResponse.data,
+            headers: tab.lastResponse.headers
+          }
+          set({ responseSnapshots: { ...responseSnapshots, [key]: [...existing, snapshot] } })
+          toast.success('Snapshot saved')
+        },
+
+        deleteResponseSnapshot: (requestId, snapshotId) => {
+          const { responseSnapshots } = get()
+          const key = String(requestId)
+          const existing = responseSnapshots[key] || []
+          set({ responseSnapshots: { ...responseSnapshots, [key]: existing.filter((s) => s.id !== snapshotId) } })
         },
 
         deleteExample: async (id: number) => {

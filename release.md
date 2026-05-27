@@ -1,5 +1,42 @@
 # Wapbolt Release Notes
 
+## [v2.0.1] — 2026-05-27
+
+### 🐛 Bug Fixes & Hardening
+
+- **File Upload — error handling**: `handleFilePick` di renderer kini dibungkus `try-catch`; `fs.statSync` di IPC handler juga di-guard — tidak lagi silent failure jika file tidak bisa dibaca (fallback `size: 0`).
+- **Response Snapshots — cap maksimum**: Dibatasi 10 snapshot per request. Menyimpan lebih dari batas akan menampilkan pesan error, mencegah memory leak tak terbatas.
+- **Type safety `window.api`**: `openFileDialog` dan `reloadApp` ditambahkan ke interface `WapboltAPI` di `env.d.ts` — `(window as any).api` cast dihapus sepenuhnya.
+- **Keyboard icon di Header — custom event**: Tombol keyboard icon tidak lagi men-dispatch `KeyboardEvent` sintetis (yang bisa konflik dengan handler lain). Kini menggunakan `CustomEvent('wapbolt:open-shortcuts')` yang di-listen secara eksplisit di MainArea.
+- **CSP — Monaco workers**: Ditambah `worker-src 'self' blob:` di `index.html` agar Monaco editor dapat membuat web workers tanpa error CSP.
+- **File dialog — window focus**: `BrowserWindow.getFocusedWindow()` ditambah fallback ke `getAllWindows()[0]` sehingga dialog tetap terbuka meski window kehilangan fokus saat tombol diklik.
+- **TypeScript — duplicate identifier**: Hapus deklarasi duplikat `responseSnapshots` di `DataState` interface.
+
+---
+
+## [v2.0.0] — 2026-05-27
+
+### 🎹 Keyboard Shortcuts Panel
+- **Modal daftar shortcut**: Tekan `Shift+?` atau klik icon keyboard di Header untuk membuka panel shortcut.
+- **6 grup konteks**: Global, Request Editor, Tab Navigation, WebSocket, Collection Runner, Modals.
+- **Platform-aware**: Menampilkan `⌘` di Mac dan `Ctrl` di Windows/Linux secara otomatis.
+- Shortcut `Shift+?` tidak terpicu saat user sedang mengetik di input, textarea, atau Monaco editor.
+
+### 📎 File Upload di Form-Data
+- **Toggle Text/File per-row**: Di body `form-data`, setiap baris kini punya tombol toggle tipe — klik icon `T` (text) atau paperclip (file).
+- **Native file picker**: Klik "Choose File" membuka dialog Electron OS-native untuk memilih file.
+- **Nama & ukuran file** otomatis ditampilkan setelah file dipilih.
+- **Kirim sebagai multipart**: File dikirim sebagai `ReadStream` — kompatibel dengan semua server yang menerima `multipart/form-data`.
+
+### 🔍 Response Compare (Diff View)
+- **Tombol Snapshot** di toolbar response — simpan response saat ini sebagai snapshot bernama.
+- **Tombol Compare** muncul otomatis saat ada ≥1 snapshot — buka Monaco Diff Editor side-by-side.
+- Bisa bandingkan snapshot mana saja dengan response saat ini atau snapshot lain.
+- Tampilkan status code dan response time untuk setiap sisi.
+- Snapshot bisa dihapus langsung dari modal Compare.
+
+---
+
 ## [v1.7.2] — 2026-05-25
 
 ### ⌨️ Keyboard Shortcut & Export Code

@@ -14,6 +14,7 @@ import { SaveRequestLocationModal } from '../modals/SaveRequestLocationModal'
 import { ImportCurlModal } from '../modals/ImportCurlModal'
 import { ExportCodeModal } from '../modals/ExportCodeModal'
 import { ComingSoonModal } from '../modals/ComingSoonModal'
+import { KeyboardShortcutsModal } from '../modals/KeyboardShortcutsModal'
 import { WebSocketPanel } from './WebSocketPanel'
 import { parseCurlCommand, generateCurl } from '../../utils/curlParser'
 import Editor, { loader } from '@monaco-editor/react'
@@ -523,15 +524,10 @@ const EditorArea = ({
             <div className="absolute inset-0 overflow-auto p-4">
               <KeyValueEditor
                 key={`body-${requestId}-${workingRequest.body_type}`}
-                initialData={Array.isArray(workingRequest.body) ?
-                  workingRequest.body.reduce((acc, curr) => ({ ...acc, [curr.key]: curr.value }), {}) :
-                  {}
-                }
+                initialData={Array.isArray(workingRequest.body) ? workingRequest.body : []}
                 disabled={isLocked}
-                onChange={(data) => {
-                  const bodyArray = Object.entries(data).map(([key, value]) => ({ key, value, enabled: true, type: 'text' }))
-                  onUpdate({ body: bodyArray })
-                }}
+                allowFileType={workingRequest.body_type === 'form-data'}
+                onChange={(data) => onUpdate({ body: data })}
               />
             </div>
           )}
@@ -1550,6 +1546,7 @@ export const MainArea = (): React.JSX.Element => {
     isOpen: false,
     feature: ''
   })
+  const [isShortcutsModalOpen, setIsShortcutsModalOpen] = useState(false)
   const [builderHeight, setBuilderHeight] = useState(60) // in percentage
   const [isResizing, setIsResizing] = useState(false)
 
@@ -1609,9 +1606,27 @@ export const MainArea = (): React.JSX.Element => {
 
   useEffect(() => {
     const handleTriggerSaveModal = () => setIsSaveModalOpen(true)
+    const handleOpenShortcuts = () => setIsShortcutsModalOpen(true)
     window.addEventListener('wapbolt:trigger-save-modal', handleTriggerSaveModal)
+    window.addEventListener('wapbolt:open-shortcuts', handleOpenShortcuts)
 
     const handleKeyDown = (e: KeyboardEvent): void => {
+      // Shift+? — Open keyboard shortcuts modal
+      if (e.shiftKey && e.key === '?') {
+        const active = document.activeElement
+        const isTyping =
+          active &&
+          (active.tagName === 'INPUT' ||
+            active.tagName === 'TEXTAREA' ||
+            !!active.closest('.monaco-editor') ||
+            !!(active as HTMLElement).isContentEditable)
+        if (!isTyping) {
+          e.preventDefault()
+          setIsShortcutsModalOpen(true)
+          return
+        }
+      }
+
       // Ctrl/Cmd + Enter for Send — skip in WS mode (WebSocketPanel handles its own Cmd+Enter)
       if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
         const { tabs, activeTabId } = useDataStore.getState()
@@ -1634,6 +1649,7 @@ export const MainArea = (): React.JSX.Element => {
     window.addEventListener('keydown', handleKeyDown)
     return (): void => {
       window.removeEventListener('wapbolt:trigger-save-modal', handleTriggerSaveModal)
+      window.removeEventListener('wapbolt:open-shortcuts', handleOpenShortcuts)
       window.removeEventListener('keydown', handleKeyDown)
     }
   }, [executeActiveRequest, saveActiveRequest])
@@ -2102,6 +2118,11 @@ export const MainArea = (): React.JSX.Element => {
         isOpen={comingSoon.isOpen}
         featureName={comingSoon.feature}
         onClose={() => setComingSoon({ isOpen: false, feature: '' })}
+      />
+
+      <KeyboardShortcutsModal
+        isOpen={isShortcutsModalOpen}
+        onClose={() => setIsShortcutsModalOpen(false)}
       />
     </div>
   )

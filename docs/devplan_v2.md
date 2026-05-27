@@ -157,45 +157,55 @@ Fokus: memperluas jenis request yang bisa ditest.
 
 Fokus: mempercepat workflow sehari-hari.
 
-### [P3-1] Response Comparison (Diff View) 🟡 M
-**Status:** Belum ada.  
-**Goal:** Bandingkan dua response secara visual — berguna saat membandingkan staging vs production atau sebelum/sesudah perubahan API.
+### [P3-1] Response Comparison (Diff View) 🟡 M ✅
+**Status:** **SELESAI** (2026-05-27)  
+**Perubahan:**
+- `ResponseSnapshot` interface + `responseSnapshots` state di `useDataStore.ts` — in-memory, per requestId; actions `saveResponseSnapshot` dan `deleteResponseSnapshot`
+- `ResponseArea.tsx`: tombol **Snapshot** (Camera icon) + tombol **Compare** (GitCompare icon, muncul jika ada ≥1 snapshot)
+- `ResponseDiffModal.tsx` dibuat baru — Monaco `DiffEditor` side-by-side; dropdown pilih left/right dari snapshots + current response; stats bar status + timing; delete snapshot langsung dari modal
 
-- [ ] Simpan snapshot response per-request (manual atau otomatis)
-- [ ] Panel "Compare": pilih dua snapshot, tampilkan diff side-by-side
-- [ ] Highlight baris yang berubah, ditambah, dihapus (Monaco diff editor)
-- [ ] Bandingkan juga: status code, headers, response time
+- [x] Simpan snapshot response per-request (manual)
+- [x] Modal "Compare": pilih dua snapshot, tampilkan diff side-by-side
+- [x] Highlight baris yang berubah (Monaco DiffEditor)
+- [x] Bandingkan juga: status code, response time
 
-**Dependensi:** Tidak ada  
-**File terkait:** `ResponseArea.tsx`, storage snapshot di `useDataStore.ts`
+**File terkait:** `ResponseArea.tsx`, `ResponseDiffModal.tsx`, `useDataStore.ts`
 
 ---
 
-### [P3-2] Keyboard Shortcuts Panel 🟡 S
-**Status:** Beberapa shortcut ada (`Cmd+Enter`) tapi tidak ada dokumentasi shortcut untuk user.  
-**Goal:** Modal daftar shortcut yang bisa diakses via `?` atau menu Help.
+### [P3-2] Keyboard Shortcuts Panel 🟡 S ✅
+**Status:** **SELESAI** (2026-05-27)  
+**Perubahan:**
+- `KeyboardShortcutsModal.tsx` dibuat baru — modal 2-kolom dengan semua shortcut dikelompokkan per konteks (Global, Request Editor, Tab Navigation, WebSocket, Runner, Modal)
+- `MainArea.tsx`: listener `Shift+?` ditambahkan ke handler keydown yang ada — guard skip saat user sedang di input/textarea
+- `Header.tsx`: tombol `Keyboard` icon ditambahkan di toolbar kanan — dispatch `Shift+?` event ke window
 
-- [ ] Modal `KeyboardShortcutsModal.tsx` dengan daftar semua shortcut
-- [ ] Grouped by context: Global, Request Editor, Response, Sidebar, Runner
-- [ ] Shortcut untuk buka modal: `Shift+?`
-- [ ] Tambah shortcut yang belum ada: new tab (`Cmd+T`), close tab (`Cmd+W`), switch tab (`Cmd+[1-9]`), save request (`Cmd+S`), send request (`Cmd+Enter`)
+- [x] Modal `KeyboardShortcutsModal.tsx` dengan daftar semua shortcut
+- [x] Grouped by context: Global, Request Editor, Tab Navigation, WebSocket, Runner, Modals
+- [x] Shortcut untuk buka modal: `Shift+?`
+- [x] Tambah shortcut yang belum ada: new tab (`Cmd+T`), close tab (`Cmd+W`), switch tab (`Cmd+[1-9]`), save request (`Cmd+S`), send request (`Cmd+Enter`)
+
+**File terkait:** `KeyboardShortcutsModal.tsx`, `MainArea.tsx`, `Header.tsx`
 
 **Dependensi:** Tidak ada  
 **File terkait:** `Header.tsx` atau menu Help, baru `KeyboardShortcutsModal.tsx`
 
 ---
 
-### [P3-3] File Upload Testing (multipart/form-data UI) 🟡 S
-**Status:** Body type `form-data` ada tapi tidak ada file picker.  
-**Goal:** User bisa upload file asli di body `form-data`.
+### [P3-3] File Upload Testing (multipart/form-data UI) 🟡 S ✅
+**Status:** **SELESAI** (2026-05-27)  
+**Perubahan:**
+- `KeyValueEditor.tsx`: tambah prop `allowFileType` — per-row toggle Text/File (icon `Type`↔`Paperclip`); row bertipe `file` menampilkan tombol "Choose File" yang trigger IPC dialog; nama file + deskripsi (ukuran) auto-isi setelah pilih
+- `main/index.ts`: `ipcMain.handle('wapbolt:open-file-dialog')` — buka native file dialog, return `{path, name, size}`; handler `wapbolt:request` form-data diperluas: item `type=file` di-attach sebagai `fs.createReadStream`
+- `preload/index.ts`: expose `openFileDialog()` ke renderer
+- `MainArea.tsx`: form-data body_type pass data sebagai array langsung + `allowFileType={true}`
 
-- [ ] Di `KeyValueEditor` untuk form-data: tambah toggle "Text / File" per row
-- [ ] Jika "File": tampilkan file picker (Electron `dialog.showOpenDialog`)
-- [ ] Kirim file sebagai `FormData` via request
-- [ ] Tampilkan nama file + ukuran di editor
+- [x] Di `KeyValueEditor` untuk form-data: tambah toggle "Text / File" per row
+- [x] Jika "File": tampilkan file picker (Electron `dialog.showOpenDialog`)
+- [x] Kirim file sebagai `FormData` via request
+- [x] Tampilkan nama file + ukuran di editor
 
-**Dependensi:** Electron main process untuk file dialog  
-**File terkait:** `KeyValueEditor.tsx`, `MainArea.tsx`, Electron `main/`
+**File terkait:** `KeyValueEditor.tsx`, `MainArea.tsx`, `main/index.ts`, `preload/index.ts`
 
 ---
 
@@ -274,4 +284,4 @@ v2.1.x → Phase 4
 
 ---
 
-*Last updated: 2026-05-27 (P2-3 Request Chaining + P2-4 Schema Validation selesai → v1.9.2)*
+*Last updated: 2026-05-27 (P3-1 + P3-2 + P3-3 selesai → release v2.0.0)*
