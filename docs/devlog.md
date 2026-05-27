@@ -1,4 +1,51 @@
 
+## [2026-05-27] — Request Chaining, Schema Validation & WebSocket Fixes (v1.9.2)
+**Fase:** Phase 2 — Protocol & Testing Power
+**Dikerjakan oleh:** Waluyo
+**Status:** ✅ Selesai
+
+### Yang Dikerjakan
+
+#### ⚡ P2-3 — Variable Extraction Rules (Request Chaining)
+- Interface `ExtractionRule` (`id`, `variableName`, `jsonPath`, `enabled`) ditambahkan ke `types/index.ts`.
+- `WorkingRequest` diperluas dengan `extraction_rules: ExtractionRule[]`; `normalizeRequest` memastikan field selalu array.
+- `executeActiveRequest` menjalankan semua enabled rules setelah response — nilai di-set ke active environment via `updateActiveEnvironmentVariable`.
+- `runCollection` juga menjalankan extraction rules — mendukung variable chaining antar-request dalam satu run.
+- **UI:** Sub-tab **Extract** di tab Tests (`MainArea.tsx`) — tambah/hapus/toggle rule dengan JSONPath + nama variabel.
+- **UI:** Tombol **Extract** di `ResponseArea.tsx` — shortcut buat rule langsung dari panel response.
+- **Keamanan:** Guard `isSafeJsonPath()` blokir path `__proto__`, `constructor`, `prototype` sebelum `_.get` untuk mencegah prototype pollution.
+
+#### 🛡 P2-4 — JSON Schema Assertions
+- Interface `SchemaAssertion` (`id`, `name`, `schema`, `enabled`) ditambahkan ke `types/index.ts`.
+- `WorkingRequest` diperluas dengan `schema_assertions: SchemaAssertion[]`.
+- Singleton `ajv` (`new Ajv({ allErrors: true })`) di module level `useDataStore.ts` — tidak re-instantiasi per-request (fix GC pressure di Collection Runner).
+- `executeActiveRequest`: validasi ajv dijalankan setelah response, hasilnya digabung ke test results (format `dataPath` + pesan).
+- `runCollection`: schema assertions dijalankan dan dicatat ke `result.testResults` per-request.
+- **UI:** Sub-tab **Schema** di tab Tests — Monaco JSON editor per-assertion, toggle enable/disable.
+
+#### 🔧 WebSocketPanel TypeScript Fixes
+- `Blob | ArrayBuffer` size: diganti `event.data instanceof Blob ? event.data.size : 0` — eliminasi TS2339.
+- `KeyValueEditor` prop: `value` → `initialData`, `onChange` handler disesuaikan dengan return type `Record<string, string>`.
+- Props tidak dikenal `keyPlaceholder` / `valuePlaceholder` dihapus — build kini clean tanpa error.
+
+#### 🔑 Perbaikan ID Generation
+- `Math.random().toString(36)` diganti `crypto.randomUUID()` di `MainArea.tsx` (2x) dan `ResponseArea.tsx` (1x) — UUID v4 cryptographically random.
+
+### Perubahan File
+- `apps/desktop/src/renderer/src/types/index.ts` — `ExtractionRule`, `SchemaAssertion` interfaces; `ApiRequest` optional fields
+- `apps/desktop/src/renderer/src/store/useDataStore.ts` — Singleton ajv, `isSafeJsonPath`, extraction + schema logic, `(req as any)` dihapus
+- `apps/desktop/src/renderer/src/components/layout/MainArea.tsx` — Sub-tab Extract & Schema, `crypto.randomUUID()`
+- `apps/desktop/src/renderer/src/components/layout/ResponseArea.tsx` — Extract quick panel, lock check, `crypto.randomUUID()`
+- `apps/desktop/src/renderer/src/components/layout/WebSocketPanel.tsx` — Fix 3 TypeScript errors
+- `docs/releases/v1.9.2.md` — Release notes baru
+
+### Keputusan & Catatan
+- `ajv` singleton di module level bukan di komponen/hook karena instance-nya stateless (tidak menyimpan state per-request) — aman di-share.
+- `isSafeJsonPath` menggunakan regex case-insensitive untuk mengcover variasi `__PROTO__`, `Constructor`, dll.
+- Lock check di `handleAddExtractionRule` (`ResponseArea`) mengikuti pola yang sudah ada di handler lain yang memeriksa `locksByRequest[activeTabId]`.
+
+---
+
 ## [2026-05-26] — Collection Runner Bug Fixes
 **Fase:** Phase 1 — Foundation & Adoption
 **Dikerjakan oleh:** Waluyo

@@ -112,31 +112,44 @@ Fokus: memperluas jenis request yang bisa ditest.
 
 ---
 
-### [P2-3] Request Chaining / Dynamic Variables 🟠 M
-**Status:** Ada post-request script (`wap.environment.set`) tapi tidak ada UI visual untuk chaining.  
-**Goal:** Ekstrak nilai dari response dan gunakan langsung di request berikutnya tanpa nulis script manual.
+### [P2-3] Request Chaining / Dynamic Variables 🟠 M ✅
+**Status:** **SELESAI** (2026-05-27)  
+**Perubahan:**
+- `ExtractionRule` interface ditambahkan ke `types/index.ts` — `{ id, variableName, jsonPath, enabled }`
+- `WorkingRequest` diperluas dengan field `extraction_rules: ExtractionRule[]`
+- `normalizeRequest` di `useDataStore.ts` memastikan field selalu berupa array
+- `executeActiveRequest` menjalankan semua enabled rules setelah response diterima — nilai di-set ke active environment via `updateActiveEnvironmentVariable`
+- `runCollection` juga menjalankan extraction rules — variable chain antar-request dalam satu run
+- `MainArea.tsx`: sub-tab **Extract** di tab Tests — UI tambah/hapus/toggle rule per-request
+- `ResponseArea.tsx`: tombol **Extract** shortcut — buat rule langsung dari panel response, dengan lock check
+- Badge indicator di tab Tests menyala jika ada extraction rules
 
-- [ ] UI "Extract Variable" di response panel: klik field JSON → simpan ke environment variable
-- [ ] JSONPath extractor: pilih path, pilih nama variabel, simpan sebagai aturan post-response
-- [ ] Aturan extraction disimpan per-request dan dijalankan otomatis setelah response diterima
-- [ ] Visual indicator di request: badge variabel yang akan di-set setelah request ini
+- [x] UI "Extract Variable" di response panel: klik field JSON → simpan ke environment variable
+- [x] JSONPath extractor: pilih path, pilih nama variabel, simpan sebagai aturan post-response
+- [x] Aturan extraction disimpan per-request dan dijalankan otomatis setelah response diterima
+- [x] Visual indicator di request: badge di tab Tests
 
-**Dependensi:** Tidak ada  
-**File terkait:** `ResponseArea.tsx`, `MainArea.tsx`, `useDataStore.ts`
+**Catatan keamanan:** Guard `isSafeJsonPath()` memblokir path dengan `__proto__`, `constructor`, `prototype` sebelum `_.get` — mencegah prototype pollution.  
+**File terkait:** `ResponseArea.tsx`, `MainArea.tsx`, `useDataStore.ts`, `types/index.ts`
 
 ---
 
-### [P2-4] JSON Schema Validation di Test Assertions 🟠 M
-**Status:** Test assertions via script ada (`wap.test()`/`wap.expect()`), tapi tidak ada schema validation.  
-**Goal:** Validasi struktur response JSON terhadap schema tanpa nulis kode.
+### [P2-4] JSON Schema Validation di Test Assertions 🟠 M ✅
+**Status:** **SELESAI** (2026-05-27)  
+**Perubahan:**
+- `SchemaAssertion` interface ditambahkan ke `types/index.ts` — `{ id, name, schema, enabled }`
+- `WorkingRequest` diperluas dengan field `schema_assertions: SchemaAssertion[]`
+- Singleton `ajv` (v6, `allErrors: true`) di module level `useDataStore.ts` — tidak di-instantiasi ulang per-request
+- `executeActiveRequest`: validasi ajv dijalankan setelah response, hasilnya masuk ke test results (format `dataPath` + pesan error)
+- `runCollection`: schema assertions dijalankan dan dicatat ke `result.testResults` per-request
+- `MainArea.tsx`: sub-tab **Schema** di tab Tests — Monaco JSON editor per-assertion, toggle enable/disable
 
-- [ ] UI builder di tab "Tests": tambah assertion "Response matches schema"
-- [ ] JSON Schema editor (Monaco) untuk definisikan schema yang diharapkan
-- [ ] Integrasi dengan `ajv` untuk validasi saat response diterima
-- [ ] Tampilkan error validation detail di hasil test
+- [x] UI builder di tab "Tests": tambah assertion "Response matches schema"
+- [x] JSON Schema editor (Monaco) untuk definisikan schema yang diharapkan
+- [x] Integrasi dengan `ajv` untuk validasi saat response diterima
+- [x] Tampilkan error validation detail di hasil test
 
-**Dependensi:** Tidak ada  
-**File terkait:** `MainArea.tsx` (tab Tests), `useDataStore.ts` (sendRequest)
+**File terkait:** `MainArea.tsx` (tab Tests), `useDataStore.ts`, `types/index.ts`
 
 ---
 
@@ -261,4 +274,4 @@ v2.1.x → Phase 4
 
 ---
 
-*Last updated: 2026-05-26 (P2-2 GraphQL selesai)*
+*Last updated: 2026-05-27 (P2-3 Request Chaining + P2-4 Schema Validation selesai → v1.9.2)*
