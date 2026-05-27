@@ -278,10 +278,11 @@ v1.9.0 → P2-1 (WebSocket Testing)
 v1.9.1 → P2-2 (GraphQL)
 v1.9.2 → P2-3 (Request Chaining) + P2-4 (Schema Validation)
 v2.0.0 → P3-1 (Response Diff) + P3-2 (Keyboard Shortcuts) + P3-3 (File Upload)
-v2.0.1 → P3-4 (Global Search) + P3-5 (Mock Scenarios)
-v2.1.x → Phase 4
+v2.0.1 → Bug fixes & hardening (file upload error handling, snapshot cap, type safety, CSP, custom event)
+v2.1.0 → P3-4 (Global Search) + P3-5 (Mock Scenarios)
+v2.2.x → Phase 4
 ```
 
 ---
 
-*Last updated: 2026-05-27 (P3-1 + P3-2 + P3-3 selesai → release v2.0.0)*
+*Last updated: 2026-05-27 (v2.0.1 — bug fixes & hardening setelah review findings P3)*
