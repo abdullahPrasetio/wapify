@@ -11,7 +11,7 @@ export const LoginPage = (): React.JSX.Element => {
   const [appVersion, setAppVersion] = useState('')
 
   useEffect(() => {
-    window.api.getAppVersion().then(setAppVersion)
+    window.api?.getAppVersion().then(setAppVersion)
   }, [])
 
   useEffect(() => {
@@ -33,7 +33,7 @@ export const LoginPage = (): React.JSX.Element => {
       {/* Settings Trigger (Top Right) */}
       <button
         onClick={() => setShowSettings(true)}
-        className="absolute top-6 right-6 p-2 rounded-xl bg-surface border border-border text-muted hover:text-primary hover:border-primary/50 transition-all z-[60] shadow-lg shadow-black/20"
+        className="absolute top-6 right-6 p-2 rounded-xl bg-surface border border-border text-muted hover:text-primary hover:border-primary/50 transition-all z-[60] shadow-lg shadow-black/20 cursor-pointer"
         title="Server Configuration"
       >
         <Settings size={20} />
@@ -96,6 +96,7 @@ export const LoginPage = (): React.JSX.Element => {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                onBlur={() => { if (email && password) login(email, password) }}
                 placeholder="••••••••"
                 autoComplete="current-password"
                 required
@@ -108,7 +109,7 @@ export const LoginPage = (): React.JSX.Element => {
               id="login-submit"
               type="submit"
               disabled={isLoading || !email || !password}
-              className="w-full bg-primary hover:bg-primary-hover text-white font-semibold py-2.5 rounded-lg text-sm flex items-center justify-center gap-2 transition-colors shadow-md shadow-primary/30 disabled:opacity-60 disabled:cursor-not-allowed mt-2"
+              className="w-full bg-primary hover:bg-primary-hover text-white font-semibold py-2.5 rounded-lg text-sm flex items-center justify-center gap-2 transition-colors shadow-md shadow-primary/30 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer mt-2"
             >
               {isLoading ? (
                 <>

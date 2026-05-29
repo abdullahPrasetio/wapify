@@ -12,10 +12,13 @@ import {
   Code,
   ChevronDown,
   Zap,
-  LayoutGrid
+  LayoutGrid,
+  Flame,
+  ScrollText,
+  AlertTriangle
 } from 'lucide-react'
 import { apiClient, getBaseUrl } from '../../api/client'
-import type { MockEndpoint, ApiRequest } from '../../types'
+import type { MockEndpoint, MockRequestLog, ApiRequest } from '../../types'
 import { MethodBadge } from '../ui/MethodBadge'
 import { toast } from 'sonner'
 import { ScenariosPanel } from './ScenariosPanel'
@@ -51,6 +54,11 @@ export const MockServerPanel: React.FC<MockServerPanelProps> = ({
   const [editingId, setEditingId] = useState<number | null>(null)
   const [copiedId, setCopiedId] = useState<number | null>(null)
   const [managingScenariosEndpoint, setManagingScenariosEndpoint] = useState<MockEndpoint | null>(null)
+  const [chaosMode, setChaosMode] = useState(false)
+  const [togglingChaos, setTogglingChaos] = useState(false)
+  const [activeTab, setActiveTab] = useState<'endpoints' | 'logs'>('endpoints')
+  const [logs, setLogs] = useState<MockRequestLog[]>([])
+  const [logsLoading, setLogsLoading] = useState(false)
   const listBottomRef = useRef<HTMLDivElement>(null)
 
   const mockBaseUrl = `${getBaseUrl()}/mock/${collectionId}`
@@ -69,9 +77,56 @@ export const MockServerPanel: React.FC<MockServerPanelProps> = ({
     }
   }, [collectionId])
 
+  const fetchLogs = useCallback(async () => {
+    setLogsLoading(true)
+    try {
+      const res = await apiClient.get<MockRequestLog[]>(
+        `/api/v1/collections/${collectionId}/mock/logs`
+      )
+      setLogs(res.data as MockRequestLog[])
+    } catch {
+      toast.error('Failed to load request logs')
+    } finally {
+      setLogsLoading(false)
+    }
+  }, [collectionId])
+
+  const fetchChaosMode = useCallback(async () => {
+    try {
+      const res = await apiClient.get<{ id: number; chaos_mode: boolean }>(
+        `/api/v1/collections/${collectionId}`
+      )
+      const col = res.data as { id: number; chaos_mode: boolean }
+      setChaosMode(col.chaos_mode ?? false)
+    } catch {
+      // silently ignore
+    }
+  }, [collectionId])
+
+  const toggleChaosMode = async () => {
+    setTogglingChaos(true)
+    try {
+      const newMode = !chaosMode
+      await apiClient.patch(`/api/v1/collections/${collectionId}/mock/chaos`, {
+        chaos_mode: newMode
+      })
+      setChaosMode(newMode)
+      toast.success(newMode ? '🔥 Chaos Mode ON — errors will be injected!' : 'Chaos Mode disabled')
+    } catch {
+      toast.error('Failed to toggle chaos mode')
+    } finally {
+      setTogglingChaos(false)
+    }
+  }
+
   useEffect(() => {
     fetchEndpoints()
-  }, [fetchEndpoints])
+    fetchChaosMode()
+  }, [fetchEndpoints, fetchChaosMode])
+
+  useEffect(() => {
+    if (activeTab === 'logs') fetchLogs()
+  }, [activeTab, fetchLogs])
 
   const handleDelete = async (id: number) => {
     if (!window.confirm('Delete this mock endpoint?')) return
@@ -160,8 +215,8 @@ export const MockServerPanel: React.FC<MockServerPanelProps> = ({
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-surface/80 backdrop-blur-sm flex-shrink-0">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-violet-500/10 border border-violet-500/20">
-              <Server size={18} className="text-violet-400" />
+            <div className={`p-2 rounded-lg border transition-colors ${chaosMode ? 'bg-rose-500/10 border-rose-500/30' : 'bg-violet-500/10 border-violet-500/20'}`}>
+              <Server size={18} className={chaosMode ? 'text-rose-400' : 'text-violet-400'} />
             </div>
             <div>
               <h2 className="text-sm font-semibold text-text">Mock Server</h2>
@@ -173,6 +228,21 @@ export const MockServerPanel: React.FC<MockServerPanelProps> = ({
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {/* Chaos Mode toggle */}
+            <button
+              onClick={toggleChaosMode}
+              disabled={togglingChaos}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                chaosMode
+                  ? 'bg-rose-500/20 text-rose-400 border-rose-500/40 hover:bg-rose-500/30'
+                  : 'bg-white/5 text-muted border-border hover:bg-white/10'
+              }`}
+              title="Toggle chaos mode — injects random errors across all endpoints"
+            >
+              <Flame size={13} className={chaosMode ? 'animate-pulse' : ''} />
+              {chaosMode ? 'Chaos ON' : 'Chaos OFF'}
+            </button>
+
             <button
               onClick={async () => {
                 if (!window.confirm('Generate mock endpoints and scenarios from all requests and examples in this collection?')) return
@@ -184,7 +254,7 @@ export const MockServerPanel: React.FC<MockServerPanelProps> = ({
                   toast.error('Failed to generate mocks')
                 }
               }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20 hover:bg-amber-500/20 transition-all mr-2"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20 hover:bg-amber-500/20 transition-all"
               title="Generate mocks from collection requests and examples"
             >
               <Zap size={13} />
@@ -196,6 +266,7 @@ export const MockServerPanel: React.FC<MockServerPanelProps> = ({
             </div>
             <button
               onClick={() => {
+                setActiveTab('endpoints')
                 setCreating(true)
                 setTimeout(() => listBottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
               }}
@@ -213,9 +284,107 @@ export const MockServerPanel: React.FC<MockServerPanelProps> = ({
           </div>
         </div>
 
+        {/* Tabs */}
+        <div className="flex items-center gap-1 px-4 pt-2 pb-0 border-b border-border bg-surface/40 flex-shrink-0">
+          <button
+            onClick={() => setActiveTab('endpoints')}
+            className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-t-lg border-b-2 transition-colors ${
+              activeTab === 'endpoints'
+                ? 'border-violet-400 text-violet-400'
+                : 'border-transparent text-muted hover:text-text'
+            }`}
+          >
+            <Server size={12} />
+            Endpoints
+          </button>
+          <button
+            onClick={() => setActiveTab('logs')}
+            className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-t-lg border-b-2 transition-colors ${
+              activeTab === 'logs'
+                ? 'border-violet-400 text-violet-400'
+                : 'border-transparent text-muted hover:text-text'
+            }`}
+          >
+            <ScrollText size={12} />
+            Request Logs
+          </button>
+        </div>
+
+        {/* Logs Tab */}
+        {activeTab === 'logs' && (
+          <div className="flex-1 overflow-y-auto p-4">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs font-semibold text-muted uppercase tracking-widest">Last 200 Requests</p>
+              <button
+                onClick={fetchLogs}
+                className="text-[10px] text-violet-400 hover:text-violet-300 transition-colors"
+              >
+                Refresh
+              </button>
+            </div>
+            {logsLoading ? (
+              <div className="flex items-center justify-center h-32">
+                <div className="w-5 h-5 border-2 border-violet-500/30 border-t-violet-400 rounded-full animate-spin" />
+              </div>
+            ) : logs.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-48 gap-2 text-muted">
+                <ScrollText size={28} className="opacity-20" />
+                <p className="text-sm">No requests logged yet</p>
+                <p className="text-xs opacity-60">Logs appear after hitting mock endpoints</p>
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                {logs.map((log) => (
+                  <div
+                    key={log.id}
+                    className={`flex items-center gap-3 px-3 py-2 rounded-lg border text-xs ${
+                      log.injected_error
+                        ? 'border-rose-500/20 bg-rose-500/5'
+                        : log.matched
+                          ? 'border-border bg-white/[0.02]'
+                          : 'border-amber-500/20 bg-amber-500/5'
+                    }`}
+                  >
+                    <MethodBadge method={log.method} size="sm" />
+                    <code className="flex-1 truncate font-mono text-[10px] text-text/80">{log.path}</code>
+                    <span
+                      className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${
+                        log.status_code < 300
+                          ? 'bg-emerald-500/10 text-emerald-400'
+                          : log.status_code < 400
+                            ? 'bg-amber-500/10 text-amber-400'
+                            : 'bg-rose-500/10 text-rose-400'
+                      }`}
+                    >
+                      {log.status_code}
+                    </span>
+                    {log.injected_error && (
+                      <span className="flex items-center gap-0.5 text-[9px] text-rose-400 font-bold">
+                        <AlertTriangle size={9} />
+                        chaos
+                      </span>
+                    )}
+                    {!log.matched && (
+                      <span className="text-[9px] text-amber-400 font-bold">unmatched</span>
+                    )}
+                    <span className="flex items-center gap-0.5 text-[10px] text-muted">
+                      <Clock size={9} />
+                      {log.latency_ms}ms
+                    </span>
+                    <span className="text-[10px] text-muted/60 shrink-0">
+                      {new Date(log.created_at).toLocaleTimeString()}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'endpoints' && (
         <div className="flex flex-1 overflow-hidden">
           {/* Quick Mock from Requests */}
-          <div className="w-60 flex-shrink-0 border-r border-border overflow-y-auto py-3 px-2 bg-background/20 shadow-inner">
+          <div className="w-60 shrink-0 border-r border-border overflow-y-auto py-3 px-2 bg-background/20 shadow-inner">
             <p className="text-[10px] font-semibold text-muted uppercase tracking-widest px-2 mb-2">
               Quick Mock from Request
             </p>
@@ -231,7 +400,7 @@ export const MockServerPanel: React.FC<MockServerPanelProps> = ({
                 >
                   <MethodBadge method={req.method} size="sm" />
                   <span className="truncate text-left">{req.name}</span>
-                  <Zap size={11} className="ml-auto flex-shrink-0 opacity-40" />
+                  <Zap size={11} className="ml-auto shrink-0 opacity-40" />
                 </button>
               ))
             )}
@@ -308,6 +477,7 @@ export const MockServerPanel: React.FC<MockServerPanelProps> = ({
             )}
           </div>
         </div>
+        )}
       </div>
     </div>
   )
@@ -335,7 +505,7 @@ const MockEndpointCard: React.FC<{
       }`}
     >
       {/* Card header */}
-      <div className="flex items-center gap-3 px-4 py-3 bg-white/[0.02]">
+      <div className="flex items-center gap-3 px-4 py-3 bg-white/2">
         <MethodBadge method={endpoint.method} size="sm" />
         <div className="flex-1 min-w-0">
           {endpoint.name && (
@@ -369,7 +539,15 @@ const MockEndpointCard: React.FC<{
           {endpoint.delay_ms > 0 && (
             <span className="flex items-center gap-0.5 text-[10px] text-muted">
               <Clock size={9} />
-              {endpoint.delay_ms}ms
+              {endpoint.delay_ms}{endpoint.delay_max_ms > endpoint.delay_ms ? `–${endpoint.delay_max_ms}` : ''}ms
+            </span>
+          )}
+
+          {/* Error rate badge */}
+          {endpoint.error_rate > 0 && (
+            <span className="flex items-center gap-0.5 text-[10px] text-rose-400 font-bold">
+              <AlertTriangle size={9} />
+              {endpoint.error_rate}%
             </span>
           )}
 
@@ -481,12 +659,23 @@ const MockEndpointForm: React.FC<MockEndpointFormProps> = ({
     existing?.response_body ?? '{\n  "message": "Hello from Wapbolt Mock!"\n}'
   )
   const [delayMs, setDelayMs] = useState(existing?.delay_ms ?? 0)
+  const [delayMaxMs, setDelayMaxMs] = useState(existing?.delay_max_ms ?? 0)
+  const [errorRate, setErrorRate] = useState(existing?.error_rate ?? 0)
+  const [errorStatusCode, setErrorStatusCode] = useState(existing?.error_status_code ?? 500)
   const [saving, setSaving] = useState(false)
 
   const handleSave = async () => {
     setSaving(true)
     try {
-      const payload = { name, method, path, status_code: statusCode, response_body: responseBody, delay_ms: delayMs }
+      const payload = {
+        name, method, path,
+        status_code: statusCode,
+        response_body: responseBody,
+        delay_ms: delayMs,
+        delay_max_ms: delayMaxMs,
+        error_rate: errorRate,
+        error_status_code: errorStatusCode
+      }
       let res
       if (existing) {
         res = await apiClient.put<MockEndpoint>(
@@ -529,7 +718,7 @@ const MockEndpointForm: React.FC<MockEndpointFormProps> = ({
           <select
             value={method}
             onChange={(e) => setMethod(e.target.value)}
-            className={`appearance-none bg-background border border-border rounded-lg px-3 py-2 text-xs font-mono font-bold uppercase ${METHOD_COLOR[method] || 'text-text'} focus:outline-none focus:border-violet-500/50 pr-7`}
+            className={`appearance-none bg-background border border-border rounded-lg px-3 py-2 text-xs font-mono font-bold uppercase cursor-pointer ${METHOD_COLOR[method] || 'text-text'} focus:outline-none focus:border-violet-500/50 pr-7`}
           >
             {HTTP_METHODS.map((m) => (
               <option key={m} value={m} className="text-text font-sans">
@@ -548,28 +737,79 @@ const MockEndpointForm: React.FC<MockEndpointFormProps> = ({
         />
       </div>
 
-      {/* Status code + Delay */}
-      <div className="flex gap-2">
-        <div className="flex-1">
-          <label className="block text-[10px] text-muted mb-1">Status Code</label>
-          <input
-            type="number"
-            value={statusCode}
-            onChange={(e) => setStatusCode(Number(e.target.value))}
-            className="w-full bg-background border border-border rounded-lg px-3 py-2 text-xs font-mono text-text focus:outline-none focus:border-violet-500/50"
-          />
-        </div>
-        <div className="flex-1">
-          <label className="block text-[10px] text-muted mb-1">Delay (ms)</label>
+      {/* Status code */}
+      <div>
+        <label className="block text-[10px] text-muted mb-1">Status Code</label>
+        <input
+          type="number"
+          value={statusCode}
+          onChange={(e) => setStatusCode(Number(e.target.value))}
+          className="w-full bg-background border border-border rounded-lg px-3 py-2 text-xs font-mono text-text focus:outline-none focus:border-violet-500/50"
+        />
+      </div>
+
+      {/* Delay range */}
+      <div>
+        <label className="block text-[10px] text-muted mb-1">
+          Delay — <span className="text-text/60">min / max (ms). Set max &gt; min for random range.</span>
+        </label>
+        <div className="flex gap-2">
           <input
             type="number"
             value={delayMs}
             min={0}
-            max={10000}
+            max={30000}
+            placeholder="Min ms"
             onChange={(e) => setDelayMs(Number(e.target.value))}
-            className="w-full bg-background border border-border rounded-lg px-3 py-2 text-xs font-mono text-text focus:outline-none focus:border-violet-500/50"
+            className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-xs font-mono text-text focus:outline-none focus:border-violet-500/50"
+          />
+          <input
+            type="number"
+            value={delayMaxMs}
+            min={0}
+            max={30000}
+            placeholder="Max ms (0 = fixed)"
+            onChange={(e) => setDelayMaxMs(Number(e.target.value))}
+            className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-xs font-mono text-text focus:outline-none focus:border-violet-500/50"
           />
         </div>
+      </div>
+
+      {/* Error injection */}
+      <div>
+        <label className="block text-[10px] text-muted mb-1">
+          Error Injection — <span className="text-text/60">rate (0–100%) and status code to return</span>
+        </label>
+        <div className="flex gap-2 items-center">
+          <div className="flex-1 flex items-center gap-2">
+            <input
+              type="range"
+              value={errorRate}
+              min={0}
+              max={100}
+              onChange={(e) => setErrorRate(Number(e.target.value))}
+              className="flex-1 accent-rose-400"
+            />
+            <span className={`text-xs font-mono w-8 text-right ${errorRate > 0 ? 'text-rose-400' : 'text-muted'}`}>
+              {errorRate}%
+            </span>
+          </div>
+          <input
+            type="number"
+            value={errorStatusCode}
+            min={100}
+            max={599}
+            placeholder="500"
+            onChange={(e) => setErrorStatusCode(Number(e.target.value))}
+            className="w-20 bg-background border border-border rounded-lg px-2 py-2 text-xs font-mono text-text focus:outline-none focus:border-rose-500/50"
+            title="Error status code"
+          />
+        </div>
+        {errorRate > 0 && (
+          <p className="text-[10px] text-rose-400/70 mt-1">
+            ~{errorRate}% of requests will return {errorStatusCode}
+          </p>
+        )}
       </div>
 
       {/* Response body */}

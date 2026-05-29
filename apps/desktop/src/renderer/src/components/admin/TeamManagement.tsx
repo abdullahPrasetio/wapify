@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { apiClient } from '../../api/client'
-import { Plus, Search, Trash2, Building2, Users, X, Loader2, UserMinus } from 'lucide-react'
+import { Plus, Search, Trash2, Building2, Users, X, Loader2, UserMinus, Crown } from 'lucide-react'
 import type { Team, User, TeamMember } from '../../types'
 import { toast } from 'sonner'
 import * as Dialog from '@radix-ui/react-dialog'
@@ -124,7 +124,7 @@ const ManageMembersModal = ({ team, onClose }: ManageMembersModalProps): React.J
                 <select
                   value={selectedUserId}
                   onChange={(e) => setSelectedUserId(e.target.value)}
-                  className="flex-1 bg-surface border border-border rounded px-3 py-2 text-sm text-text focus:outline-none focus:border-primary"
+                  className="flex-1 bg-surface border border-border rounded px-3 py-2 text-sm text-text focus:outline-none focus:border-primary cursor-pointer"
                 >
                   <option value="">Select User...</option>
                   {availableUsers.map((u) => (
@@ -136,7 +136,7 @@ const ManageMembersModal = ({ team, onClose }: ManageMembersModalProps): React.J
                 <select
                   value={selectedRole}
                   onChange={(e) => setSelectedRole(e.target.value)}
-                  className="w-32 bg-surface border border-border rounded px-3 py-2 text-sm text-text focus:outline-none focus:border-primary"
+                  className="w-32 bg-surface border border-border rounded px-3 py-2 text-sm text-text focus:outline-none focus:border-primary cursor-pointer"
                 >
                   <option value="Admin">Admin</option>
                   <option value="Editor">Editor</option>
@@ -185,8 +185,11 @@ const ManageMembersModal = ({ team, onClose }: ManageMembersModalProps): React.J
                               {member.user?.name.charAt(0)}
                             </div>
                             <div>
-                              <div className="text-sm font-medium text-text">
+                              <div className="text-sm font-medium text-text flex items-center gap-1.5">
                                 {member.user?.name}
+                                {member.user?.is_premium && (
+                                  <Crown size={11} className="text-yellow-400" aria-label="Premium Member" />
+                                )}
                               </div>
                               <div className="text-[10px] text-muted">{member.user?.email}</div>
                             </div>

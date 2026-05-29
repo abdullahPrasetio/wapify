@@ -21,6 +21,8 @@ interface WapboltAPI {
   getToken: () => Promise<string | null>
   deleteToken: () => Promise<void>
   getAppVersion: () => Promise<string>
+  reloadApp: () => void
+  openFileDialog: () => Promise<{ path: string; name: string; size: number } | null>
   parseCurl: (curlCommand: string) => Promise<any>
   getConfluencePage: (config: { 
     baseUrl: string, 

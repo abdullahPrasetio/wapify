@@ -4,11 +4,13 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"mime"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -17,6 +19,40 @@ import (
 	"github.com/waluyo/wapbolt-backend/internal/repository"
 	"gorm.io/gorm"
 )
+
+// chaosModeCache caches per-collection chaos_mode for 5 seconds to avoid a DB hit per mock request.
+type chaosCacheEntry struct {
+	value   bool
+	expires time.Time
+}
+
+var (
+	chaosCacheMu sync.Mutex
+	chaosCache   = make(map[uint]chaosCacheEntry)
+)
+
+func getChaosMode(collectionID uint) bool {
+	chaosCacheMu.Lock()
+	entry, ok := chaosCache[collectionID]
+	chaosCacheMu.Unlock()
+	if ok && time.Now().Before(entry.expires) {
+		return entry.value
+	}
+	var col repository.Collection
+	if err := repository.DB.Select("chaos_mode").First(&col, collectionID).Error; err != nil {
+		return false
+	}
+	chaosCacheMu.Lock()
+	chaosCache[collectionID] = chaosCacheEntry{value: col.ChaosMode, expires: time.Now().Add(5 * time.Second)}
+	chaosCacheMu.Unlock()
+	return col.ChaosMode
+}
+
+func invalidateChaosCache(collectionID uint) {
+	chaosCacheMu.Lock()
+	delete(chaosCache, collectionID)
+	chaosCacheMu.Unlock()
+}
 
 // SetupMockServerRoutes registers mock server endpoints
 func SetupMockServerRoutes(app *fiber.App) {
@@ -29,6 +65,8 @@ func SetupMockServerRoutes(app *fiber.App) {
 	colMock.Post("/endpoints/:endpointId/from-request/:requestId", createMockFromRequest)
 	colMock.Patch("/endpoints/:endpointId/mode", updateMockMode)
 	colMock.Post("/generate-from-collection", generateMocksFromCollection)
+	colMock.Patch("/chaos", updateCollectionChaosMode)
+	colMock.Get("/logs", listMockRequestLogs)
 
 	// 2. Management API for Standalone/Workspace (protected via JWT)
 	teamMock := app.Group("/api/v1/workspaces/:teamId/mock", mockAuthMiddleware)
@@ -110,6 +148,9 @@ type createMockEndpointInput struct {
 	ResponseHeaders map[string]interface{} `json:"response_headers"`
 	ResponseBody    string                 `json:"response_body"`
 	DelayMs         int                    `json:"delay_ms"`
+	DelayMaxMs      int                    `json:"delay_max_ms"`
+	ErrorRate       int                    `json:"error_rate"`
+	ErrorStatusCode int                    `json:"error_status_code"`
 	IsActive        *bool                  `json:"is_active"`
 	CollectionID    *uint                  `json:"collection_id"`
 }
@@ -137,6 +178,10 @@ func createMockEndpoint(c *fiber.Ctx) error {
 	}
 
 	colID := col.ID
+	errStatus := input.ErrorStatusCode
+	if errStatus == 0 {
+		errStatus = 500
+	}
 	endpoint := repository.MockEndpoint{
 		CollectionID:    &colID,
 		Method:          strings.ToUpper(input.Method),
@@ -145,6 +190,9 @@ func createMockEndpoint(c *fiber.Ctx) error {
 		ResponseHeaders: repository.JSONB(input.ResponseHeaders),
 		ResponseBody:    input.ResponseBody,
 		DelayMs:         input.DelayMs,
+		DelayMaxMs:      input.DelayMaxMs,
+		ErrorRate:       input.ErrorRate,
+		ErrorStatusCode: errStatus,
 		IsActive:        true,
 	}
 
@@ -198,6 +246,11 @@ func updateMockEndpoint(c *fiber.Ctx) error {
 		endpoint.IsActive = *input.IsActive
 	}
 	endpoint.DelayMs = input.DelayMs
+	endpoint.DelayMaxMs = input.DelayMaxMs
+	endpoint.ErrorRate = input.ErrorRate
+	if input.ErrorStatusCode > 0 {
+		endpoint.ErrorStatusCode = input.ErrorStatusCode
+	}
 	endpoint.UpdatedAt = time.Now()
 
 	if err := repository.DB.Save(&endpoint).Error; err != nil {
@@ -244,6 +297,11 @@ func updateStandaloneMockEndpoint(c *fiber.Ctx) error {
 		endpoint.IsActive = *input.IsActive
 	}
 	endpoint.DelayMs = input.DelayMs
+	endpoint.DelayMaxMs = input.DelayMaxMs
+	endpoint.ErrorRate = input.ErrorRate
+	if input.ErrorStatusCode > 0 {
+		endpoint.ErrorStatusCode = input.ErrorStatusCode
+	}
 	endpoint.UpdatedAt = time.Now()
 
 	if err := repository.DB.Save(&endpoint).Error; err != nil {
@@ -1064,13 +1122,14 @@ func handleStandaloneMockRequest(c *fiber.Ctx) error {
 
 // serveMockEndpoint is a shared helper for both collection and standalone mocks
 func serveMockEndpoint(c *fiber.Ctx, matched *repository.MockEndpoint) error {
+	startTime := time.Now()
 	var responseBody string
 	var statusCode int = 200
 	var responseHeaders map[string]interface{}
 	var binaryData []byte
 	found := false
 
-	// EVALUATION LOGIC (copied and refined from previous handleMockRequest)
+	// EVALUATION LOGIC
 	if matched.EvaluationMode == "manual" && matched.ActiveScenarioID != nil {
 		var scenario repository.MockScenario
 		if err := repository.DB.First(&scenario, *matched.ActiveScenarioID).Error; err == nil {
@@ -1138,8 +1197,42 @@ func serveMockEndpoint(c *fiber.Ctx, matched *repository.MockEndpoint) error {
 		responseBody = renderMockTemplate(c, responseBody)
 	}
 
-	if matched.DelayMs > 0 {
-		time.Sleep(time.Duration(matched.DelayMs) * time.Millisecond)
+	// ── Chaos mode: check collection-level flag (cached 5s) ──────────────────
+	chaosModeActive := false
+	if matched.CollectionID != nil {
+		chaosModeActive = getChaosMode(*matched.CollectionID)
+	}
+
+	// ── Error injection (per-endpoint rate, amplified by chaos mode) ──────────
+	injectedError := false
+	effectiveErrorRate := matched.ErrorRate
+	if chaosModeActive && effectiveErrorRate < 50 {
+		effectiveErrorRate = 50 // chaos mode: minimum 50% error rate
+	}
+	if effectiveErrorRate > 0 && rand.Intn(100) < effectiveErrorRate {
+		errStatus := matched.ErrorStatusCode
+		if errStatus < 400 || errStatus > 599 {
+			errStatus = 500
+		}
+		statusCode = errStatus
+		responseBody = fmt.Sprintf(`{"error":"Simulated error","code":"%d","injected":true}`, errStatus)
+		binaryData = nil
+		injectedError = true
+	}
+
+	// ── Delay simulation (fixed or random range) ──────────────────────────────
+	delayMin := matched.DelayMs
+	delayMax := matched.DelayMaxMs
+	if chaosModeActive && delayMin == 0 {
+		delayMin = 500
+		delayMax = 2000
+	}
+	if delayMin > 0 {
+		actualDelay := delayMin
+		if delayMax > delayMin {
+			actualDelay = delayMin + rand.Intn(delayMax-delayMin+1)
+		}
+		time.Sleep(time.Duration(actualDelay) * time.Millisecond)
 	}
 
 	for k, v := range responseHeaders {
@@ -1149,6 +1242,31 @@ func serveMockEndpoint(c *fiber.Ctx, matched *repository.MockEndpoint) error {
 	}
 
 	c.Set("X-Wapbolt-Mock", "true")
+	if injectedError {
+		c.Set("X-Wapbolt-Injected-Error", "true")
+	}
+
+	// ── Async request log ─────────────────────────────────────────────────────
+	latencyMs := int(time.Since(startTime).Milliseconds())
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Error().Interface("panic", r).Msg("mock log goroutine panic")
+			}
+		}()
+		endpointID := matched.ID
+		entry := repository.MockRequestLog{
+			EndpointID:    &endpointID,
+			CollectionID:  matched.CollectionID,
+			Method:        matched.Method,
+			Path:          c.Path(),
+			Matched:       true,
+			InjectedError: injectedError,
+			StatusCode:    statusCode,
+			LatencyMs:     latencyMs,
+		}
+		repository.DB.Create(&entry)
+	}()
 
 	if binaryData != nil {
 		return c.Status(statusCode).Send(binaryData)
@@ -1157,6 +1275,60 @@ func serveMockEndpoint(c *fiber.Ctx, matched *repository.MockEndpoint) error {
 		c.Set("Content-Type", "application/json")
 	}
 	return c.Status(statusCode).SendString(responseBody)
+}
+
+// ─── Chaos Mode ───────────────────────────────────────────────────────────────
+
+func updateCollectionChaosMode(c *fiber.Ctx) error {
+	collectionID := parseUint(c.Params("id"))
+	if collectionID == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid collection ID"})
+	}
+	var col repository.Collection
+	if err := repository.DB.First(&col, collectionID).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Collection not found"})
+	}
+	if !canAccessTeam(c, col.TeamID) {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Forbidden"})
+	}
+
+	var input struct {
+		ChaosMode bool `json:"chaos_mode"`
+	}
+	if err := c.BodyParser(&input); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid body"})
+	}
+
+	if err := repository.DB.Model(&col).Update("chaos_mode", input.ChaosMode).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to update"})
+	}
+	invalidateChaosCache(uint(collectionID))
+	return c.JSON(fiber.Map{"chaos_mode": input.ChaosMode})
+}
+
+// ─── Mock Request Logs ────────────────────────────────────────────────────────
+
+func listMockRequestLogs(c *fiber.Ctx) error {
+	collectionID := parseUint(c.Params("id"))
+	if collectionID == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid collection ID"})
+	}
+	var col repository.Collection
+	if err := repository.DB.First(&col, collectionID).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Collection not found"})
+	}
+	if !canAccessTeam(c, col.TeamID) {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Forbidden"})
+	}
+
+	var logs []repository.MockRequestLog
+	repository.DB.
+		Where("collection_id = ?", collectionID).
+		Order("created_at DESC").
+		Limit(200).
+		Find(&logs)
+
+	return c.JSON(logs)
 }
 
 // ─── Generate Mocks From Collection ──────────────────────────────────────────

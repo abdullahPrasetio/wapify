@@ -1,5 +1,6 @@
 import { LucideIcon } from 'lucide-react'
 import { useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 
 interface ContextMenuItem {
   label: string
@@ -24,22 +25,28 @@ export const ContextMenu = ({ x, y, items, onClose }: ContextMenuProps): React.J
         onClose()
       }
     }
+    const handleEscape = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') onClose()
+    }
     document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
+    document.addEventListener('keydown', handleEscape)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('keydown', handleEscape)
+    }
   }, [onClose])
 
-  // Clamp position so the menu never overflows the viewport
-  const MENU_WIDTH = 192 // w-48 = 12rem = 192px
-  const estimatedHeight = items.length * 34 + 8 // ~34px per item + py-1 padding
+  const MENU_WIDTH = 192
+  const estimatedHeight = items.length * 34 + 8
   const menuX = Math.min(x, window.innerWidth - MENU_WIDTH - 4)
   const menuY = y + estimatedHeight > window.innerHeight
     ? Math.max(4, window.innerHeight - estimatedHeight - 4)
     : y
 
-  return (
+  return createPortal(
     <div
       ref={menuRef}
-      className="fixed z-[200] w-48 bg-surface border border-border rounded-lg shadow-2xl py-1 animate-in fade-in zoom-in-95 duration-100"
+      className="fixed z-9999 w-48 bg-surface border border-border rounded-lg shadow-2xl py-1 animate-in fade-in zoom-in-95 duration-100"
       style={{ left: menuX, top: menuY }}
     >
       {items.map((item, idx) => (
@@ -60,6 +67,7 @@ export const ContextMenu = ({ x, y, items, onClose }: ContextMenuProps): React.J
           <span className="font-medium">{item.label}</span>
         </button>
       ))}
-    </div>
+    </div>,
+    document.body
   )
 }

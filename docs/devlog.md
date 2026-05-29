@@ -1,4 +1,226 @@
 
+## [2026-05-27] — SSE Support, Timing Chart & Insomnia Import (v2.2.0)
+**Fase:** Phase 4 — Polish & Ecosystem
+**Dikerjakan oleh:** Waluyo
+**Status:** ✅ Selesai
+
+### Yang Dikerjakan
+
+#### 📡 P4-4 — SSE (Server-Sent Events) Support
+- `WorkingRequest.request_type` diperluas: `'http' | 'ws' | 'sse'`.
+- Komponen baru `SSEPanel.tsx`: tombol Connect/Disconnect, status badge (Disconnected/Connecting/Connected/Error), event log dengan timestamp, event type badge, filter by event name, copy per-event, auto-scroll, empty state.
+- Listener named events: `update`, `ping`, `error`, `close`, `data`, `event` via `addEventListener` (di luar default `onmessage`).
+- `MainArea.tsx`: toggle protocol SSE ditambah, URL input muncul untuk SSE mode, `SSEPanel` dirender menggantikan editor+response (pola sama seperti WebSocket).
+- **Fix:** Switch ke SSE dari WS mode kini konvert `wss://` → `https://` agar `EventSource` dapat konek.
+
+#### ⏱ P4-3 — Response Time Chart (Timing Tab)
+- Tab baru **"Timing"** di `ResponseArea.tsx` — lazy-load history hanya saat tab dibuka pertama kali.
+- Komponen `ResponseTimeChart`: SVG sparkline pure (no library) dengan polyline + dots, `viewBox` scaling, warna dot per status code (hijau 2xx / merah 4xx-5xx / kuning lainnya).
+- Komponen `ResponseTimeStats`: stats bar — jumlah runs, min/avg/max ms, count 2xx, count error.
+- Scrollable run list: method badge, timestamp, status code, response time per baris.
+
+#### 📥 P4-1 — Import dari Insomnia v4
+- Fungsi `importInsomnia()` di `useDataStore.ts`: parse Insomnia v4 JSON (`__export_format: 4`), konversi ke Postman v2.1 di frontend, reuse endpoint `/api/v1/teams/:id/import` tanpa perubahan backend.
+- Mendukung body mode: JSON, URL-encoded, form-data, raw. Auth: Bearer, Basic, API Key.
+- `buildItems()` rekursif dengan `MAX_DEPTH = 20` — mencegah stack overflow pada export corrupt/circular.
+- Guard `typeof r._id/name/parentId === 'string'` per item — mencegah silent TypeError pada export malformed.
+
+#### 🛠 Bug Fixes (dari finding.md)
+- SSE URL conversion saat switch dari WS mode.
+- `buildItems()` depth limit.
+- `importInsomnia` resource shape validation.
+
+### Perubahan File
+- `apps/desktop/src/renderer/src/components/layout/SSEPanel.tsx` — komponen baru
+- `apps/desktop/src/renderer/src/components/layout/MainArea.tsx` — SSE toggle, URL conversion fix
+- `apps/desktop/src/renderer/src/components/layout/ResponseArea.tsx` — Timing tab, chart, stats
+- `apps/desktop/src/renderer/src/store/useDataStore.ts` — `importInsomnia()`, `request_type: 'sse'`, depth limit
+- `docs/releases/v2.2.0.md` — Release notes baru
+- `apps/desktop/package.json` — versi bump 2.1.0 → 2.2.0
+
+### Keputusan & Catatan
+- SSE menggunakan `EventSource` browser API langsung dari renderer — subject to CORS. Untuk endpoint yang butuh custom headers, solusinya query param token atau routing lewat main process (IPC). Dicatat sebagai limitasi known.
+- SVG sparkline dibuat pure tanpa library (recharts/d3) untuk menghindari dependency tambahan — cukup untuk use case ini.
+- Insomnia import dikonversi ke Postman v2.1 di frontend untuk reuse endpoint `/import` yang sudah ada tanpa perlu backend change.
+
+---
+
+## [2026-05-27] — Request Chaining, Schema Validation & WebSocket Fixes (v1.9.2)
+**Fase:** Phase 2 — Protocol & Testing Power
+**Dikerjakan oleh:** Waluyo
+**Status:** ✅ Selesai
+
+### Yang Dikerjakan
+
+#### ⚡ P2-3 — Variable Extraction Rules (Request Chaining)
+- Interface `ExtractionRule` (`id`, `variableName`, `jsonPath`, `enabled`) ditambahkan ke `types/index.ts`.
+- `WorkingRequest` diperluas dengan `extraction_rules: ExtractionRule[]`; `normalizeRequest` memastikan field selalu array.
+- `executeActiveRequest` menjalankan semua enabled rules setelah response — nilai di-set ke active environment via `updateActiveEnvironmentVariable`.
+- `runCollection` juga menjalankan extraction rules — mendukung variable chaining antar-request dalam satu run.
+- **UI:** Sub-tab **Extract** di tab Tests (`MainArea.tsx`) — tambah/hapus/toggle rule dengan JSONPath + nama variabel.
+- **UI:** Tombol **Extract** di `ResponseArea.tsx` — shortcut buat rule langsung dari panel response.
+- **Keamanan:** Guard `isSafeJsonPath()` blokir path `__proto__`, `constructor`, `prototype` sebelum `_.get` untuk mencegah prototype pollution.
+
+#### 🛡 P2-4 — JSON Schema Assertions
+- Interface `SchemaAssertion` (`id`, `name`, `schema`, `enabled`) ditambahkan ke `types/index.ts`.
+- `WorkingRequest` diperluas dengan `schema_assertions: SchemaAssertion[]`.
+- Singleton `ajv` (`new Ajv({ allErrors: true })`) di module level `useDataStore.ts` — tidak re-instantiasi per-request (fix GC pressure di Collection Runner).
+- `executeActiveRequest`: validasi ajv dijalankan setelah response, hasilnya digabung ke test results (format `dataPath` + pesan).
+- `runCollection`: schema assertions dijalankan dan dicatat ke `result.testResults` per-request.
+- **UI:** Sub-tab **Schema** di tab Tests — Monaco JSON editor per-assertion, toggle enable/disable.
+
+#### 🔧 WebSocketPanel TypeScript Fixes
+- `Blob | ArrayBuffer` size: diganti `event.data instanceof Blob ? event.data.size : 0` — eliminasi TS2339.
+- `KeyValueEditor` prop: `value` → `initialData`, `onChange` handler disesuaikan dengan return type `Record<string, string>`.
+- Props tidak dikenal `keyPlaceholder` / `valuePlaceholder` dihapus — build kini clean tanpa error.
+
+#### 🔑 Perbaikan ID Generation
+- `Math.random().toString(36)` diganti `crypto.randomUUID()` di `MainArea.tsx` (2x) dan `ResponseArea.tsx` (1x) — UUID v4 cryptographically random.
+
+### Perubahan File
+- `apps/desktop/src/renderer/src/types/index.ts` — `ExtractionRule`, `SchemaAssertion` interfaces; `ApiRequest` optional fields
+- `apps/desktop/src/renderer/src/store/useDataStore.ts` — Singleton ajv, `isSafeJsonPath`, extraction + schema logic, `(req as any)` dihapus
+- `apps/desktop/src/renderer/src/components/layout/MainArea.tsx` — Sub-tab Extract & Schema, `crypto.randomUUID()`
+- `apps/desktop/src/renderer/src/components/layout/ResponseArea.tsx` — Extract quick panel, lock check, `crypto.randomUUID()`
+- `apps/desktop/src/renderer/src/components/layout/WebSocketPanel.tsx` — Fix 3 TypeScript errors
+- `docs/releases/v1.9.2.md` — Release notes baru
+
+### Keputusan & Catatan
+- `ajv` singleton di module level bukan di komponen/hook karena instance-nya stateless (tidak menyimpan state per-request) — aman di-share.
+- `isSafeJsonPath` menggunakan regex case-insensitive untuk mengcover variasi `__PROTO__`, `Constructor`, dll.
+- Lock check di `handleAddExtractionRule` (`ResponseArea`) mengikuti pola yang sudah ada di handler lain yang memeriksa `locksByRequest[activeTabId]`.
+
+---
+
+## [2026-05-26] — Collection Runner Bug Fixes
+**Fase:** Phase 1 — Foundation & Adoption
+**Dikerjakan oleh:** Waluyo
+**Status:** ✅ Selesai
+
+### Yang Dikerjakan
+
+#### 🏃 Collection Runner — 3 Bug Fix Kritis
+
+**Bug 1: Modal Hilang Saat Run Berjalan**
+- **Root Cause:** `CollectionRunnerPanel` di-render sebagai child dari `CollectionItem` di Sidebar. Ketika `runCollection` memanggil `fetchCollectionContents`, store Zustand diupdate → Sidebar re-render. Jika `CollectionItem` unmount (perubahan `filteredCollections`), local state `showRunner` reset ke `false` → modal hilang.
+- **Fix:** Gunakan `createPortal(…, document.body)` — panel kini di-render langsung di `document.body`, sepenuhnya terlepas dari DOM tree Sidebar. Import `createPortal` ditambahkan dari `react-dom`.
+
+**Bug 2: Hasil Run Tidak Tampil (Hanya Toast)**
+- **Root Cause:** Saat modal hilang (bug 1), run tetap berjalan di background dan toast "Run completed" muncul — tapi hasil tidak bisa dilihat karena panel sudah tertutup.
+- **Fix:** Hasil run disimpan ke Zustand store (`lastRunResults`, `lastRunCollectionId`). Saat panel dibuka ulang untuk collection yang sama, state langsung diinisialisasi ke `'finished'` dengan hasil terakhir — tanpa perlu run ulang.
+
+**Bug 3: `handleRun` Tidak Ada Try/Catch**
+- **Root Cause:** Jika `runCollection` throw error, `setRunnerState('finished')` tidak dipanggil → UI stuck di state `'running'` selamanya.
+- **Fix:** Tambah `try/catch/finally` — state selalu transisi ke `'finished'` meski ada error.
+
+**Bug 4: `wap.setEnv` / `wap.environment` Tidak Ada di Post-request Script**
+- **Root Cause:** Object `wap` di post-request script runner hanya punya `response`, `expect`, dan `test` — tidak ada method environment mutation. Script Login yang menyimpan token via `wap.setEnv('token', ...)` atau `wap.environment.set(...)` gagal dengan `TypeError: wap.setEnv is not a function`.
+- **Fix:** Object `wap` di post-request dilengkapi: `setEnv`, `set`, `environment.set/get`, `collectionVariables.set/get` — identik dengan `wap` di pre-request script. Variable yang diset langsung masuk ke `vars` runtime (berlaku untuk request berikutnya dalam chain) dan dipersist via `updateActiveEnvironmentVariable`.
+
+### Perubahan File
+- `apps/desktop/src/renderer/src/components/layout/CollectionRunnerPanel.tsx` — `createPortal`, try/catch/finally di `handleRun`, inisialisasi dari `lastRunResults`
+- `apps/desktop/src/renderer/src/store/useDataStore.ts` — field `lastRunCollectionId` & `lastRunResults`, `set(...)` setelah run selesai, lengkapi `wap` object di post-request script
+
+### Keputusan & Catatan
+- `lastRunResults` sengaja **tidak** dimasukkan ke `partialize` (tidak dipersist ke localStorage) — hasil run bersifat sesi, bukan permanen.
+- Portal fix mengikuti pola yang sudah dipakai di `ContextMenu.tsx` (v1.6.5).
+- `wap` di pre dan post-request sekarang simetris — developer bisa pakai API yang sama di kedua lifecycle tanpa perlu hafal perbedaan.
+
+---
+
+## [2026-05-25] — Environment Autocomplete, Script IntelliSense, History Replay & cURL Enhancements
+**Fase:** Fase 6 — UX & Power Features
+**Dikerjakan oleh:** Waluyo
+**Status:** ✅ Selesai
+
+### Yang Dikerjakan
+
+#### 🔐 Environment Variables — Autocomplete & Secret Masking
+- **Variable Autocomplete**: Mengetik `{{` di URL, header, body, atau field manapun memunculkan dropdown variabel dari environment aktif. Navigasi dengan ↑↓, konfirmasi Enter/Tab, tutup Escape.
+- **Secret Masking**: Nilai variabel dapat ditandai sebagai rahasia via tombol Eye di `KeyValueEditor`. Nilai tampil sebagai `••••••••` dan state tersimpan per-environment di `localStorage`.
+
+#### 🛠️ Pre-request & Post-response Scripts — IntelliSense & Snippets
+- **Monaco IntelliSense**: Object `wap` (dan `pm`) kini fully-typed di editor script via `addExtraLib`. Autocomplete, parameter hints, dan dokumentasi inline tersedia untuk `wap.environment`, `wap.request`, `wap.response`, `wap.test()`, `wap.expect()`, dll.
+- **Snippet Library**: Panel snippet di samping editor script dengan insert satu-klik — Pre-request (Set/Get variable, Timestamp, Bearer injection, Log) dan Tests (Assert 200/201/2xx, Save token, Log response).
+- **Fix TypeScript**: `monaco.languages.typescript` deprecated — dicast via `(monaco.languages as any).typescript` untuk `addExtraLib` dan `setCompilerOptions`.
+
+#### 🕓 History — Search & Replay
+- **Full-text Search**: Filter history real-time berdasarkan URL, method, atau status code di Sidebar. Dilengkapi tombol clear.
+- **Date Grouping**: Item history dikelompokkan per hari (Today, Yesterday, atau tanggal singkat).
+- **One-click Replay**: Tombol replay (↺) muncul saat hover — load method, URL, headers, body kembali ke editor request.
+
+#### 📋 cURL Import & Export
+- **Export cURL (`generateCurl`)**: Fungsi baru di `curlParser.ts` yang menghasilkan perintah `curl` valid dari workingRequest. Mendukung raw, urlencoded (`--data-urlencode`), dan form-data (`-F`). Tombol "Copy cURL" di Quick Actions bar.
+- **Export Code Modal — Semua Bahasa Lengkap**: `node-axios`, `php-guzzle`, `java-okhttp`, `ruby-net-http`, `csharp-restsharp` sebelumnya menampilkan "coming soon" — kini semua terisi penuh dengan snippet yang akurat.
+- **Fix `js-fetch` double-stringify**: Body JSON tidak lagi di-`JSON.stringify` dua kali.
+- **Monaco language mapping**: Syntax highlighting yang benar untuk setiap bahasa (Java, C#, PHP, Ruby, Go, dll).
+
+#### ⌨️ Keyboard Shortcut ⌘↵
+- **Monaco editor capture fix**: Cmd+Enter kini bekerja dari mana saja — termasuk saat fokus di Monaco editor (body, pre-request, tests) via `editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, ...)`.
+- `onSend` prop ditambahkan ke `EditorArea` dan di-register ke semua 3 Monaco editor saat mount.
+
+#### 🖱️ Cursor Pointer Global Audit
+- Audit menyeluruh ~60 elemen yang bisa diklik di seluruh app tanpa `cursor-pointer`.
+- Diperbaiki di: `MainArea`, `KeyValueEditor`, `VariableOverlayInput`, `HistoryDetailView`, `NotificationBell`, `ActivityLogView`, `ScenariosPanel`, `LoginPage`, dan semua `<select>` di sidebar, admin panels, dan modals.
+
+### Perubahan File
+- `apps/desktop/src/renderer/src/utils/curlParser.ts` — Tambah `generateCurl()`
+- `apps/desktop/src/renderer/src/components/modals/ExportCodeModal.tsx` — 6 bahasa baru, fix double-stringify, fix language mapping
+- `apps/desktop/src/renderer/src/components/modals/EnvironmentModal.tsx` — Secret masking state + localStorage helpers
+- `apps/desktop/src/renderer/src/components/ui/KeyValueEditor.tsx` — Secret toggle UI + cursor-pointer fixes
+- `apps/desktop/src/renderer/src/components/ui/VariableOverlayInput.tsx` — Autocomplete `{{` dropdown + cursor-pointer fixes
+- `apps/desktop/src/renderer/src/components/layout/MainArea.tsx` — IntelliSense setup, snippet panel, onSend prop, Monaco command, cursor-pointer fixes
+- `apps/desktop/src/renderer/src/components/layout/Sidebar.tsx` — History search, date grouping, replay button, env select cursor-pointer
+- `apps/desktop/src/renderer/src/components/layout/HistoryDetailView.tsx` — cursor-pointer fixes
+- `apps/desktop/src/renderer/src/components/layout/NotificationBell.tsx` — cursor-pointer fixes
+- `apps/desktop/src/renderer/src/components/layout/ActivityLogView.tsx` — cursor-pointer fixes
+- `apps/desktop/src/renderer/src/components/layout/ScenariosPanel.tsx` — cursor-pointer fixes
+- `apps/desktop/src/renderer/src/components/auth/LoginPage.tsx` — cursor-pointer fixes
+- `apps/desktop/src/renderer/src/components/admin/UserManagement.tsx` — cursor-pointer fixes
+- `apps/desktop/src/renderer/src/components/admin/TeamManagement.tsx` — cursor-pointer fixes
+- `apps/desktop/src/renderer/src/components/layout/MockServerPanel.tsx` — cursor-pointer fixes
+- `apps/desktop/src/renderer/src/components/layout/StandaloneMockPanel.tsx` — cursor-pointer fixes
+- `apps/desktop/src/renderer/src/components/modals/SaveRequestLocationModal.tsx` — cursor-pointer fixes
+- `apps/desktop/package.json` — Version bump ke 1.7.1
+- `RELEASE.md` — Update release notes v1.7.0 dan v1.7.1
+
+### Keputusan & Catatan
+- Secret masking disimpan di `localStorage` (bukan DB) karena ini preferensi tampilan personal, bukan data konfigurasi tim.
+- Autocomplete variabel menggunakan synthetic event `{ target: { value: newText } }` untuk menjaga kompatibilitas React onChange tanpa dispatch DOM event native.
+- `generateCurl` sengaja dibuat terpisah dari `ExportCodeModal` agar bisa digunakan langsung di toolbar tanpa membuka modal.
+- Monaco editor tidak memforward `keydown` ke `window`, sehingga Cmd+Enter harus didaftarkan via `editor.addCommand` di masing-masing editor instance.
+
+---
+
+## [2026-05-25] — Context Menu Fix, Save As Flow & Collaboration Notifications
+**Fase:** Fase 7 — Kolaborasi Lanjutan & Mock Pro
+**Dikerjakan oleh:** Waluyo
+**Status:** ✅ Selesai
+
+### Yang Dikerjakan
+- **Context Menu Portal Fix**: Konversi `ContextMenu.tsx` untuk menggunakan `createPortal` agar posisi menu tidak rusak akibat CSS `transform` dari dnd-kit.
+- **Folder Action Button**: Tombol tiga titik (`...`) pada item folder di sidebar untuk mengakses context menu tanpa right-click (aksesibilitas TestSprite TC).
+- **Save As untuk Saved Request**: Hapus guard `typeof requestId === 'string'` — modal `SaveRequestLocationModal` kini selalu dirender dan bisa dibuka dari request manapun.
+- **Folder Lazy Loading di Save As Modal**: Panggil `fetchCollectionContents` saat modal dibuka dan saat koleksi diganti, agar folder tidak kosong.
+- **Duplicate dari Request Panel**: Tambah Radix `DropdownMenu` di samping tombol Save dengan opsi "Save As..." dan "Duplicate" — sebelumnya hanya ada di right-click sidebar.
+- **WS Status Indicator**: Indikator real-time (hijau/kuning/merah) di sidebar header menampilkan status koneksi kolaborasi.
+- **Collaboration Notifications**: Event connect/reconnect WebSocket kini dicatat sebagai notifikasi persisten di bell icon, bukan hanya toast ephemeral.
+- **`_wasConnected` flag**: Diferensiasi "Collaboration Connected" vs "Collaboration Reconnected" di WebSocket client.
+- **Type fixes**: `importCollection` signature diperbarui, `flattenTree` yang tidak terpakai dihapus.
+- **`window.api` optional chaining**: Mencegah crash di browser mode (non-Electron).
+
+### Perubahan File
+- `apps/desktop/src/renderer/src/components/ui/ContextMenu.tsx` — createPortal fix
+- `apps/desktop/src/renderer/src/components/layout/Sidebar.tsx` — folder button, WS indicator, optional chaining
+- `apps/desktop/src/renderer/src/components/layout/MainArea.tsx` — Save dropdown dengan Duplicate & Save As
+- `apps/desktop/src/renderer/src/components/modals/SaveRequestLocationModal.tsx` — folder lazy load, name fallback, cleanup
+- `apps/desktop/src/renderer/src/store/useDataStore.ts` — importCollection type fix
+- `apps/desktop/src/renderer/src/store/useNotificationStore.ts` — addLocalNotification
+- `apps/desktop/src/renderer/src/api/websocket.ts` — _wasConnected, local notification on connect/reconnect
+- `apps/desktop/src/renderer/src/App.tsx` — WsStatusBadge component
+
+---
+
 ## [2026-05-22] — Mock Server Enhancements & Bulk Transfer
 **Fase:** Fase 7 — Kolaborasi Lanjutan & Mock Pro
 **Dikerjakan oleh:** Waluyo

@@ -51,6 +51,8 @@ type User struct {
 	PasswordHash          string     `gorm:"not null" json:"-"`
 	Name                  string     `gorm:"not null" json:"name"`
 	IsSuperAdmin          bool       `gorm:"default:false" json:"is_super_admin"`
+	IsPremium             bool       `gorm:"default:false" json:"is_premium"`
+	PremiumSince         *time.Time `json:"premium_since"`
 	RoleSignature         string     `json:"-"`
 	LastDonationPromptAt *time.Time `json:"last_donation_prompt_at"`
 	CreatedAt             time.Time  `json:"created_at"`
@@ -91,6 +93,7 @@ type Collection struct {
 	CreatedBy *User `gorm:"foreignKey:CreatedByID;references:ID" json:"-"`
 
 	ConfluencePageID string `gorm:"column:confluence_page_id" json:"confluence_page_id"`
+	ChaosMode        bool   `gorm:"column:chaos_mode;default:false" json:"chaos_mode"`
 }
 
 type Folder struct {
@@ -234,6 +237,9 @@ type MockEndpoint struct {
 	ResponseHeaders  JSONB     `gorm:"type:jsonb;default:'{}'" json:"response_headers"`
 	ResponseBody     string    `gorm:"type:text;default:''" json:"response_body"`
 	DelayMs          int       `gorm:"default:0;column:delay_ms" json:"delay_ms"`
+	DelayMaxMs       int       `gorm:"default:0;column:delay_max_ms" json:"delay_max_ms"`
+	ErrorRate        int       `gorm:"default:0;column:error_rate" json:"error_rate"`
+	ErrorStatusCode  int       `gorm:"default:500;column:error_status_code" json:"error_status_code"`
 	IsActive         bool      `gorm:"default:false;column:is_active" json:"is_active"`
 	EvaluationMode   string    `gorm:"not null;default:auto;column:evaluation_mode" json:"evaluation_mode"`
 	ActiveScenarioID *uint     `gorm:"column:active_scenario_id" json:"active_scenario_id"`
@@ -296,5 +302,18 @@ type UserConfluenceSetting struct {
 	UpdatedAt          time.Time `gorm:"column:updated_at" json:"updated_at"`
 
 	User *User `gorm:"foreignKey:UserID" json:"-"`
+}
+
+type MockRequestLog struct {
+	ID            uint      `gorm:"primaryKey" json:"id"`
+	EndpointID    *uint     `gorm:"column:endpoint_id" json:"endpoint_id"`
+	CollectionID  *uint     `gorm:"column:collection_id" json:"collection_id"`
+	Method        string    `gorm:"column:method;not null;default:''" json:"method"`
+	Path          string    `gorm:"column:path;not null;default:''" json:"path"`
+	Matched       bool      `gorm:"column:matched;default:false" json:"matched"`
+	InjectedError bool      `gorm:"column:injected_error;default:false" json:"injected_error"`
+	StatusCode    int       `gorm:"column:status_code;default:0" json:"status_code"`
+	LatencyMs     int       `gorm:"column:latency_ms;default:0" json:"latency_ms"`
+	CreatedAt     time.Time `json:"created_at"`
 }
 

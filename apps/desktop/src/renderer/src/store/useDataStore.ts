@@ -11,11 +11,19 @@ import type {
   Environment,
   IpcResponse,
   RequestHistory,
-  FieldValidations
+  FieldValidations,
+  ExtractionRule,
+  SchemaAssertion
 } from '../types'
 import { toast } from 'sonner'
 import moment from 'moment'
 import _ from 'lodash'
+import Ajv from 'ajv'
+
+const ajv = new Ajv({ allErrors: true })
+
+const PROTO_POLLUTION_RE = /(__proto__|constructor|prototype)/i
+const isSafeJsonPath = (path: string): boolean => !PROTO_POLLUTION_RE.test(path)
 
 /**
  * Ensures a request object has the correct data structure for UI.
@@ -45,6 +53,20 @@ const normalizeRequest = (req: ApiRequest): ApiRequest => {
     } else if (!Array.isArray(body)) {
       body = []
     }
+  } else if (bodyType === 'graphql') {
+    // Normalize graphql body to JSON string with expected shape
+    if (typeof body !== 'string') {
+      body = JSON.stringify({ query: '', variables: '{}', operationName: '' })
+    } else {
+      try {
+        const parsed = JSON.parse(body)
+        if (typeof parsed !== 'object' || !('query' in parsed)) {
+          body = JSON.stringify({ query: String(body), variables: '{}', operationName: '' })
+        }
+      } catch {
+        body = JSON.stringify({ query: '', variables: '{}', operationName: '' })
+      }
+    }
   }
 
   return {
@@ -54,7 +76,9 @@ const normalizeRequest = (req: ApiRequest): ApiRequest => {
     headers: req.headers || {},
     auth_config: (req.auth_config as AuthConfig) || { type: 'No Auth' },
     pre_request_script: req.pre_request_script || '',
-    post_request_script: req.post_request_script || ''
+    post_request_script: req.post_request_script || '',
+    extraction_rules: Array.isArray(req.extraction_rules) ? req.extraction_rules : [],
+    schema_assertions: Array.isArray(req.schema_assertions) ? req.schema_assertions : []
   }
 }
 
@@ -90,6 +114,10 @@ export interface WorkingRequest {
   post_request_script: string
   /** Validation metadata per field — stored separately, never sent to target API */
   field_validations: FieldValidations
+  /** Request protocol type: 'http' for normal HTTP requests, 'ws' for WebSocket, 'sse' for Server-Sent Events */
+  request_type?: 'http' | 'ws' | 'sse'
+  extraction_rules: ExtractionRule[]
+  schema_assertions: SchemaAssertion[]
 }
 
 export interface LogEntry {
@@ -142,6 +170,16 @@ export interface RequestTab {
   testResults: { name: string; status: 'passed' | 'failed'; error?: string }[]
 }
 
+export interface ResponseSnapshot {
+  id: string
+  label: string
+  timestamp: number
+  status: number
+  timing: number
+  data: unknown
+  headers: Record<string, string[]>
+}
+
 export interface CollectionRunResult {
   requestId: number
   name: string
@@ -185,6 +223,10 @@ interface DataState {
   activeEnvironmentId: number | null
   logs: LogEntry[]
 
+  // Collection Runner last results
+  lastRunCollectionId: number | null
+  lastRunResults: CollectionRunResult[]
+
   // Collaboration State
   presenceByRequest: Record<number, PresenceInfo[]>
   locksByRequest: Record<number, LockInfo>
@@ -200,6 +242,10 @@ interface DataState {
   addComment: (requestId: number, content: string) => Promise<void>
   restoreVersion: (requestId: number, versionId: number) => Promise<void>
   fetchActivities: (teamId: number) => Promise<void>
+
+  // Confluence
+  confluenceEnabled: boolean
+  fetchConfluenceEnabled: () => Promise<void>
 
   // Searchable Data (Cross-team)
   searchableRequests: { id: number; name: string; url: string; method: string; team_id: number; collection_id: number }[]
@@ -222,13 +268,20 @@ interface DataState {
   renameRequest: (id: number, name: string) => Promise<void>
   setActiveTab: (requestId: number | string) => void
   closeTab: (requestId: number | string) => void
+  forceCloseTab: (requestId: number | string) => void
+  closeOtherTabs: (keepRequestId: number | string) => void
+  closeAllTabs: () => void
+  forceCloseAllTabs: () => void
+  duplicateTab: (requestId: number | string) => void
   setWorkingRequest: (update: Partial<WorkingRequest>) => void
 
   // CRUD Actions
   saveActiveRequest: () => Promise<void>
   createCollection: (name: string, description?: string, confluence_page_id?: string) => Promise<void>
   updateCollection: (id: number, name: string, description: string, confluence_page_id: string) => Promise<void>
-  importCollection: (jsonContent: string) => Promise<void>
+  importCollection: (jsonContent: string, mode?: 'new' | 'overwrite', confirmName?: string) => Promise<void>
+  importOpenAPI: (jsonContent: string, mode?: 'new' | 'overwrite', confirmName?: string) => Promise<void>
+  importInsomnia: (jsonContent: string, mode?: 'new' | 'overwrite', confirmName?: string) => Promise<void>
   createRequest: (
     collectionId: number,
     folderId: number | null,
@@ -268,7 +321,17 @@ interface DataState {
   clearLogs: () => void
 
   saveExample: (requestId: number, name: string) => Promise<void>
-  runCollection: (collectionId: number, onProgress?: (result: CollectionRunResult) => void) => Promise<CollectionRunResult[]>
+
+  // Response Snapshots
+  responseSnapshots: Record<string, ResponseSnapshot[]>
+  saveResponseSnapshot: (requestId: number | string, label?: string) => void
+  deleteResponseSnapshot: (requestId: number | string, snapshotId: string) => void
+
+  runCollection: (
+    collectionId: number,
+    onProgress?: (result: CollectionRunResult) => void,
+    options?: { selectedIds?: Set<number>; iterations?: number; delayMs?: number; stopOnFailure?: boolean }
+  ) => Promise<CollectionRunResult[]>
 }
 
 const replaceVariables = (text: string, variables: Record<string, string>): string => {
@@ -349,11 +412,28 @@ export const useDataStore = create<DataState>()(
         logs: [],
         expandedItems: {},
 
+        lastRunCollectionId: null,
+        lastRunResults: [],
+        responseSnapshots: {},
+
         presenceByRequest: {},
         locksByRequest: {},
         requestVersions: {},
         requestComments: {},
         activities: [],
+
+        confluenceEnabled: false,
+
+        fetchConfluenceEnabled: async () => {
+          try {
+            const res = await apiClient.get('/api/v1/admin/confluence/config')
+            if (res.status === 200) {
+              set({ confluenceEnabled: (res.data as any).confluence_enabled === 'true' })
+            }
+          } catch {
+            set({ confluenceEnabled: false })
+          }
+        },
 
         searchableRequests: [],
         searchableCollections: [],
@@ -602,7 +682,9 @@ export const useDataStore = create<DataState>()(
               auth_config: (normalizedRequest.auth_config as AuthConfig) || { type: 'No Auth' },
               pre_request_script: normalizedRequest.pre_request_script || '',
               post_request_script: normalizedRequest.post_request_script || '',
-              field_validations: (normalizedRequest.field_validations as FieldValidations) || { headers: {}, body: {} }
+              field_validations: (normalizedRequest.field_validations as FieldValidations) || { headers: {}, body: {} },
+              extraction_rules: (normalizedRequest as any).extraction_rules || [],
+              schema_assertions: (normalizedRequest as any).schema_assertions || []
             },
             lastResponse: null,
             isSending: false,
@@ -632,7 +714,9 @@ export const useDataStore = create<DataState>()(
               auth_config: (initialData.auth_config as AuthConfig) || { type: 'No Auth' },
               pre_request_script: initialData.pre_request_script || '',
               post_request_script: initialData.post_request_script || '',
-              field_validations: { headers: {}, body: {} }
+              field_validations: { headers: {}, body: {} },
+              extraction_rules: (initialData as any).extraction_rules || [],
+              schema_assertions: (initialData as any).schema_assertions || []
             }, lastResponse: null,
             isSending: false,
             isDirty: true,
@@ -668,7 +752,9 @@ export const useDataStore = create<DataState>()(
               auth_config: { type: 'No Auth' },
               pre_request_script: '',
               post_request_script: '',
-              field_validations: { headers: {}, body: {} }
+              field_validations: { headers: {}, body: {} },
+              extraction_rules: [],
+              schema_assertions: []
             },
             lastResponse: {
               status: example.response_status,
@@ -703,6 +789,47 @@ export const useDataStore = create<DataState>()(
           set({ tabs: newTabs, activeTabId: newActiveTabId })
         },
 
+        forceCloseTab: (requestId) => {
+          const { tabs, activeTabId } = get()
+          const newTabs = tabs.filter((t) => t.requestId !== requestId)
+          let newActiveTabId = activeTabId
+          if (activeTabId === requestId) {
+            newActiveTabId = newTabs.length > 0 ? newTabs[newTabs.length - 1].requestId : null
+          }
+          set({ tabs: newTabs, activeTabId: newActiveTabId })
+        },
+
+        closeOtherTabs: (keepRequestId) => {
+          const { tabs } = get()
+          const newTabs = tabs.filter((t) => t.requestId === keepRequestId)
+          set({ tabs: newTabs, activeTabId: keepRequestId })
+        },
+
+        closeAllTabs: () => {
+          set({ tabs: [], activeTabId: null })
+        },
+
+        forceCloseAllTabs: () => {
+          set({ tabs: [], activeTabId: null })
+        },
+
+        duplicateTab: (requestId) => {
+          const { tabs } = get()
+          const tab = tabs.find((t) => t.requestId === requestId)
+          if (!tab) return
+          const draftId = `draft-${Date.now()}`
+          const newTab = {
+            ...tab,
+            requestId: draftId,
+            name: `${tab.name} (Copy)`,
+            isDirty: true,
+            workingRequest: { ...tab.workingRequest }
+          }
+          const idx = tabs.findIndex((t) => t.requestId === requestId)
+          const newTabs = [...tabs.slice(0, idx + 1), newTab, ...tabs.slice(idx + 1)]
+          set({ tabs: newTabs, activeTabId: draftId })
+        },
+
         setWorkingRequest: (update) => {
           const { activeTabId, tabs } = get()
           if (!activeTabId) return
@@ -723,6 +850,7 @@ export const useDataStore = create<DataState>()(
                   'raw-text': 'text/plain',
                   'x-www-form-urlencoded': 'application/x-www-form-urlencoded',
                   'form-data': null, // Browser/Executor will set boundary
+                  'graphql': 'application/json',
                   none: null,
                   binary: 'application/octet-stream'
                 }
@@ -895,7 +1023,136 @@ export const useDataStore = create<DataState>()(
             }
           } catch (err: unknown) {
             const message = err instanceof Error ? err.message : 'Invalid JSON'
-            toast.error('Import Error: ' + message)
+            toast.error(message.toLowerCase().includes('json') ? 'Invalid JSON — please check your file and try again.' : 'Import failed. Please try again.')
+          }
+        },
+
+        importOpenAPI: async (jsonContent: string, mode: 'new' | 'overwrite' = 'new', confirmName?: string) => {
+          const { activeTeamId } = get()
+          if (!activeTeamId) return
+
+          try {
+            const data = JSON.parse(jsonContent)
+            let url = `/api/v1/teams/${activeTeamId}/import-openapi?mode=${mode}`
+            if (mode === 'overwrite' && confirmName) {
+              url += `&confirm_name=${encodeURIComponent(confirmName)}`
+            }
+
+            const response = await apiClient.post(url, data)
+            if (response.status === 201 || response.status === 200) {
+              await get().fetchCollections(activeTeamId)
+              const count = (response.data as any)?.request_count
+              toast.success(`OpenAPI imported — ${count ?? 0} endpoint${count !== 1 ? 's' : ''} added`)
+            } else {
+              toast.error('Failed to import OpenAPI spec')
+            }
+          } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : 'Invalid JSON'
+            toast.error(message.toLowerCase().includes('json') ? 'Invalid JSON — please check your file and try again.' : 'Import failed. Please try again.')
+          }
+        },
+
+        importInsomnia: async (jsonContent: string, mode: 'new' | 'overwrite' = 'new', confirmName?: string) => {
+          const { activeTeamId } = get()
+          if (!activeTeamId) return
+
+          try {
+            const insomnia = JSON.parse(jsonContent)
+            if (!insomnia.resources || insomnia.__export_format !== 4) {
+              toast.error('Not a valid Insomnia v4 export file.')
+              return
+            }
+
+            const resources: any[] = insomnia.resources
+            const workspace = resources.find((r) => r._type === 'workspace')
+            const collectionName = workspace?.name || 'Insomnia Import'
+
+            // Build folder map: id → { name, parentId }
+            const folderMap: Record<string, { name: string; parentId: string }> = {}
+            for (const r of resources) {
+              if (r._type === 'request_group' && typeof r._id === 'string' && typeof r.name === 'string') {
+                folderMap[r._id] = { name: r.name, parentId: typeof r.parentId === 'string' ? r.parentId : '' }
+              }
+            }
+
+            // Convert a single Insomnia request → Postman v2.1 item
+            const convertRequest = (r: any): any => {
+              const headers = (r.headers || []).map((h: any) => ({ key: h.name, value: h.value, disabled: !h.enabled }))
+              let body: any = { mode: 'raw', raw: '' }
+              if (r.body) {
+                const mime = r.body.mimeType || ''
+                if (mime.includes('json')) {
+                  body = { mode: 'raw', raw: r.body.text || '', options: { raw: { language: 'json' } } }
+                } else if (mime.includes('x-www-form-urlencoded')) {
+                  body = { mode: 'urlencoded', urlencoded: (r.body.params || []).map((p: any) => ({ key: p.name, value: p.value, disabled: !p.enabled })) }
+                } else if (mime.includes('form-data') || mime.includes('multipart')) {
+                  body = { mode: 'formdata', formdata: (r.body.params || []).map((p: any) => ({ key: p.name, value: p.value, disabled: !p.enabled })) }
+                } else if (r.body.text) {
+                  body = { mode: 'raw', raw: r.body.text }
+                }
+              }
+
+              let auth: any = { type: 'noauth' }
+              if (r.authentication?.type === 'bearer') {
+                auth = { type: 'bearer', bearer: [{ key: 'token', value: r.authentication.token || '' }] }
+              } else if (r.authentication?.type === 'basic') {
+                auth = { type: 'basic', basic: [{ key: 'username', value: r.authentication.username || '' }, { key: 'password', value: r.authentication.password || '' }] }
+              } else if (r.authentication?.type === 'apikey') {
+                auth = { type: 'apikey', apikey: [{ key: 'key', value: r.authentication.key || '' }, { key: 'value', value: r.authentication.value || '' }] }
+              }
+
+              return {
+                name: r.name,
+                request: {
+                  method: (r.method || 'GET').toUpperCase(),
+                  url: { raw: r.url || '' },
+                  header: headers,
+                  body,
+                  auth,
+                  description: r.description || '',
+                },
+              }
+            }
+
+            // Build Postman v2.1 structure: folders → items recursively
+            const MAX_DEPTH = 20
+            const buildItems = (parentId: string, depth = 0): any[] => {
+              if (depth >= MAX_DEPTH) return []
+              const items: any[] = []
+              for (const [fId, f] of Object.entries(folderMap)) {
+                if (f.parentId === parentId) {
+                  items.push({ name: f.name, item: buildItems(fId, depth + 1) })
+                }
+              }
+              for (const r of resources) {
+                if (r._type === 'request' && typeof r.parentId === 'string' && r.parentId === parentId) {
+                  items.push(convertRequest(r))
+                }
+              }
+              return items
+            }
+
+            const postman = {
+              info: {
+                name: collectionName,
+                schema: 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json',
+              },
+              item: buildItems(workspace?._id || ''),
+            }
+
+            let url = `/api/v1/teams/${activeTeamId}/import?mode=${mode}`
+            if (mode === 'overwrite' && confirmName) url += `&confirm_name=${encodeURIComponent(confirmName)}`
+
+            const response = await apiClient.post(url, postman)
+            if (response.status === 201 || response.status === 200) {
+              await get().fetchCollections(activeTeamId)
+              toast.success(mode === 'overwrite' ? 'Collection overwritten successfully' : `Insomnia collection "${collectionName}" imported successfully`)
+            } else {
+              toast.error('Failed to import Insomnia collection')
+            }
+          } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : 'Invalid JSON'
+            toast.error(message.toLowerCase().includes('json') ? 'Invalid JSON — please check your file and try again.' : 'Import failed. Please try again.')
           }
         },
 
@@ -954,7 +1211,9 @@ export const useDataStore = create<DataState>()(
                         auth_config: (normalizedReq.auth_config as AuthConfig) || { type: 'No Auth' },
                         pre_request_script: normalizedReq.pre_request_script || '',
                         post_request_script: normalizedReq.post_request_script || '',
-                        field_validations: (normalizedReq.field_validations as FieldValidations) || { headers: {}, body: {} }
+                        field_validations: (normalizedReq.field_validations as FieldValidations) || { headers: {}, body: {} },
+                        extraction_rules: (normalizedReq as any).extraction_rules || [],
+                        schema_assertions: (normalizedReq as any).schema_assertions || []
                       },
                       isDirty: false
                     }
@@ -977,7 +1236,9 @@ export const useDataStore = create<DataState>()(
                     auth_config: (normalizedReq.auth_config as AuthConfig) || { type: 'No Auth' },
                     pre_request_script: normalizedReq.pre_request_script || '',
                     post_request_script: normalizedReq.post_request_script || '',
-                    field_validations: (normalizedReq.field_validations as FieldValidations) || { headers: {}, body: {} }
+                    field_validations: (normalizedReq.field_validations as FieldValidations) || { headers: {}, body: {} },
+                    extraction_rules: (normalizedReq as any).extraction_rules || [],
+                    schema_assertions: (normalizedReq as any).schema_assertions || []
                   },
                   lastResponse: null,
                   isSending: false,
@@ -1312,9 +1573,130 @@ export const useDataStore = create<DataState>()(
 
         exportCollection: async (id: number) => {
           try {
-            const res = await apiClient.get<ApiRequest[]>(`/api/v1/collections/${id}/requests`)
+            await get().fetchCollectionContents(id)
             const collection = get().collections.find((c) => c.id === id)
             if (!collection) return
+
+            const { foldersByCollection, requestsByCollection, requestsByFolder } = get()
+            const allFolders = foldersByCollection[id] || []
+            const rootRequests = requestsByCollection[id] || []
+
+            const buildPostmanUrl = (rawUrl: string) => {
+              try {
+                const u = new URL(rawUrl)
+                return {
+                  raw: rawUrl,
+                  protocol: u.protocol.replace(':', ''),
+                  host: u.hostname.split('.'),
+                  port: u.port || undefined,
+                  path: u.pathname.split('/').filter(Boolean),
+                  query: u.search
+                    ? [...u.searchParams.entries()].map(([key, value]) => ({ key, value }))
+                    : undefined
+                }
+              } catch {
+                return { raw: rawUrl }
+              }
+            }
+
+            const buildPostmanAuth = (authConfig: Record<string, unknown>) => {
+              if (!authConfig || authConfig.type === 'No Auth') return undefined
+              const type = String(authConfig.type || '').toLowerCase()
+              if (type === 'bearer' || type === 'bearer token') {
+                return { type: 'bearer', bearer: [{ key: 'token', value: String(authConfig.token || ''), type: 'string' }] }
+              }
+              if (type === 'basic') {
+                return {
+                  type: 'basic',
+                  basic: [
+                    { key: 'username', value: String(authConfig.username || ''), type: 'string' },
+                    { key: 'password', value: String(authConfig.password || ''), type: 'string' }
+                  ]
+                }
+              }
+              if (type === 'api key' || type === 'apikey') {
+                return {
+                  type: 'apikey',
+                  apikey: [
+                    { key: 'key', value: String(authConfig.key || ''), type: 'string' },
+                    { key: 'value', value: String(authConfig.value || ''), type: 'string' },
+                    { key: 'in', value: String(authConfig.in || 'header'), type: 'string' }
+                  ]
+                }
+              }
+              return undefined
+            }
+
+            const buildPostmanBody = (req: ApiRequest) => {
+              const bodyType = req.body_type || 'raw-json'
+              if (bodyType === 'none') return undefined
+              if (bodyType === 'raw-json' || bodyType === 'raw') {
+                const raw = typeof req.body === 'string' ? req.body : JSON.stringify(req.body, null, 2)
+                return { mode: 'raw', raw, options: { raw: { language: 'json' } } }
+              }
+              if (bodyType === 'form-data') {
+                const formdata = Array.isArray(req.body)
+                  ? req.body.map((item: any) => ({ key: item.key, value: item.value, type: 'text' }))
+                  : []
+                return { mode: 'formdata', formdata }
+              }
+              if (bodyType === 'x-www-form-urlencoded') {
+                const urlencoded = Array.isArray(req.body)
+                  ? req.body.map((item: any) => ({ key: item.key, value: item.value }))
+                  : []
+                return { mode: 'urlencoded', urlencoded }
+              }
+              return { mode: 'raw', raw: typeof req.body === 'string' ? req.body : JSON.stringify(req.body) }
+            }
+
+            const buildPostmanEvents = (req: ApiRequest) => {
+              const events: { listen: string; script: { type: string; exec: string[] } }[] = []
+              if (req.pre_request_script?.trim()) {
+                events.push({
+                  listen: 'prerequest',
+                  script: { type: 'text/javascript', exec: req.pre_request_script.split('\n') }
+                })
+              }
+              if (req.post_request_script?.trim()) {
+                events.push({
+                  listen: 'test',
+                  script: { type: 'text/javascript', exec: req.post_request_script.split('\n') }
+                })
+              }
+              return events.length > 0 ? events : undefined
+            }
+
+            const requestToPostmanItem = (req: ApiRequest) => {
+              const auth = buildPostmanAuth(req.auth_config as Record<string, unknown>)
+              const body = buildPostmanBody(req)
+              const event = buildPostmanEvents(req)
+              const item: Record<string, unknown> = {
+                name: req.name,
+                request: {
+                  method: req.method,
+                  header: Object.entries(req.headers || {}).map(([key, value]) => ({ key, value })),
+                  url: buildPostmanUrl(req.url),
+                  description: req.description || undefined,
+                  ...(auth && { auth }),
+                  ...(body && { body })
+                }
+              }
+              if (event) item.event = event
+              return item
+            }
+
+            const buildFolderItems = (parentId: number | null): unknown[] => {
+              const folders = allFolders.filter((f) => f.parent_folder_id === parentId)
+              const requests = parentId === null ? rootRequests : (requestsByFolder[parentId] || [])
+
+              const folderItems = folders.map((folder) => ({
+                name: folder.name,
+                item: buildFolderItems(folder.id)
+              }))
+
+              const requestItems = requests.map(requestToPostmanItem)
+              return [...folderItems, ...requestItems]
+            }
 
             const exportData = {
               info: {
@@ -1322,28 +1704,17 @@ export const useDataStore = create<DataState>()(
                 description: collection.description,
                 schema: 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json'
               },
-              item: res.data.map((r) => ({
-                name: r.name,
-                request: {
-                  method: r.method,
-                  url: r.url,
-                  header: Object.entries(r.headers || {}).map(([key, value]) => ({ key, value })),
-                  body: {
-                    mode: 'raw',
-                    raw: typeof r.body === 'string' ? r.body : JSON.stringify(r.body)
-                  }
-                }
-              }))
+              item: buildFolderItems(null)
             }
 
             const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' })
             const url = URL.createObjectURL(blob)
             const a = document.createElement('a')
             a.href = url
-            a.download = `${collection.name}.wapbolt_collection.json`
+            a.download = `${collection.name}.postman_collection.json`
             a.click()
             URL.revokeObjectURL(url)
-            toast.success('Collection exported successfully')
+            toast.success('Collection exported as Postman v2.1')
           } catch (err) {
             toast.error('Failed to export collection')
           }
@@ -1502,6 +1873,29 @@ export const useDataStore = create<DataState>()(
             }))
             : replaceVariables(workingRequest.body, vars)
 
+          // GraphQL: override method to POST and serialize body as { query, variables, operationName }
+          const isGraphQL = workingRequest.body_type === 'graphql'
+          const finalMethod = isGraphQL ? 'POST' : workingRequest.method
+          const finalBodyType = isGraphQL ? 'raw-json' : workingRequest.body_type
+          const finalBody: any = (() => {
+            if (!isGraphQL) return substitutedBody
+            try {
+              const gql = JSON.parse(typeof substitutedBody === 'string' ? substitutedBody : '{}')
+              const variables = (() => {
+                try { return JSON.parse(gql.variables || '{}') } catch { return {} }
+              })()
+              const payload: Record<string, unknown> = { query: gql.query || '' }
+              if (Object.keys(variables).length > 0) payload.variables = variables
+              if (gql.operationName) payload.operationName = gql.operationName
+              return JSON.stringify(payload)
+            } catch {
+              return JSON.stringify({ query: '' })
+            }
+          })()
+          if (isGraphQL && !substitutedHeaders['Content-Type']) {
+            substitutedHeaders['Content-Type'] = 'application/json'
+          }
+
           // Inject Auth into URL if type is API Key and addTo is query
           if (
             workingRequest.auth_config.type === 'API Key' &&
@@ -1529,21 +1923,21 @@ export const useDataStore = create<DataState>()(
 
           try {
             const response = await apiClient.executeRequest(
-              workingRequest.method,
+              finalMethod,
               substitutedUrl,
               substitutedHeaders,
-              substitutedBody,
-              workingRequest.body_type
+              finalBody,
+              finalBodyType
             )
 
             // Log network activity to console
-            addLog('network', `${workingRequest.method} ${substitutedUrl}`, {
+            addLog('network', `${finalMethod} ${substitutedUrl}`, {
               request: {
-                method: workingRequest.method,
+                method: finalMethod,
                 url: substitutedUrl,
                 headers: substitutedHeaders,
-                body: substitutedBody,
-                body_type: workingRequest.body_type
+                body: finalBody,
+                body_type: finalBodyType
               },
               response: {
                 status: response.status,
@@ -1552,6 +1946,64 @@ export const useDataStore = create<DataState>()(
                 data: response.data
               }
             })
+
+            // --- 2a. Variable Extraction Rules ---
+            const extractionRules = workingRequest.extraction_rules || []
+            if (extractionRules.length > 0) {
+              for (const rule of extractionRules) {
+                if (!rule.enabled || !rule.variableName || !rule.jsonPath) continue
+                if (!isSafeJsonPath(rule.jsonPath)) {
+                  addLog('warn', `[Extract] Blocked unsafe path: "${rule.jsonPath}"`)
+                  continue
+                }
+                try {
+                  const extracted = _.get(response.data, rule.jsonPath)
+                  if (extracted !== undefined) {
+                    const strVal = String(extracted)
+                    vars[rule.variableName] = strVal
+                    updateActiveEnvironmentVariable(rule.variableName, strVal)
+                    addLog('info', `[Extract] ${rule.variableName} = ${strVal}`)
+                  } else {
+                    addLog('warn', `[Extract] Path "${rule.jsonPath}" returned undefined`)
+                  }
+                } catch (err: unknown) {
+                  addLog('error', `[Extract] Failed for "${rule.jsonPath}": ${err instanceof Error ? err.message : String(err)}`)
+                }
+              }
+            }
+
+            // --- 2b. Schema Assertions ---
+            const schemaAssertions = workingRequest.schema_assertions || []
+            const schemaTestResults: { name: string; status: 'passed' | 'failed'; error?: string }[] = []
+            if (schemaAssertions.length > 0) {
+              for (const assertion of schemaAssertions) {
+                if (!assertion.enabled) continue
+                try {
+                  const schema = JSON.parse(assertion.schema)
+                  const validate = ajv.compile(schema)
+                  const valid = validate(response.data)
+                  if (valid) {
+                    schemaTestResults.push({ name: assertion.name || 'Schema Assertion', status: 'passed' })
+                  } else {
+                    const errors = (validate.errors || [])
+                      .map((e) => `${e.dataPath || '(root)'} ${e.message}`)
+                      .join('; ')
+                    schemaTestResults.push({ name: assertion.name || 'Schema Assertion', status: 'failed', error: errors })
+                  }
+                } catch (err: unknown) {
+                  schemaTestResults.push({
+                    name: assertion.name || 'Schema Assertion',
+                    status: 'failed',
+                    error: `Invalid schema: ${err instanceof Error ? err.message : String(err)}`
+                  })
+                }
+              }
+              if (schemaTestResults.some((r) => r.status === 'failed')) {
+                schemaTestResults.filter((r) => r.status === 'failed').forEach((r) =>
+                  toast.error(`Schema Failed: ${r.name} — ${r.error}`)
+                )
+              }
+            }
 
             // --- 2. Post-request Script (Tests) Execution ---
             if (workingRequest.post_request_script) {
@@ -1690,10 +2142,11 @@ export const useDataStore = create<DataState>()(
                 )
                 await fn(wap, wap, moment, _, mockConsole)
 
-                // Update tab with results
+                // Update tab with results (merge script results + schema assertions)
+                const allTestResults = [...testResults, ...schemaTestResults]
                 set((state) => ({
                   tabs: state.tabs.map((t) =>
-                    t.requestId === activeTabId ? { ...t, testResults } : t
+                    t.requestId === activeTabId ? { ...t, testResults: allTestResults } : t
                   )
                 }))
 
@@ -1705,6 +2158,13 @@ export const useDataStore = create<DataState>()(
                 const errorMessage = err instanceof Error ? err.message : String(err)
                 toast.error(`Test Script Error: ${errorMessage}`)
               }
+            } else if (schemaTestResults.length > 0) {
+              // No post-request script but schema assertions exist
+              set((state) => ({
+                tabs: state.tabs.map((t) =>
+                  t.requestId === activeTabId ? { ...t, testResults: schemaTestResults } : t
+                )
+              }))
             }
 
             // Update tab with response
@@ -1838,6 +2298,40 @@ export const useDataStore = create<DataState>()(
           }
         },
 
+        saveResponseSnapshot: (requestId, label) => {
+          const { tabs, responseSnapshots } = get()
+          const tab = tabs.find((t) => t.requestId === requestId)
+          if (!tab?.lastResponse) {
+            toast.error('No response to snapshot')
+            return
+          }
+          const MAX_SNAPSHOTS = 10
+          const key = String(requestId)
+          const existing = responseSnapshots[key] || []
+          if (existing.length >= MAX_SNAPSHOTS) {
+            toast.error(`Max ${MAX_SNAPSHOTS} snapshots per request`)
+            return
+          }
+          const snapshot: ResponseSnapshot = {
+            id: crypto.randomUUID(),
+            label: label || `Snapshot ${existing.length + 1} — ${tab.lastResponse.status}`,
+            timestamp: Date.now(),
+            status: tab.lastResponse.status,
+            timing: tab.lastResponse.timing,
+            data: tab.lastResponse.data,
+            headers: tab.lastResponse.headers
+          }
+          set({ responseSnapshots: { ...responseSnapshots, [key]: [...existing, snapshot] } })
+          toast.success('Snapshot saved')
+        },
+
+        deleteResponseSnapshot: (requestId, snapshotId) => {
+          const { responseSnapshots } = get()
+          const key = String(requestId)
+          const existing = responseSnapshots[key] || []
+          set({ responseSnapshots: { ...responseSnapshots, [key]: existing.filter((s) => s.id !== snapshotId) } })
+        },
+
         deleteExample: async (id: number) => {
           try {
             const res = await apiClient.delete(`/api/v1/examples/${id}`)
@@ -1874,26 +2368,21 @@ export const useDataStore = create<DataState>()(
           }
         },
 
-        runCollection: async (collectionId, onProgress) => {
+        runCollection: async (collectionId, onProgress, options = {}) => {
+          const { selectedIds, iterations = 1, delayMs = 0, stopOnFailure = false } = options
           const { fetchCollectionContents, environments, activeEnvironmentId, updateActiveEnvironmentVariable } = get()
 
-          // Ensure we have the latest content
           await fetchCollectionContents(collectionId)
 
           const { requestsByCollection, requestsByFolder, foldersByCollection } = get()
 
-          // Flatten all requests (recursive)
           const allRequests: ApiRequest[] = []
-
-          // Add root requests
           const rootRequests = requestsByCollection[collectionId] || []
           allRequests.push(...rootRequests)
 
-          // Add folder requests (recursive helper)
           const addFolderRequests = (folderId: number) => {
             const folderRequests = requestsByFolder[folderId] || []
             allRequests.push(...folderRequests)
-
             const subfolders = (foldersByCollection[collectionId] || []).filter(f => f.parent_folder_id === folderId)
             subfolders.forEach(f => addFolderRequests(f.id))
           }
@@ -1901,7 +2390,11 @@ export const useDataStore = create<DataState>()(
           const rootFolders = (foldersByCollection[collectionId] || []).filter(f => f.parent_folder_id === null)
           rootFolders.forEach(f => addFolderRequests(f.id))
 
-          if (allRequests.length === 0) {
+          const requestsToRun = selectedIds && selectedIds.size > 0
+            ? allRequests.filter(r => selectedIds.has(r.id))
+            : allRequests
+
+          if (requestsToRun.length === 0) {
             toast.error('No requests found in this collection')
             return []
           }
@@ -1910,8 +2403,9 @@ export const useDataStore = create<DataState>()(
           const vars = { ...(activeEnv?.variables || {}) }
           const results: CollectionRunResult[] = []
 
-          // Sequential execution
-          for (const req of allRequests) {
+          let shouldStop = false
+          for (let iter = 0; iter < iterations && !shouldStop; iter++) {
+          for (const req of requestsToRun) {
             const normalizedReq = normalizeRequest(req)
             const workingRequest = {
               method: normalizedReq.method,
@@ -1920,7 +2414,9 @@ export const useDataStore = create<DataState>()(
               body: normalizedReq.body as string,
               auth_config: (normalizedReq.auth_config as AuthConfig) || { type: 'No Auth' },
               pre_request_script: normalizedReq.pre_request_script || '',
-              post_request_script: normalizedReq.post_request_script || ''
+              post_request_script: normalizedReq.post_request_script || '',
+              extraction_rules: (normalizedReq as any).extraction_rules || [],
+              schema_assertions: (normalizedReq as any).schema_assertions || []
             }
 
             // 1. Pre-request Script
@@ -1983,6 +2479,40 @@ export const useDataStore = create<DataState>()(
               )
               const time = Date.now() - start
 
+              // 2a. Variable Extraction Rules (Runner)
+              for (const rule of (workingRequest.extraction_rules || [])) {
+                if (!rule.enabled || !rule.variableName || !rule.jsonPath) continue
+                if (!isSafeJsonPath(rule.jsonPath)) continue
+                try {
+                  const extracted = _.get(response.data, rule.jsonPath)
+                  if (extracted !== undefined) {
+                    vars[rule.variableName] = String(extracted)
+                    updateActiveEnvironmentVariable(rule.variableName, String(extracted))
+                  }
+                } catch { /* ignore */ }
+              }
+
+              // 2b. Schema Assertions (Runner)
+              const runnerSchemaResults: { name: string; status: 'passed' | 'failed'; error?: string }[] = []
+              if ((workingRequest.schema_assertions || []).length > 0) {
+                for (const assertion of (workingRequest.schema_assertions || [])) {
+                  if (!assertion.enabled) continue
+                  try {
+                    const schema = JSON.parse(assertion.schema)
+                    const validate = ajv.compile(schema)
+                    const valid = validate(response.data)
+                    if (valid) {
+                      runnerSchemaResults.push({ name: assertion.name || 'Schema Assertion', status: 'passed' })
+                    } else {
+                      const errors = (validate.errors || []).map((e) => `${e.dataPath || '(root)'} ${e.message}`).join('; ')
+                      runnerSchemaResults.push({ name: assertion.name || 'Schema Assertion', status: 'failed', error: errors })
+                    }
+                  } catch (err: unknown) {
+                    runnerSchemaResults.push({ name: assertion.name || 'Schema Assertion', status: 'failed', error: `Invalid schema: ${err instanceof Error ? err.message : String(err)}` })
+                  }
+                }
+              }
+
               // 2. Post-request Script (Tests)
               const testResults: { name: string; status: 'passed' | 'failed'; error?: string }[] = []
               if (workingRequest.post_request_script) {
@@ -2003,6 +2533,32 @@ export const useDataStore = create<DataState>()(
                     test: (name: string, fn: () => void) => {
                       try { fn(); testResults.push({ name, status: 'passed' }) }
                       catch (err: any) { testResults.push({ name, status: 'failed', error: err.message || String(err) }) }
+                    },
+                    environment: {
+                      set: (key: string, val: unknown) => {
+                        const strVal = String(val)
+                        vars[key] = strVal
+                        updateActiveEnvironmentVariable(key, strVal)
+                      },
+                      get: (key: string) => vars[key]
+                    },
+                    collectionVariables: {
+                      set: (key: string, val: unknown) => {
+                        const strVal = String(val)
+                        vars[key] = strVal
+                        updateActiveEnvironmentVariable(key, strVal)
+                      },
+                      get: (key: string) => vars[key]
+                    },
+                    set: (key: string, val: unknown) => {
+                      const strVal = String(val)
+                      vars[key] = strVal
+                      updateActiveEnvironmentVariable(key, strVal)
+                    },
+                    setEnv: (key: string, val: unknown) => {
+                      const strVal = String(val)
+                      vars[key] = strVal
+                      updateActiveEnvironmentVariable(key, strVal)
                     }
                   }
                   const AsyncFunction = Object.getPrototypeOf(async function () { }).constructor
@@ -2020,7 +2576,7 @@ export const useDataStore = create<DataState>()(
                 url: substitutedUrl,
                 status: response.status,
                 time,
-                testResults
+                testResults: [...testResults, ...runnerSchemaResults]
               }
               results.push(result)
               if (onProgress) onProgress(result)
@@ -2037,6 +2593,10 @@ export const useDataStore = create<DataState>()(
                 test_results: testResults
               }).catch(err => console.error('Failed to save runner history:', err))
 
+              const isFailed = result.status >= 400 ||
+                (result.testResults ?? []).some((t) => t.status === 'failed')
+              if (stopOnFailure && isFailed) { shouldStop = true; break }
+
             } catch (err: any) {
               const result: CollectionRunResult = {
                 requestId: req.id,
@@ -2049,10 +2609,17 @@ export const useDataStore = create<DataState>()(
               }
               results.push(result)
               if (onProgress) onProgress(result)
+              if (stopOnFailure) { shouldStop = true; break }
+            }
+
+            if (delayMs > 0 && !shouldStop) {
+              await new Promise<void>((resolve) => setTimeout(resolve, delayMs))
             }
           }
+          } // end outer iterations loop
 
-          toast.success(`Run completed for ${collectionId}`)
+          set({ lastRunCollectionId: collectionId, lastRunResults: results })
+          toast.success(`Run completed — ${results.length} request${results.length !== 1 ? 's' : ''} executed`)
           return results
         }
       }),

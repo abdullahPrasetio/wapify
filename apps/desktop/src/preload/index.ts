@@ -42,6 +42,9 @@ const api = {
   reloadApp: (): void => {
     ipcRenderer.send('wapbolt:reload')
   },
+  openFileDialog: (): Promise<{ path: string; name: string; size: number } | null> => {
+    return ipcRenderer.invoke('wapbolt:open-file-dialog')
+  },
   parseCurl: (curlCommand: string): Promise<any> => {
     return ipcRenderer.invoke('wapbolt:parse-curl', curlCommand)
   },

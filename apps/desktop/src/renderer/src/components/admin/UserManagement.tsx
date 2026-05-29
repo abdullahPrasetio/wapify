@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { apiClient } from '../../api/client'
-import { Plus, Search, Trash2, Shield, User as UserIcon, X, Loader2, Building2 } from 'lucide-react'
+import { Plus, Search, Trash2, Shield, User as UserIcon, X, Loader2, Building2, Crown } from 'lucide-react'
 import type { User as UserType, Team } from '../../types'
 import { toast } from 'sonner'
 import * as Dialog from '@radix-ui/react-dialog'
@@ -45,6 +45,21 @@ export const UserManagement = (): React.JSX.Element => {
       }
     } catch {
       // silent
+    }
+  }
+
+  const handleTogglePremium = async (user: UserType): Promise<void> => {
+    const next = !user.is_premium
+    try {
+      const response = await apiClient.put(`/api/v1/admin/users/${user.id}/premium`, {
+        is_premium: next
+      })
+      if (response.status === 200) {
+        toast.success(next ? `${user.name} marked as Premium` : `${user.name} premium removed`)
+        fetchUsers()
+      }
+    } catch {
+      toast.error('Failed to update premium status')
     }
   }
 
@@ -194,7 +209,7 @@ export const UserManagement = (): React.JSX.Element => {
                         onChange={(e) =>
                           setFormData({ ...formData, team_id: Number(e.target.value) })
                         }
-                        className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text focus:outline-none focus:border-primary"
+                        className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text focus:outline-none focus:border-primary cursor-pointer"
                       >
                         <option value={0}>No Team Assignment</option>
                         {teams.map((team) => (
@@ -212,7 +227,7 @@ export const UserManagement = (): React.JSX.Element => {
                         value={formData.role}
                         onChange={(e) => setFormData({ ...formData, role: e.target.value })}
                         disabled={formData.team_id === 0}
-                        className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text focus:outline-none focus:border-primary disabled:opacity-50"
+                        className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text focus:outline-none focus:border-primary disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                       >
                         <option value="Admin">Admin</option>
                         <option value="Editor">Editor</option>
@@ -296,6 +311,7 @@ export const UserManagement = (): React.JSX.Element => {
                   <th className="px-6 py-4">User</th>
                   <th className="px-6 py-4">Status</th>
                   <th className="px-6 py-4">Role</th>
+                  <th className="px-6 py-4">Premium</th>
                   <th className="px-6 py-4 text-right">Actions</th>
                 </tr>
               </thead>
@@ -327,6 +343,20 @@ export const UserManagement = (): React.JSX.Element => {
                       ) : (
                         <span className="text-xs text-text">Standard User</span>
                       )}
+                    </td>
+                    <td className="px-6 py-4">
+                      <button
+                        onClick={() => handleTogglePremium(user)}
+                        title={user.is_premium ? 'Remove premium' : 'Mark as premium'}
+                        className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full transition-colors ${
+                          user.is_premium
+                            ? 'bg-yellow-500/15 text-yellow-400 hover:bg-yellow-500/25'
+                            : 'bg-border/40 text-muted hover:bg-border hover:text-text'
+                        }`}
+                      >
+                        <Crown size={12} />
+                        {user.is_premium ? 'Premium' : 'Regular'}
+                      </button>
                     </td>
                     <td className="px-6 py-4 text-right">
                       <button

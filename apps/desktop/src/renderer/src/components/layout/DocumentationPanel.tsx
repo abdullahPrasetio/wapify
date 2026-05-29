@@ -288,7 +288,7 @@ export const DocumentationPanel: React.FC<DocumentationPanelProps> = ({
   collectionName,
   onClose
 }) => {
-  const { environments, activeEnvironmentId, updateEnvironment, openExample, deleteExample } = useDataStore()
+  const { environments, activeEnvironmentId, updateEnvironment, openExample, deleteExample, confluenceEnabled } = useDataStore()
   const { setActiveView } = useAppStore()
   const activeEnv = environments.find((e) => e.id === activeEnvironmentId) ?? null
   const envVars: Record<string, string> = activeEnv?.variables ?? {}
@@ -301,9 +301,6 @@ export const DocumentationPanel: React.FC<DocumentationPanelProps> = ({
   const [settingVar, setSettingVar] = useState<string | null>(null)
   const [isSyncing, setIsSyncing] = useState(false)
   const [showSyncOptions, setShowSyncOptions] = useState(false)
-
-  type SyncContent = 'documentation' | 'openapi' | 'swagger' | 'both'
-  type SyncOrder = 'doc_first' | 'api_first'
 
   useEffect(() => {
     const fetchDocs = async () => {
@@ -393,6 +390,7 @@ export const DocumentationPanel: React.FC<DocumentationPanelProps> = ({
       }
 
       // 3. Get Current Page to get version
+      if (!window.api) { toast.error('Confluence sync requires the Electron desktop app.'); return }
       const pageData = await window.api.getConfluencePage({
         baseUrl: base_url,
         email: confluence_email,
@@ -566,7 +564,10 @@ export const DocumentationPanel: React.FC<DocumentationPanelProps> = ({
           })
         })
 
-        // Footer
+        return html
+      }
+
+      const generateFooter = () => {
         const now = new Date().toLocaleString('id-ID', {
           day: '2-digit',
           month: 'long',
@@ -576,15 +577,13 @@ export const DocumentationPanel: React.FC<DocumentationPanelProps> = ({
           second: '2-digit',
           timeZoneName: 'short'
         })
-
-        html += `<hr/>`
+        let html = `<hr/>`
         html += `<p style="text-align: center; color: #6b7280; font-size: 11px;">`
         html += `<i>Generated using <strong>aplikasi wapbolt by temancode</strong> pada tanggal: ${now}</i>`
         html += `<br/>`
         html += `Landing Page: <a href="https://wapbolt.temancode.my.id">https://wapbolt.temancode.my.id</a> | `
         html += `Support: <a href="https://github.com/abdullahPrasetio">https://github.com/abdullahPrasetio</a>`
         html += `</p>`
-
         return html
       }
 
@@ -611,46 +610,14 @@ export const DocumentationPanel: React.FC<DocumentationPanelProps> = ({
         return html
       }
 
-      // Generate Swagger UI section: upload spec as attachment + embed viewer macro
+      // Generate Swagger UI using "Open API (Swagger) Integration for Confluence" macro
+      // Spec is embedded directly — no attachment upload needed
       const generateSwaggerUIContent = async (): Promise<string> => {
         const spec = await fetchSwaggerSpec()
-        const filename = `${collectionName.replace(/\s+/g, '_')}_openapi.json`
-
-        // Upload spec as page attachment
-        const uploadRes = await window.api.uploadConfluenceAttachment({
-          baseUrl: base_url,
-          email: confluence_email,
-          pat: confluence_pat,
-          apiToken: confluence_api_token,
-          authMethod: auth_method,
-          pageId,
-          filename,
-          content: spec
-        })
-        if (!uploadRes.success) {
-          throw new Error(`Gagal upload attachment: ${uploadRes.error}`)
-        }
-
-        // Try to use "Swagger UI for Confluence" marketplace macro first,
-        // fallback to embedded HTML (works on Server/DC with HTML macro enabled)
         let html = `<h1>Swagger UI - ${docs?.collection_name || collectionName}</h1>`
-        html += `<p>Interactive API documentation. File spec: <strong>${filename}</strong> (attachment halaman ini).</p>`
-
-        // ac:structured-macro for "Swagger UI for Confluence" app (if installed)
-        // This macro is provided by the "Swagger UI for Confluence" app on Marketplace
-        html += `<ac:structured-macro ac:name="swagger-ui" ac:schema-version="1">`
-        html += `<ac:parameter ac:name="url">/download/attachments/${pageId}/${encodeURIComponent(filename)}</ac:parameter>`
+        html += `<ac:structured-macro ac:name="swagger-open-api" ac:schema-version="1">`
+        html += `<ac:plain-text-body><![CDATA[${spec}]]></ac:plain-text-body>`
         html += `</ac:structured-macro>`
-
-        // Fallback note for Cloud users without the app
-        html += `<ac:structured-macro ac:name="info" ac:schema-version="1">`
-        html += `<ac:rich-text-body>`
-        html += `<p><strong>Catatan:</strong> Untuk menampilkan Swagger UI interaktif, pastikan app `
-        html += `<strong>"Swagger UI for Confluence"</strong> sudah terinstall di Confluence (tersedia di Atlassian Marketplace). `
-        html += `File spec OpenAPI sudah di-upload sebagai attachment: <strong>${filename}</strong>.</p>`
-        html += `</ac:rich-text-body>`
-        html += `</ac:structured-macro>`
-
         return html
       }
 
@@ -662,17 +629,18 @@ export const DocumentationPanel: React.FC<DocumentationPanelProps> = ({
       } else if (syncContent === 'swagger') {
         content = await generateSwaggerUIContent()
       } else {
-        // both — order determined by syncOrder
+        // both — documentation + swagger-open-api macro
         const docContent = generateContent()
-        const apiContent = await generateOpenAPIContent()
+        const swaggerContent = await generateSwaggerUIContent()
         const divider = `<hr/><p style="text-align:center;color:#6b7280;font-size:11px;"><em>— Section break —</em></p><hr/>`
         content = syncOrder === 'doc_first'
-          ? docContent + divider + apiContent
-          : apiContent + divider + docContent
+          ? docContent + divider + swaggerContent
+          : swaggerContent + divider + docContent
       }
+      content += generateFooter()
 
       // 5. Update Page
-      const updateRes = await window.api.updateConfluencePage({
+      const updateRes = await window.api!.updateConfluencePage({
         baseUrl: base_url,
         email: confluence_email,
         pat: confluence_pat,
@@ -766,14 +734,16 @@ export const DocumentationPanel: React.FC<DocumentationPanelProps> = ({
               <Code size={13} />
               OpenAPI 3.0
             </button>
-            <button
-              onClick={() => setShowSyncOptions(true)}
-              disabled={isSyncing}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20 hover:bg-blue-500/20 transition-all disabled:opacity-50"
-            >
-              {isSyncing ? <Loader2 size={13} className="animate-spin" /> : <Cloud size={13} />}
-              {isSyncing ? 'Syncing...' : 'Sync to Confluence'}
-            </button>
+            {confluenceEnabled && (
+              <button
+                onClick={() => setShowSyncOptions(true)}
+                disabled={isSyncing}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20 hover:bg-blue-500/20 transition-all disabled:opacity-50"
+              >
+                {isSyncing ? <Loader2 size={13} className="animate-spin" /> : <Cloud size={13} />}
+                {isSyncing ? 'Syncing...' : 'Sync to Confluence'}
+              </button>
+            )}
             <button
               onClick={onClose}
               className="p-1.5 rounded-lg text-muted hover:text-text hover:bg-white/5 transition-colors"
@@ -954,14 +924,14 @@ const ConfluenceSyncOptionsModal: React.FC<{
               {
                 value: 'swagger',
                 label: 'Swagger UI (Interactive)',
-                desc: 'Upload spec sebagai attachment + embed Swagger UI viewer. Butuh app "Swagger UI for Confluence" di Marketplace.',
+                desc: 'Embed OpenAPI spec dengan macro "Open API (Swagger) Integration for Confluence".',
                 badge: 'Requires App'
               },
               {
                 value: 'both',
-                label: 'Documentation + OpenAPI',
-                desc: 'Documentation lengkap + OpenAPI spec dalam satu halaman, bisa pilih urutan',
-                badge: null
+                label: 'Documentation + Swagger UI',
+                desc: 'Documentation lengkap + Swagger UI interaktif dalam satu halaman, bisa pilih urutan.',
+                badge: 'Requires App'
               },
             ] as { value: SyncContent; label: string; desc: string; badge: string | null }[]).map((opt) => (
               <button

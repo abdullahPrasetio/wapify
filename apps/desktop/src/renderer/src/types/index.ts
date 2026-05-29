@@ -12,6 +12,8 @@ export interface User {
   email: string
   name: string
   is_super_admin: boolean
+  is_premium: boolean
+  premium_since: string | null
   created_at: string
   updated_at: string
 }
@@ -82,6 +84,22 @@ export interface RequestExample {
   updated_at: string
 }
 
+// ─── Extraction Rule Types ────────────────────────────────────────────────────
+
+export interface ExtractionRule {
+  id: string
+  variableName: string
+  jsonPath: string
+  enabled: boolean
+}
+
+export interface SchemaAssertion {
+  id: string
+  name: string
+  schema: string
+  enabled: boolean
+}
+
 // ─── Field Validation Types ───────────────────────────────────────────────────
 
 /** Rules that can be applied to a header or body field */
@@ -142,6 +160,8 @@ export interface ApiRequest {
   order_index: number
   pre_request_script: string
   post_request_script: string
+  extraction_rules?: ExtractionRule[]
+  schema_assertions?: SchemaAssertion[]
   created_at: string
   updated_at: string
   examples?: RequestExample[]
@@ -224,12 +244,28 @@ export interface MockEndpoint {
   response_headers: Record<string, string>
   response_body: string
   delay_ms: number
+  delay_max_ms: number
+  error_rate: number
+  error_status_code: number
   is_active: boolean
   evaluation_mode: 'auto' | 'manual'
   active_scenario_id: number | null
   created_at: string
   updated_at: string
   scenarios?: MockScenario[]
+}
+
+export interface MockRequestLog {
+  id: number
+  endpoint_id: number | null
+  collection_id: number | null
+  method: string
+  path: string
+  matched: boolean
+  injected_error: boolean
+  status_code: number
+  latency_ms: number
+  created_at: string
 }
 
 export interface MockScenario {

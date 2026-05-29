@@ -22,6 +22,20 @@ func SetupAuthRoutes(app *fiber.App) {
 	authGroup.Post("/refresh", Refresh)
 	authGroup.Post("/logout", Logout)
 	authGroup.Put("/change-password", middleware.RequireAuth, ChangePassword)
+	authGroup.Get("/me", middleware.RequireAuth, GetCurrentUser)
+}
+
+func GetCurrentUser(c *fiber.Ctx) error {
+	raw, ok := c.Locals("user_id").(float64)
+	if !ok {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Invalid token", "code": "UNAUTHORIZED"})
+	}
+	userID := uint(raw)
+	var user repository.User
+	if err := repository.DB.First(&user, userID).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "User not found"})
+	}
+	return c.JSON(user)
 }
 
 func ChangePassword(c *fiber.Ctx) error {
@@ -115,6 +129,7 @@ func Login(c *fiber.Ctx) error {
 			"email":          user.Email,
 			"name":           user.Name,
 			"is_super_admin": user.IsSuperAdmin,
+			"is_premium":     user.IsPremium,
 		},
 	})
 }
@@ -165,13 +180,14 @@ func Refresh(c *fiber.Ctx) error {
 	}
 
 	return c.JSON(fiber.Map{
-		"token": nt,
+		"token":         nt,
 		"refresh_token": req.RefreshToken,
 		"user": fiber.Map{
 			"id":             user.ID,
 			"email":          user.Email,
 			"name":           user.Name,
 			"is_super_admin": user.IsSuperAdmin,
+			"is_premium":     user.IsPremium,
 		},
 	})
 }

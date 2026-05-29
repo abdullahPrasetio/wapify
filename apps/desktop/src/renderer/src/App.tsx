@@ -3,7 +3,7 @@ import { useAuthStore } from './store/useAuthStore'
 import { AppLayout } from './components/layout/AppLayout'
 import { LoginPage } from './components/auth/LoginPage'
 import { Toaster, toast } from 'sonner'
-import { initWebSocketIntegration } from './api/websocket'
+import { initWebSocketIntegration, wsClient } from './api/websocket'
 import { Key, AlertCircle, RefreshCw } from 'lucide-react'
 import { DonationModal } from './components/modals/DonationModal'
 import { apiClient } from './api/client'
@@ -11,6 +11,41 @@ import { useAppStore } from './store/useAppStore'
 
 // Initialize WebSocket sync logic
 initWebSocketIntegration()
+
+function WsStatusBadge(): React.JSX.Element {
+  const { isAuthenticated } = useAuthStore()
+  const [wsStatus, setWsStatus] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected')
+
+  useEffect(() => {
+    const check = () => {
+      if (wsClient.ws && wsClient.ws.readyState === WebSocket.OPEN) {
+        setWsStatus('connected')
+      } else if (isAuthenticated) {
+        setWsStatus('connecting')
+      } else {
+        setWsStatus('disconnected')
+      }
+    }
+    check()
+    const id = setInterval(check, 500)
+    return () => clearInterval(id)
+  }, [isAuthenticated])
+
+  const label = wsStatus === 'connected' ? 'collaboration connected'
+    : wsStatus === 'connecting' ? 'collaboration connecting'
+    : 'collaboration disconnected'
+
+  return (
+    <span
+      id="ws-status-global"
+      aria-label={label}
+      data-ws-status={wsStatus}
+      style={{ position: 'fixed', bottom: 0, left: 0, fontSize: '1px', opacity: 0.001, pointerEvents: 'none', zIndex: 0, color: 'transparent' }}
+    >
+      {label}
+    </span>
+  )
+}
 
 function App(): React.JSX.Element {
   const { isAuthenticated, logout, rehydrateAuth, isRehydrating } = useAuthStore()
@@ -169,6 +204,7 @@ function App(): React.JSX.Element {
   if (!isAuthenticated) {
     return (
       <>
+        <WsStatusBadge />
         <Toaster position="bottom-right" theme={theme} richColors />
         <LoginPage />
       </>
@@ -177,6 +213,7 @@ function App(): React.JSX.Element {
 
   return (
     <>
+      <WsStatusBadge />
       <Toaster position="bottom-right" theme={theme} richColors />
       <AppLayout />
       <DonationModal />

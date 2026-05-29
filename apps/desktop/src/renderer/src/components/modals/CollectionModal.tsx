@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { X, Folder, BookOpen, Save } from 'lucide-react'
+import { useDataStore } from '../../store/useDataStore'
 
 interface CollectionModalProps {
   isOpen: boolean
@@ -23,6 +24,7 @@ export const CollectionModal: React.FC<CollectionModalProps> = ({
   title,
   submitText
 }) => {
+  const { confluenceEnabled } = useDataStore()
   const [data, setData] = useState({
     name: initialData?.name || '',
     description: initialData?.description || '',
@@ -95,19 +97,21 @@ export const CollectionModal: React.FC<CollectionModalProps> = ({
             </div>
 
             {/* Confluence ID */}
-            <div className="space-y-2 pt-4 border-t border-border/50">
-              <label className="text-[10px] font-black text-muted uppercase tracking-[0.2em] flex items-center gap-2">
-                <BookOpen size={12} className="text-blue-500" /> Confluence Page ID
-              </label>
-              <input
-                type="text"
-                value={data.confluence_page_id}
-                onChange={(e) => setData({ ...data, confluence_page_id: e.target.value })}
-                placeholder="123456789"
-                className="w-full bg-background border border-border rounded-lg px-4 py-2.5 text-sm text-text focus:outline-none focus:border-primary transition-colors font-mono"
-              />
-              <p className="text-[9px] text-muted italic">Required if you want to sync documentation to Confluence.</p>
-            </div>
+            {confluenceEnabled && (
+              <div className="space-y-2 pt-4 border-t border-border/50">
+                <label className="text-[10px] font-black text-muted uppercase tracking-[0.2em] flex items-center gap-2">
+                  <BookOpen size={12} className="text-blue-500" /> Confluence Page ID
+                </label>
+                <input
+                  type="text"
+                  value={data.confluence_page_id}
+                  onChange={(e) => setData({ ...data, confluence_page_id: e.target.value })}
+                  placeholder="123456789"
+                  className="w-full bg-background border border-border rounded-lg px-4 py-2.5 text-sm text-text focus:outline-none focus:border-primary transition-colors font-mono"
+                />
+                <p className="text-[9px] text-muted italic">Required if you want to sync documentation to Confluence.</p>
+              </div>
+            )}
 
             <div className="flex justify-end gap-3 pt-2">
               <button

@@ -92,14 +92,14 @@ export const NotificationBell = () => {
                 e.stopPropagation()
                 markAllAsRead()
               }}
-              className="text-[9px] text-primary hover:text-primary-hover font-black uppercase tracking-wider"
+              className="text-[9px] text-primary hover:text-primary-hover font-black uppercase tracking-wider cursor-pointer"
             >
               Clear All
             </button>
           )}
           <button
             onClick={() => setIsOpen(false)}
-            className="text-muted hover:text-text transition-colors"
+            className="text-muted hover:text-text transition-colors cursor-pointer"
           >
             <X size={14} />
           </button>
@@ -153,7 +153,7 @@ export const NotificationBell = () => {
             setActiveView('activity-log')
             setIsOpen(false)
           }}
-          className="text-[9px] text-muted hover:text-text font-black uppercase tracking-widest transition-colors"
+          className="text-[9px] text-muted hover:text-text font-black uppercase tracking-widest transition-colors cursor-pointer"
         >
           View all activity
         </button>
@@ -166,7 +166,7 @@ export const NotificationBell = () => {
       <button
         ref={buttonRef}
         onClick={() => setIsOpen(!isOpen)}
-        className={`relative transition-all p-1.5 rounded-lg hover:bg-white/10 ${isOpen ? 'text-primary bg-white/10' : 'text-muted hover:text-text'}`}
+        className={`relative transition-all p-1.5 rounded-lg hover:bg-white/10 cursor-pointer ${isOpen ? 'text-primary bg-white/10' : 'text-muted hover:text-text'}`}
       >
         <Bell size={14} />
         {unreadCount > 0 && (

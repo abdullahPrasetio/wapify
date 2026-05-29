@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, ipcMain } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, dialog } from 'electron'
 import { join } from 'path'
 
 // SEGERA matikan validasi SSL sebelum modul lain (seperti axios) diinisialisasi
@@ -13,6 +13,8 @@ import keytar from 'keytar'
 import axios from 'axios'
 import FormData from 'form-data'
 import https from 'https'
+import fs from 'fs'
+import path from 'path'
 
 // Set default axios agent secara global
 axios.defaults.httpsAgent = new https.Agent({
@@ -77,7 +79,13 @@ ipcMain.handle('wapbolt:request', async (_event, config: IpcRequestConfig): Prom
       const form = new FormData()
       config.body.forEach((item: any) => {
         if (item.enabled && item.key) {
-          form.append(item.key, String(item.value || ''))
+          if (item.type === 'file' && item.value && fs.existsSync(item.value)) {
+            form.append(item.key, fs.createReadStream(item.value), {
+              filename: path.basename(item.value)
+            })
+          } else {
+            form.append(item.key, String(item.value || ''))
+          }
         }
       })
       requestData = form
@@ -447,6 +455,23 @@ app.whenReady().then(() => {
 
   ipcMain.handle('wapbolt:get-version', () => {
     return app.getVersion()
+  })
+
+  ipcMain.handle('wapbolt:open-file-dialog', async () => {
+    const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
+    if (!win) return null
+    const result = await dialog.showOpenDialog(win, {
+      properties: ['openFile'],
+      title: 'Select File'
+    })
+    if (result.canceled || result.filePaths.length === 0) return null
+    const filePath = result.filePaths[0]
+    try {
+      const stat = fs.statSync(filePath)
+      return { path: filePath, name: path.basename(filePath), size: stat.size }
+    } catch {
+      return { path: filePath, name: path.basename(filePath), size: 0 }
+    }
   })
 
   ipcMain.on('wapbolt:reload', () => {

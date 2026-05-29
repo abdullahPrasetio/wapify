@@ -202,6 +202,21 @@ interface EnvEditorProps {
   onClose: () => void
 }
 
+const SECRETS_KEY = (envId: number) => `wap_env_secrets_${envId}`
+
+const loadSecretKeys = (envId: number): Set<string> => {
+  try {
+    const raw = localStorage.getItem(SECRETS_KEY(envId))
+    return new Set(raw ? JSON.parse(raw) : [])
+  } catch {
+    return new Set()
+  }
+}
+
+const saveSecretKeys = (envId: number, keys: Set<string>) => {
+  localStorage.setItem(SECRETS_KEY(envId), JSON.stringify([...keys]))
+}
+
 const EnvEditor = ({ env, onUpdate, onDelete, onClose }: EnvEditorProps): React.JSX.Element => {
   const { user } = useAuthStore()
   const { activeTeamId } = useDataStore()
@@ -210,6 +225,17 @@ const EnvEditor = ({ env, onUpdate, onDelete, onClose }: EnvEditorProps): React.
   const [vars, setVars] = useState<Record<string, string>>(env.variables || {})
   const [isGlobal, setIsGlobal] = useState(env.is_global)
   const [isSaving, setIsSaving] = useState(false)
+  const [secretKeys, setSecretKeys] = useState<Set<string>>(() => loadSecretKeys(env.id))
+
+  const handleSecretToggle = (key: string) => {
+    setSecretKeys((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      saveSecretKeys(env.id, next)
+      return next
+    })
+  }
 
   const handleSave = async (): Promise<void> => {
     setIsSaving(true)
@@ -274,6 +300,8 @@ const EnvEditor = ({ env, onUpdate, onDelete, onClose }: EnvEditorProps): React.
           initialData={vars}
           onChange={(data) => setVars(data as Record<string, string>)}
           disabled={!canEdit}
+          secretKeys={secretKeys}
+          onSecretToggle={canEdit ? handleSecretToggle : undefined}
         />
       </div>
 

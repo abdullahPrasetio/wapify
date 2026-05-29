@@ -1,1 +1,8 @@
-\n# Wapbolt Go SDK\ngo-wapbolt/
+# Wapbolt Go SDK
+go-wapbolt/
+
+# PHP SDK
+php-wapbolt/
+
+# TestSprite
+testsprite_tests/

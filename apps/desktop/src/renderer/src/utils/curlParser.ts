@@ -161,3 +161,50 @@ export const parseCurlCommand = async (curlCommand: string): Promise<ParsedCurl 
     return null
   }
 }
+
+interface GenerateCurlOptions {
+  method: string
+  url: string
+  headers?: Record<string, string>
+  body?: string | any[]
+  bodyType?: string
+}
+
+export const generateCurl = (opts: GenerateCurlOptions): string => {
+  const { method, url, headers = {}, body, bodyType } = opts
+  if (!url) return ''
+
+  const parts: string[] = ['curl']
+
+  if (method && method.toUpperCase() !== 'GET') {
+    parts.push(`-X ${method.toUpperCase()}`)
+  }
+
+  parts.push(`'${url.replace(/'/g, "'\\''")}'`)
+
+  Object.entries(headers).forEach(([key, value]) => {
+    parts.push(`-H '${key}: ${String(value).replace(/'/g, "'\\''")}'`)
+  })
+
+  if (body && bodyType && bodyType !== 'none') {
+    if (bodyType === 'x-www-form-urlencoded' && Array.isArray(body)) {
+      const encoded = body
+        .filter((r) => r.enabled && r.key)
+        .map((r) => `${encodeURIComponent(r.key)}=${encodeURIComponent(r.value || '')}`)
+        .join('&')
+      parts.push(`--data '${encoded}'`)
+    } else if (bodyType === 'form-data' && Array.isArray(body)) {
+      body
+        .filter((r) => r.enabled && r.key)
+        .forEach((r) => {
+          const escapedKey = r.key.replace(/'/g, "'\\''")
+          const escapedVal = String(r.value || '').replace(/'/g, "'\\''")
+          parts.push(`-F '${escapedKey}=${escapedVal}'`)
+        })
+    } else if (typeof body === 'string' && body.trim()) {
+      parts.push(`--data-raw '${body.replace(/'/g, "'\\''")}'`)
+    }
+  }
+
+  return parts.join(' \\\n  ')
+}
