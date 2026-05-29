@@ -1,4 +1,4 @@
-import { Bell, Search, Trash2, CheckCircle, Clock, ArrowLeft } from 'lucide-react'
+import { Bell, Search, Trash2, CheckCircle, Clock, ArrowLeft, Crown } from 'lucide-react'
 import { useState, useMemo } from 'react'
 import { useNotificationStore, Notification } from '../../store/useNotificationStore'
 import { useAppStore } from '../../store/useAppStore'
@@ -143,7 +143,12 @@ export const ActivityLogView = () => {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between mb-1">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-bold text-text">{n.sender?.name || 'System'}</span>
+                      <span className="text-sm font-bold text-text flex items-center gap-1.5">
+                        {n.sender?.name || 'System'}
+                        {n.sender?.is_premium && (
+                          <Crown size={11} className="text-yellow-400 shrink-0" aria-label="Premium Member" />
+                        )}
+                      </span>
                       <span className="text-[10px] text-muted font-black uppercase tracking-widest bg-white/5 px-2 py-0.5 rounded-full border border-border/50">
                         {n.type.replace('ENTITY_', '')}
                       </span>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Heart, Save, Send, Clock, ToggleLeft, ToggleRight, Loader2, User } from 'lucide-react'
+import { Heart, Save, Send, Clock, ToggleLeft, ToggleRight, Loader2, User, Crown } from 'lucide-react'
 import { apiClient } from '../../api/client'
 import { toast } from 'sonner'
 import type { User as UserType } from '../../types'
@@ -8,7 +8,8 @@ export const DonationSettings = (): React.JSX.Element => {
   const [config, setConfig] = useState({
     donation_active: 'false',
     donation_cooldown_days: '7',
-    donation_message: ''
+    donation_message: '',
+    premium_thank_you_message: ''
   })
   const [users, setUsers] = useState<UserType[]>([])
   const [selectedUserId, setSelectedUserId] = useState<number>(0) // 0 for All
@@ -23,7 +24,8 @@ export const DonationSettings = (): React.JSX.Element => {
         setConfig({
           donation_active: res.data.donation_active || 'false',
           donation_cooldown_days: res.data.donation_cooldown_days || '7',
-          donation_message: res.data.donation_message || ''
+          donation_message: res.data.donation_message || '',
+          premium_thank_you_message: res.data.premium_thank_you_message || ''
         })
       }
     } catch (e) {
@@ -148,6 +150,20 @@ export const DonationSettings = (): React.JSX.Element => {
                 className="w-full bg-background border border-border rounded-xl px-4 py-3 text-sm focus:border-primary focus:ring-1 focus:ring-primary transition-all min-h-[120px] resize-none shadow-inner"
                 placeholder="Enter message to show in the donation modal..."
               />
+            </div>
+
+            <div>
+              <label className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted mb-3">
+                <Crown size={12} className="text-primary" />
+                Premium Thank You Message
+              </label>
+              <textarea
+                value={config.premium_thank_you_message}
+                onChange={(e) => setConfig(prev => ({ ...prev, premium_thank_you_message: e.target.value }))}
+                className="w-full bg-background border border-border rounded-xl px-4 py-3 text-sm focus:border-primary focus:ring-1 focus:ring-primary transition-all min-h-[100px] resize-none shadow-inner"
+                placeholder="Pesan yang muncul saat premium member mengklik badge Premium..."
+              />
+              <p className="mt-2 text-[10px] text-muted italic ml-1">Ditampilkan di modal ketika user premium mengklik badge "Premium" di sidebar.</p>
             </div>
           </div>
 

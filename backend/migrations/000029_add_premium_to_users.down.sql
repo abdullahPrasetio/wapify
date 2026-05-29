@@ -1,0 +1,2 @@
+ALTER TABLE users DROP COLUMN IF EXISTS is_premium;
+ALTER TABLE users DROP COLUMN IF EXISTS premium_since;

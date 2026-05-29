@@ -12,6 +12,8 @@ export interface User {
   email: string
   name: string
   is_super_admin: boolean
+  is_premium: boolean
+  premium_since: string | null
   created_at: string
   updated_at: string
 }

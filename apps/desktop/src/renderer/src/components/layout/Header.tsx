@@ -1,4 +1,4 @@
-import { ChevronDown, Play, Users, Loader2, Save, Keyboard } from 'lucide-react'
+import { ChevronDown, Play, Users, Loader2, Save, Keyboard, Crown } from 'lucide-react'
 import { useAuthStore } from '../../store/useAuthStore'
 import { useDataStore } from '../../store/useDataStore'
 import { EnvironmentModal } from '../modals/EnvironmentModal'
@@ -99,6 +99,9 @@ export const Header = (): React.JSX.Element => {
         <div className="flex items-center gap-1.5 text-muted">
           <Users size={14} />
           <span className="text-xs truncate max-w-24">{user?.name ?? 'Unknown'}</span>
+          {user?.is_premium && (
+            <Crown size={12} className="text-yellow-400 shrink-0" aria-label="Premium Member" />
+          )}
         </div>
 
         {/* Send Button */}

@@ -1,6 +1,8 @@
 package api
 
 import (
+	"time"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/waluyo/wapbolt-backend/internal/middleware"
 	"github.com/waluyo/wapbolt-backend/internal/repository"
@@ -24,6 +26,7 @@ func SetupAdminRoutes(app *fiber.App) {
 
 	admin.Get("/users", ListAllUsers)
 	admin.Post("/users", CreateUser)
+	admin.Put("/users/:id/premium", SetUserPremium)
 	admin.Get("/teams", ListAllTeams)
 	admin.Delete("/users/:id", DeleteUser)
 	
@@ -149,6 +152,40 @@ func AdminRemoveTeamMember(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to remove member"})
 	}
 	return c.JSON(fiber.Map{"message": "Member removed"})
+}
+
+func SetUserPremium(c *fiber.Ctx) error {
+	id := parseUint(c.Params("id"))
+	if id == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid user ID", "code": "BAD_REQUEST"})
+	}
+
+	var req struct {
+		IsPremium bool `json:"is_premium"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body", "code": "BAD_REQUEST"})
+	}
+
+	updates := map[string]interface{}{
+		"is_premium": req.IsPremium,
+	}
+	if req.IsPremium {
+		now := time.Now()
+		updates["premium_since"] = now
+	} else {
+		updates["premium_since"] = nil
+	}
+
+	if err := repository.DB.Model(&repository.User{}).Where("id = ?", id).Updates(updates).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to update user", "code": "INTERNAL_SERVER_ERROR"})
+	}
+
+	var user repository.User
+	if err := repository.DB.First(&user, id).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "User not found", "code": "NOT_FOUND"})
+	}
+	return c.JSON(user)
 }
 
 func DeleteUser(c *fiber.Ctx) error {

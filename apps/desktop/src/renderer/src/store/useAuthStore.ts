@@ -14,6 +14,7 @@ interface AuthState {
   login: (email: string, password: string) => Promise<void>
   logout: () => Promise<void>
   rehydrateAuth: () => Promise<void>
+  refreshUser: () => Promise<void>
   clearError: () => void
 }
 
@@ -41,6 +42,11 @@ export const useAuthStore = create<AuthState>()(
           await window.api.setToken(refresh_token)
         }
         set({ user, token, isAuthenticated: true, isLoading: false, error: null })
+        // Fetch fresh user to get latest fields (e.g. is_premium)
+        try {
+          const meRes = await apiClient.get<User>('/api/v1/auth/me')
+          if (meRes.status === 200) set({ user: meRes.data as User })
+        } catch { /* silent */ }
       } else {
         const errData = response?.data as { error?: string }
         set({ isLoading: false, error: errData?.error ?? 'Login gagal. Periksa kredensial Anda.' })
@@ -77,6 +83,14 @@ export const useAuthStore = create<AuthState>()(
           if (newRefreshToken && window.api) {
             await window.api.setToken(newRefreshToken)
           }
+          // Fetch fresh user data to get latest is_premium status
+          try {
+            const meRes = await apiClient.get<User>('/api/v1/auth/me')
+            if (meRes.status === 200) {
+              set({ user: meRes.data as User, token, isAuthenticated: true, isRehydrating: false })
+              return
+            }
+          } catch { /* fallback to token user */ }
           set({ user, token, isAuthenticated: true, isRehydrating: false })
           return
         }
@@ -85,6 +99,15 @@ export const useAuthStore = create<AuthState>()(
       console.error('[Auth] Rehydration failed:', err)
     }
     set({ isRehydrating: false, isAuthenticated: false })
+  },
+
+  refreshUser: async () => {
+    try {
+      const meRes = await apiClient.get<User>('/api/v1/auth/me')
+      if (meRes.status === 200) {
+        set({ user: meRes.data as User })
+      }
+    } catch { /* silent */ }
   },
 
   clearError: () => set({ error: null })

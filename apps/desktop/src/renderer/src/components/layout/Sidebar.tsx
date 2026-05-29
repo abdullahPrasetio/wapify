@@ -25,7 +25,8 @@ import {
   Key, DatabaseZap,
   Zap, Heart, ListTree,
   Cloud,
-  RotateCcw
+  RotateCcw,
+  Crown
 } from 'lucide-react'
 import { useState, useEffect, useLayoutEffect, useMemo, useRef, createContext, useContext } from 'react'
 import {
@@ -47,6 +48,7 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
+import * as Dialog from '@radix-ui/react-dialog'
 
 import { useAuthStore } from '../../store/useAuthStore'
 import { useDataStore } from '../../store/useDataStore'
@@ -67,6 +69,7 @@ import { MockServerPanel } from './MockServerPanel'
 import { CollectionRunnerPanel } from './CollectionRunnerPanel'
 import { NotificationBell } from './NotificationBell'
 import { wsClient } from '../../api/websocket'
+import { apiClient } from '../../api/client'
 
 interface DragZoneInfo {
   id: string
@@ -629,6 +632,85 @@ const CollectionItem = ({ collection }: { collection: Collection }): React.JSX.E
   )
 }
 
+const PremiumBadge = (): React.JSX.Element => {
+  const [open, setOpen] = useState(false)
+  const [message, setMessage] = useState('')
+  const { user } = useAuthStore()
+
+  const handleOpen = async (e: React.MouseEvent): Promise<void> => {
+    e.stopPropagation()
+    if (!message) {
+      try {
+        const res = await apiClient.get<{ message: string }>('/api/v1/donations/premium-message')
+        if (res.status === 200) setMessage((res.data as { message: string }).message)
+      } catch { /* use default */ }
+    }
+    setOpen(true)
+  }
+
+  return (
+    <Dialog.Root open={open} onOpenChange={setOpen}>
+      <Dialog.Trigger asChild>
+        <button
+          onClick={handleOpen}
+          className="flex items-center gap-1 bg-primary/10 text-primary text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border border-primary/30 hover:bg-primary/20 transition-colors shrink-0"
+        >
+          <Crown size={9} />
+          Premium
+        </button>
+      </Dialog.Trigger>
+
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] animate-in fade-in duration-300" />
+        <Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-sm bg-surface border border-border rounded-2xl shadow-2xl z-[101] p-0 overflow-hidden animate-in zoom-in-95 fade-in duration-300 focus:outline-none">
+
+          {/* Header — same pattern as ChangePasswordModal */}
+          <div className="bg-primary/10 px-6 py-8 flex flex-col items-center border-b border-primary/20 relative">
+            <button
+              onClick={() => setOpen(false)}
+              className="absolute top-3 right-3 text-muted hover:text-text transition-colors p-1 hover:bg-white/10 rounded-md"
+            >
+              <X size={18} />
+            </button>
+            <div className="w-16 h-16 rounded-2xl bg-primary flex items-center justify-center text-white shadow-xl shadow-primary/30 mb-4">
+              <Crown size={32} />
+            </div>
+            <Dialog.Title className="text-xl font-bold text-text">Premium Member</Dialog.Title>
+            <Dialog.Description className="text-xs text-muted mt-1">
+              Halo, {user?.name}! 👋
+            </Dialog.Description>
+          </div>
+
+          {/* Body */}
+          <div className="p-6 space-y-4">
+            {/* Thank you message */}
+            <div className="flex items-start gap-3 p-4 rounded-xl bg-primary/5 border border-primary/15">
+              <Heart size={18} className="text-red-400 fill-red-400 shrink-0 mt-0.5" />
+              <p className="text-sm text-text leading-relaxed">
+                {message || 'Terima kasih karena Anda sudah berdonasi dan mendukung pengembangan Wapbolt. Dukungan Anda sangat berarti bagi kami!'}
+              </p>
+            </div>
+
+            {/* Member since */}
+            {user?.premium_since && (
+              <div className="flex items-center gap-2 text-xs text-muted px-1">
+                <Crown size={12} className="text-primary shrink-0" />
+                <span>Member sejak {new Date(user.premium_since).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+              </div>
+            )}
+
+            <Dialog.Close asChild>
+              <button className="w-full py-2.5 bg-primary hover:bg-primary-hover text-white rounded-xl font-bold text-sm transition-all shadow-lg shadow-primary/20">
+                Tutup
+              </button>
+            </Dialog.Close>
+          </div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  )
+}
+
 export const Sidebar = (): React.JSX.Element => {
   const { user, logout } = useAuthStore()
   const [showServerSettings, setShowServerSettings] = useState(false)
@@ -1168,17 +1250,20 @@ export const Sidebar = (): React.JSX.Element => {
             {appVersion && <div className="px-1 text-[9px] font-black uppercase tracking-[0.2em] text-muted/70 mb-1 text-center">Wapbolt v{appVersion}</div>}
             <div className="flex items-center justify-between min-w-0 px-1">
               <DropdownMenu.Root>
-                <DropdownMenu.Trigger asChild>
-                  <button className="flex flex-1 items-center gap-2 min-w-0 p-1 rounded-lg hover:bg-background text-left transition-colors focus:outline-none">
-                    <div className="flex items-center justify-center w-7 h-7 rounded-full bg-primary/20 text-primary font-bold text-xs shrink-0 ring-1 ring-primary/20">
-                      {user?.name?.substring(0, 2).toUpperCase() || 'U'}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="text-xs font-bold text-text truncate">{user?.name}</div>
-                      <div className="text-[10px] text-muted truncate">{user?.email}</div>
-                    </div>
-                  </button>
-                </DropdownMenu.Trigger>
+                <div className="flex flex-1 items-center gap-2 min-w-0">
+                  <DropdownMenu.Trigger asChild>
+                    <button className="flex flex-1 items-center gap-2 min-w-0 p-1 rounded-lg hover:bg-background text-left transition-colors focus:outline-none">
+                      <div className="flex items-center justify-center w-7 h-7 rounded-full bg-primary/20 text-primary font-bold text-xs shrink-0 ring-1 ring-primary/20">
+                        {user?.name?.substring(0, 2).toUpperCase() || 'U'}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-xs font-bold text-text truncate">{user?.name}</div>
+                        <div className="text-[10px] text-muted truncate">{user?.email}</div>
+                      </div>
+                    </button>
+                  </DropdownMenu.Trigger>
+                  {user?.is_premium && <PremiumBadge />}
+                </div>
                 <DropdownMenu.Portal>
                   <DropdownMenu.Content
                     className="min-w-[200px] bg-surface border border-border rounded-lg shadow-xl p-1 z-[100] text-sm font-sans"

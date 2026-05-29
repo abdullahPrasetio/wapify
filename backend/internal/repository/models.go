@@ -51,6 +51,8 @@ type User struct {
 	PasswordHash          string     `gorm:"not null" json:"-"`
 	Name                  string     `gorm:"not null" json:"name"`
 	IsSuperAdmin          bool       `gorm:"default:false" json:"is_super_admin"`
+	IsPremium             bool       `gorm:"default:false" json:"is_premium"`
+	PremiumSince         *time.Time `json:"premium_since"`
 	RoleSignature         string     `json:"-"`
 	LastDonationPromptAt *time.Time `json:"last_donation_prompt_at"`
 	CreatedAt             time.Time  `json:"created_at"`

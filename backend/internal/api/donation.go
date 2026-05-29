@@ -16,6 +16,7 @@ func SetupDonationRoutes(app *fiber.App) {
 
 	donation.Get("/check", CheckDonationStatus)
 	donation.Post("/mark-seen", MarkDonationSeen)
+	donation.Get("/premium-message", GetPremiumMessage)
 
 	admin := app.Group("/api/v1/admin/donations")
 	admin.Use(middleware.RequireAuth)
@@ -82,6 +83,16 @@ func MarkDonationSeen(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"status": "success"})
 }
 
+func GetPremiumMessage(c *fiber.Ctx) error {
+	var setting repository.SystemSetting
+	repository.DB.Where("key = ?", "premium_thank_you_message").First(&setting)
+	message := setting.Value
+	if message == "" {
+		message = "Terima kasih karena Anda sudah berdonasi dan mendukung pengembangan Wapbolt. Dukungan Anda sangat berarti bagi kami!"
+	}
+	return c.JSON(fiber.Map{"message": message})
+}
+
 func GetDonationConfig(c *fiber.Ctx) error {
 	var settings []repository.SystemSetting
 	repository.DB.Where("key LIKE ?", "donation_%").Find(&settings)
@@ -100,6 +111,9 @@ func GetDonationConfig(c *fiber.Ctx) error {
 	}
 	if _, ok := config["donation_message"]; !ok {
 		config["donation_message"] = "Dukung pengembangan Wapbolt dengan donasi seikhlasnya via QRIS."
+	}
+	if _, ok := config["premium_thank_you_message"]; !ok {
+		config["premium_thank_you_message"] = "Terima kasih karena Anda sudah berdonasi dan mendukung pengembangan Wapbolt. Dukungan Anda sangat berarti bagi kami!"
 	}
 
 	return c.JSON(config)
