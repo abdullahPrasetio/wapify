@@ -1,5 +1,9 @@
-import React, { useState, useEffect, useLayoutEffect } from 'react';
+import React, { useState, useLayoutEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import ArchitectureDiagram from './components/ArchitectureDiagram';
+import ComparisonTable from './components/ComparisonTable';
+import HowToUse from './components/HowToUse';
+import ApiDocs from './components/ApiDocs';
 import {
   Zap,
   Shield,
@@ -55,7 +59,9 @@ const Navbar = ({ theme, toggleTheme }: any) => {
         </div>
         <div className="hidden md:flex items-center gap-8 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em]">
           <a href="#about" className="hover:text-primary dark:hover:text-white transition-colors">Why Wapbolt</a>
-          <a href="#workflow" className="hover:text-primary dark:hover:text-white transition-colors">Architecture</a>
+          <a href="#how-to-use" className="hover:text-primary dark:hover:text-white transition-colors">Get Started</a>
+          <a href="#architecture" className="hover:text-primary dark:hover:text-white transition-colors">Architecture</a>
+          <a href="#api-docs" className="hover:text-primary dark:hover:text-white transition-colors">API Docs</a>
           <a href="#comparison" className="hover:text-primary dark:hover:text-white transition-colors">Vs Postman</a>
           <a href="#download" className="hover:text-primary dark:hover:text-white transition-colors">Download</a>
         </div>
@@ -78,7 +84,9 @@ const Navbar = ({ theme, toggleTheme }: any) => {
         {isOpen && (
           <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="md:hidden absolute top-full left-0 w-full bg-white dark:bg-[#0F172A] border-b border-slate-200 dark:border-white/10 p-8 flex flex-col gap-6 font-black uppercase tracking-widest text-xs shadow-2xl dark:text-white">
             <a href="#about" onClick={() => setIsOpen(false)}>Why Wapbolt</a>
-            <a href="#workflow" onClick={() => setIsOpen(false)}>Architecture</a>
+            <a href="#how-to-use" onClick={() => setIsOpen(false)}>Get Started</a>
+            <a href="#architecture" onClick={() => setIsOpen(false)}>Architecture</a>
+            <a href="#api-docs" onClick={() => setIsOpen(false)}>API Docs</a>
             <a href="#comparison" onClick={() => setIsOpen(false)}>Vs Postman</a>
             <a href="#download" onClick={() => setIsOpen(false)}>Download</a>
           </motion.div>
@@ -239,61 +247,17 @@ export default function App() {
         </div>
       </section>
 
-      {/* HOW IT WORKS */}
-      <section id="workflow" className="py-32 px-6 bg-slate-900 text-white relative overflow-hidden">
-        <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10" />
-        <div className="max-w-7xl mx-auto relative z-10">
-          <div className="text-center mb-24">
-            <span className="text-primary font-black uppercase tracking-[0.4em] text-[10px] mb-6 block animate-pulse">Architecture Overview</span>
-            <h2 className="text-5xl md:text-7xl font-black mb-8 tracking-tighter uppercase italic text-white leading-none">System Flow</h2>
-          </div>
+      {/* HOW TO USE */}
+      <HowToUse />
 
-          <div className="grid md:grid-cols-4 gap-6">
-            {[
-              { icon: Monitor, title: "Desktop Client", desc: "Native experience built with Electron and React." },
-              { icon: Lock, title: "Crypto Auth", desc: "Offline-first Ed25519 license validation system." },
-              { icon: Activity, title: "Go Engine", desc: "High-performance API handling and WebSocket sync." },
-              { icon: Database, title: "Persistence", desc: "Enterprise-grade storage using PostgreSQL." }
-            ].map((step, i) => (
-              <div key={i} className="p-10 rounded-[3rem] bg-white/5 border border-white/10 flex flex-col items-center text-center backdrop-blur-md hover:bg-white/10 transition-all">
-                <div className="w-20 h-20 rounded-[2rem] bg-primary text-white flex items-center justify-center mb-8 shadow-2xl shadow-primary/40">
-                  <step.icon size={36} strokeWidth={2.5} />
-                </div>
-                <h4 className="text-xl font-black mb-4 uppercase tracking-tighter italic">{step.title}</h4>
-                <p className="text-slate-400 text-xs font-bold leading-relaxed">{step.desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+      {/* ARCHITECTURE DIAGRAM */}
+      <ArchitectureDiagram />
 
-      {/* COMPARISON */}
-      <section id="comparison" className="py-32 px-6 max-w-7xl mx-auto">
-        <div className="grid lg:grid-cols-2 gap-10 items-stretch">
-          <div className="bg-slate-50 dark:bg-slate-800/20 p-12 rounded-[4rem] border border-slate-200 dark:border-white/5 opacity-50 flex flex-col justify-center">
-            <h3 className="text-3xl font-black mb-12 dark:text-white italic uppercase tracking-tighter opacity-50">Postman (Legacy)</h3>
-            <ul className="space-y-8">
-              {["High Memory Usage", "Forced Cloud Sync", "Complex Subscription", "No Offline Keys"].map((item, i) => (
-                <li key={i} className="flex items-center gap-5 text-slate-500 line-through font-bold text-lg italic">
-                  <X size={24} /> {item}
-                </li>
-              ))}
-            </ul>
-          </div>
-          <div className="bg-gradient-to-br from-primary to-accent p-12 md:p-20 rounded-[4rem] text-white shadow-2xl shadow-primary/20 relative overflow-hidden">
-            <div className="absolute top-0 right-0 p-12 opacity-10 rotate-45"><Rocket size={150} /></div>
-            <h3 className="text-4xl md:text-5xl font-black mb-12 italic uppercase tracking-tighter text-white">Wapbolt (Upgrade)</h3>
-            <ul className="space-y-8 relative z-10">
-              {["Ultra-light Go Core", "Omnibar Search (Cmd+K)", "Smart Deep Linking", "Real-time Team Sync"].map((item, i) => (
-                <li key={i} className="flex items-center gap-6 font-black text-xl md:text-2xl tracking-tight text-white">
-                  <div className="w-10 h-10 rounded-2xl bg-white text-primary flex items-center justify-center shrink-0 shadow-xl"><CheckCircle2 size={24} strokeWidth={4} /></div>
-                  {item}
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
-      </section>
+      {/* API DOCS */}
+      <ApiDocs />
+
+      {/* COMPARISON TABLE */}
+      <ComparisonTable />
 
       {/* DOWNLOAD */}
       <section id="download" className="py-24 px-6 bg-slate-50 dark:bg-white/[0.02] border-y border-slate-200 dark:border-white/5">
