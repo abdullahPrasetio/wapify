@@ -208,7 +208,11 @@ func ImportOpenAPI(c *fiber.Ctx) error {
 
 	mode := c.Query("mode", "new")
 	confirmName := c.Query("confirm_name", "")
-	userID := uint(c.Locals("user_id").(float64))
+	rawUID, ok := c.Locals("user_id").(float64)
+	if !ok || rawUID <= 0 {
+		return c.Status(401).JSON(fiber.Map{"error": "unauthorized"})
+	}
+	userID := uint(rawUID)
 	tid := parseUint(teamID)
 
 	// Parse raw body to detect version
@@ -464,7 +468,11 @@ func ImportPostman(c *fiber.Ctx) error {
 	mode := c.Query("mode", "new") // default to 'new' for safety
 	confirmName := c.Query("confirm_name", "")
 
-	userID := uint(c.Locals("user_id").(float64))
+	rawUID, ok := c.Locals("user_id").(float64)
+	if !ok || rawUID <= 0 {
+		return c.Status(401).JSON(fiber.Map{"error": "unauthorized"})
+	}
+	userID := uint(rawUID)
 	tid := parseUint(teamID)
 
 	var collection repository.Collection
@@ -653,7 +661,11 @@ func CreateCollection(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body", "code": "BAD_REQUEST"})
 	}
 
-	userID := uint(c.Locals("user_id").(float64))
+	rawUID, ok := c.Locals("user_id").(float64)
+	if !ok || rawUID <= 0 {
+		return c.Status(401).JSON(fiber.Map{"error": "unauthorized"})
+	}
+	userID := uint(rawUID)
 	tid := parseUint(teamID)
 
 	collection := repository.Collection{
@@ -732,7 +744,11 @@ func UpdateCollection(c *fiber.Ctx) error {
 	}
 
 	// Real-time broadcast & logging
-	userID := uint(c.Locals("user_id").(float64))
+	rawUID, ok := c.Locals("user_id").(float64)
+	if !ok || rawUID <= 0 {
+		return c.Status(401).JSON(fiber.Map{"error": "unauthorized"})
+	}
+	userID := uint(rawUID)
 	WSHub.BroadcastEntityUpdate(collection.TeamID, "TEAM", collection.TeamID)
 	LogActivity(repository.DB, collection.TeamID, userID, "UPDATED_COLLECTION", "COLLECTION", collection.ID, nil)
 	NotifyEntityUpdate(collection.TeamID, userID, "Collection", collection.Name, "update", map[string]interface{}{"collection_id": collection.ID})
@@ -757,7 +773,11 @@ func DeleteCollection(c *fiber.Ctx) error {
 	}
 
 	// Real-time broadcast & logging
-	userID := uint(c.Locals("user_id").(float64))
+	rawUID, ok := c.Locals("user_id").(float64)
+	if !ok || rawUID <= 0 {
+		return c.Status(401).JSON(fiber.Map{"error": "unauthorized"})
+	}
+	userID := uint(rawUID)
 	WSHub.BroadcastEntityUpdate(collection.TeamID, "TEAM", collection.TeamID)
 	LogActivity(repository.DB, collection.TeamID, userID, "DELETED_COLLECTION", "COLLECTION", collection.ID, map[string]interface{}{"name": collection.Name})
 	NotifyEntityUpdate(collection.TeamID, userID, "Collection", collection.Name, "delete", map[string]interface{}{"collection_id": collection.ID})

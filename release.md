@@ -1,5 +1,19 @@
 # Wapbolt Release Notes
 
+## [v2.4.0] — 2026-05-29
+
+### 🔗 OpenAPI Sync to Confluence
+
+- **4 mode sync**: Documentation Only, OpenAPI 3.0 Raw JSON, Swagger UI Interactive, Documentation + Swagger UI
+- Macro `swagger-open-api` (app "Open API (Swagger) Integration for Confluence") — spec di-embed langsung tanpa upload attachment
+- Footer generated-by selalu muncul di semua mode
+
+### 🛡 Security Hardening
+
+- `collection.go`: 5 unguarded `.(float64)` type assertion diganti comma-ok pattern — return 401, bukan panic
+
+---
+
 ## [v2.1.0] — 2026-05-27
 
 ### 🔥 Chaos Mode & Error Simulation (Mock Server)

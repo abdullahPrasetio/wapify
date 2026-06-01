@@ -344,27 +344,97 @@ func generateSwagger(tree *collectionTree) openAPISpec {
 			operation["parameters"] = params
 		}
 
-		// Request body for POST/PUT/PATCH
-		if len(r.Body) > 0 && (method == "post" || method == "put" || method == "patch") {
-			operation["requestBody"] = map[string]interface{}{
-				"required": true,
-				"content": map[string]interface{}{
-					"application/json": map[string]interface{}{
-						"schema": map[string]interface{}{
-							"type":    "object",
-							"example": r.Body,
-						},
-					},
-				},
+		// Request body for POST/PUT/PATCH — include examples from RequestExample
+		if method == "post" || method == "put" || method == "patch" {
+			schema := map[string]interface{}{"type": "object"}
+			if len(r.Body) > 0 {
+				schema["example"] = r.Body
+			}
+			jsonContent := map[string]interface{}{"schema": schema}
+
+			// Collect named request examples
+			reqExamples := map[string]interface{}{}
+			for _, ex := range r.Examples {
+				if ex.RequestBody != "" {
+					var parsed interface{}
+					if json.Unmarshal([]byte(ex.RequestBody), &parsed) == nil {
+						reqExamples[ex.Name] = map[string]interface{}{"value": parsed}
+					} else {
+						reqExamples[ex.Name] = map[string]interface{}{"value": ex.RequestBody}
+					}
+				}
+			}
+			if len(reqExamples) > 0 {
+				jsonContent["examples"] = reqExamples
+			}
+
+			if len(r.Body) > 0 || len(reqExamples) > 0 {
+				operation["requestBody"] = map[string]interface{}{
+					"required": true,
+					"content":  map[string]interface{}{"application/json": jsonContent},
+				}
 			}
 		}
 
-		// Default response
-		operation["responses"] = map[string]interface{}{
-			"200": map[string]interface{}{
-				"description": "Success",
-			},
+		// Responses — built from RequestExample entries
+		responses := map[string]interface{}{}
+		// Group examples by status code, collecting multiple examples per status
+		type statusGroup struct {
+			description string
+			examples    map[string]interface{}
+			headers     map[string]interface{}
 		}
+		statusGroups := map[string]*statusGroup{}
+		for _, ex := range r.Examples {
+			statusKey := fmt.Sprintf("%d", ex.ResponseStatus)
+			if _, ok := statusGroups[statusKey]; !ok {
+				statusGroups[statusKey] = &statusGroup{
+					description: httpStatusText(ex.ResponseStatus),
+					examples:    map[string]interface{}{},
+					headers:     map[string]interface{}{},
+				}
+			}
+			sg := statusGroups[statusKey]
+
+			// Parse response body
+			if ex.ResponseBody != "" {
+				var parsed interface{}
+				if json.Unmarshal([]byte(ex.ResponseBody), &parsed) == nil {
+					sg.examples[ex.Name] = map[string]interface{}{"value": parsed}
+				} else {
+					sg.examples[ex.Name] = map[string]interface{}{"value": ex.ResponseBody}
+				}
+			}
+
+			// Response headers
+			for k, v := range ex.ResponseHeaders {
+				sg.headers[k] = map[string]interface{}{
+					"schema":  map[string]string{"type": "string"},
+					"example": v,
+				}
+			}
+		}
+
+		for statusKey, sg := range statusGroups {
+			resp := map[string]interface{}{"description": sg.description}
+			if len(sg.examples) > 0 {
+				resp["content"] = map[string]interface{}{
+					"application/json": map[string]interface{}{
+						"schema":   map[string]interface{}{"type": "object"},
+						"examples": sg.examples,
+					},
+				}
+			}
+			if len(sg.headers) > 0 {
+				resp["headers"] = sg.headers
+			}
+			responses[statusKey] = resp
+		}
+
+		if len(responses) == 0 {
+			responses["200"] = map[string]interface{}{"description": "Success"}
+		}
+		operation["responses"] = responses
 
 		// Add to paths
 		if spec.Paths[urlPath] == nil {
@@ -413,6 +483,19 @@ func sanitizeFilename(name string) string {
 		return '_'
 	}, name)
 	return name
+}
+
+func httpStatusText(code int) string {
+	texts := map[int]string{
+		200: "OK", 201: "Created", 204: "No Content",
+		400: "Bad Request", 401: "Unauthorized", 403: "Forbidden",
+		404: "Not Found", 409: "Conflict", 422: "Unprocessable Entity",
+		500: "Internal Server Error", 502: "Bad Gateway", 503: "Service Unavailable",
+	}
+	if t, ok := texts[code]; ok {
+		return t
+	}
+	return fmt.Sprintf("Status %d", code)
 }
 
 func sortedKeys(m map[string]interface{}) []string {
