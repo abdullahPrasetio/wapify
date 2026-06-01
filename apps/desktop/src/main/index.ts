@@ -294,6 +294,107 @@ ipcMain.handle('confluence:update-page', async (_event, config: {
   }
 })
 
+ipcMain.handle('confluence:upload-attachment', async (_event, config: {
+  baseUrl: string,
+  email?: string,
+  pat?: string,
+  apiToken?: string,
+  authMethod?: 'pat' | 'cloud',
+  pageId: string,
+  filename: string,
+  content: string // file content as string (JSON)
+}) => {
+  try {
+    const cleanBaseUrl = config.baseUrl.replace(/\/+$/, '')
+    const url = `${cleanBaseUrl}/rest/api/content/${config.pageId}/child/attachment`
+
+    let authHeader = ''
+    if (config.authMethod === 'pat') {
+      authHeader = `Bearer ${config.pat}`
+    } else {
+      const credentials = Buffer.from(`${config.email}:${config.apiToken}`).toString('base64')
+      authHeader = `Basic ${credentials}`
+    }
+
+    const form = new FormData()
+    form.append('file', Buffer.from(config.content, 'utf-8'), {
+      filename: config.filename,
+      contentType: 'application/json'
+    })
+    form.append('comment', 'Uploaded by Wapbolt')
+    form.append('minorEdit', 'true')
+
+    console.log(`[Confluence] Uploading attachment to: ${url}`)
+
+    const response = await axios({
+      method: 'POST',
+      url,
+      headers: {
+        'Authorization': authHeader,
+        'X-Atlassian-Token': 'no-check',
+        'Accept': 'application/json',
+        'User-Agent': 'Wapbolt',
+        ...form.getHeaders()
+      },
+      data: form,
+      timeout: 15000
+    })
+
+    console.log(`[Confluence] Attachment upload response: ${response.status}`)
+    const results = response.data?.results
+    const attachment = Array.isArray(results) ? results[0] : response.data
+    return { success: true, data: attachment }
+  } catch (error: any) {
+    // 400 with "already exists" means we need to PUT (update) instead
+    if (error.response?.status === 400 || error.response?.status === 409) {
+      // Try updating existing attachment
+      try {
+        const cleanBaseUrl = config.baseUrl.replace(/\/+$/, '')
+        let authHeader = ''
+        if (config.authMethod === 'pat') {
+          authHeader = `Bearer ${config.pat}`
+        } else {
+          const credentials = Buffer.from(`${config.email}:${config.apiToken}`).toString('base64')
+          authHeader = `Basic ${credentials}`
+        }
+
+        // Find existing attachment ID
+        const listRes = await axios.get(
+          `${cleanBaseUrl}/rest/api/content/${config.pageId}/child/attachment?filename=${encodeURIComponent(config.filename)}`,
+          { headers: { 'Authorization': authHeader, 'Accept': 'application/json' } }
+        )
+        const existingId = listRes.data?.results?.[0]?.id
+        if (!existingId) throw new Error('Attachment not found for update')
+
+        const form2 = new FormData()
+        form2.append('file', Buffer.from(config.content, 'utf-8'), {
+          filename: config.filename,
+          contentType: 'application/json'
+        })
+        form2.append('minorEdit', 'true')
+
+        const updateRes = await axios({
+          method: 'POST',
+          url: `${cleanBaseUrl}/rest/api/content/${config.pageId}/child/attachment/${existingId}/data`,
+          headers: {
+            'Authorization': authHeader,
+            'X-Atlassian-Token': 'no-check',
+            'User-Agent': 'Wapbolt',
+            ...form2.getHeaders()
+          },
+          data: form2,
+          timeout: 15000
+        })
+        return { success: true, data: updateRes.data }
+      } catch (retryError: any) {
+        return { success: false, error: retryError.message }
+      }
+    }
+    console.error(`[Confluence] Attachment upload error: ${error.message}`)
+    return { success: false, error: error.message, details: error.response?.data }
+  }
+})
+
 // ──────────────────────────────────────────────────────────────────────────────
 
 function createWindow(): void {
