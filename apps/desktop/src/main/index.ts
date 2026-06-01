@@ -1,9 +1,19 @@
 import { app, shell, BrowserWindow, ipcMain, dialog } from 'electron'
 import { join } from 'path'
+import { URL } from 'url'
 
 // SEGERA matikan validasi SSL sebelum modul lain (seperti axios) diinisialisasi
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'
 app.commandLine.appendSwitch('ignore-certificate-errors')
+
+// Register custom protocol for Google OAuth deep link (wapbolt://auth/callback)
+if (process.defaultApp) {
+  if (process.argv.length >= 2) {
+    app.setAsDefaultProtocolClient('wapbolt', process.execPath, [process.argv[1]])
+  }
+} else {
+  app.setAsDefaultProtocolClient('wapbolt')
+}
 
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { autoUpdater } from 'electron-updater'
@@ -429,6 +439,44 @@ function createWindow(): void {
   }
 }
 
+// Handle deep link on macOS (open-url event fires when wapbolt:// is clicked)
+app.on('open-url', (event, url) => {
+  event.preventDefault()
+  handleDeepLink(url)
+})
+
+// Handle deep link on Windows/Linux (second-instance via argv)
+const gotTheLock = app.requestSingleInstanceLock()
+if (!gotTheLock) {
+  app.quit()
+} else {
+  app.on('second-instance', (_event, argv) => {
+    const deepLinkUrl = argv.find((arg) => arg.startsWith('wapbolt://'))
+    if (deepLinkUrl) handleDeepLink(deepLinkUrl)
+    // Focus main window
+    const win = BrowserWindow.getAllWindows()[0]
+    if (win) { if (win.isMinimized()) win.restore(); win.focus() }
+  })
+}
+
+function handleDeepLink(url: string): void {
+  try {
+    const parsed = new URL(url)
+    if (parsed.hostname === 'auth' && parsed.pathname === '/callback') {
+      const token = parsed.searchParams.get('token')
+      const refreshToken = parsed.searchParams.get('refresh_token')
+      if (token && refreshToken) {
+        const win = BrowserWindow.getAllWindows()[0]
+        if (win) {
+          win.webContents.send('wapbolt:google-auth-callback', { token, refreshToken })
+        }
+      }
+    }
+  } catch {
+    // ignore malformed URLs
+  }
+}
+
 app.whenReady().then(() => {
   electronApp.setAppUserModelId('io.wapbolt.desktop')
 
@@ -477,6 +525,10 @@ app.whenReady().then(() => {
   ipcMain.on('wapbolt:reload', () => {
     const win = BrowserWindow.getFocusedWindow()
     if (win) win.webContents.reloadIgnoringCache()
+  })
+
+  ipcMain.handle('wapbolt:open-google-auth', async (_event, googleAuthUrl: string) => {
+    shell.openExternal(googleAuthUrl)
   })
 
   app.on('activate', function () {

@@ -35,12 +35,16 @@ func GetCurrentUser(c *fiber.Ctx) error {
 	if err := repository.DB.First(&user, userID).Error; err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "User not found"})
 	}
-	return c.JSON(user)
+	type UserResponse struct {
+		repository.User
+		HasPassword bool `json:"has_password"`
+	}
+	return c.JSON(UserResponse{User: user, HasPassword: user.PasswordHash != ""})
 }
 
 func ChangePassword(c *fiber.Ctx) error {
 	userID := uint(c.Locals("user_id").(float64))
-	
+
 	var input struct {
 		OldPassword string `json:"old_password"`
 		NewPassword string `json:"new_password"`
@@ -49,17 +53,25 @@ func ChangePassword(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid body"})
 	}
 
+	if len(input.NewPassword) < 8 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "New password must be at least 8 characters", "code": "VALIDATION_ERROR"})
+	}
+
 	var user repository.User
 	if err := repository.DB.First(&user, userID).Error; err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "User not found"})
 	}
 
-	// Verify old password
-	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(input.OldPassword)); err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Incorrect old password"})
+	// Google-only user (no password yet) — allow setting password without old_password
+	if user.PasswordHash != "" {
+		if input.OldPassword == "" {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Old password is required", "code": "VALIDATION_ERROR"})
+		}
+		if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(input.OldPassword)); err != nil {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Incorrect old password", "code": "UNAUTHORIZED"})
+		}
 	}
 
-	// Hash new password
 	hashed, err := bcrypt.GenerateFromPassword([]byte(input.NewPassword), bcrypt.DefaultCost)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to hash password"})
@@ -84,6 +96,9 @@ func Login(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Invalid email or password", "code": "UNAUTHORIZED"})
 	}
 
+	if user.PasswordHash == "" {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "This account uses Google Sign-In. Please sign in with Google.", "code": "UNAUTHORIZED"})
+	}
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Invalid email or password", "code": "UNAUTHORIZED"})
 	}

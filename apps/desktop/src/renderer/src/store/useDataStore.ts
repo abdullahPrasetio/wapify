@@ -426,7 +426,7 @@ export const useDataStore = create<DataState>()(
 
         fetchConfluenceEnabled: async () => {
           try {
-            const res = await apiClient.get('/api/v1/admin/confluence/config')
+            const res = await apiClient.get('/api/v1/confluence/config')
             if (res.status === 200) {
               set({ confluenceEnabled: (res.data as any).confluence_enabled === 'true' })
             }

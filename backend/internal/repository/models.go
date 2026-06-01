@@ -48,7 +48,8 @@ func (j *JSONBArray) Scan(value interface{}) error {
 type User struct {
 	ID                    uint       `gorm:"primaryKey" json:"id"`
 	Email                 string     `gorm:"uniqueIndex;not null" json:"email"`
-	PasswordHash          string     `gorm:"not null" json:"-"`
+	PasswordHash          string     `json:"-"`
+	GoogleID              *string    `gorm:"uniqueIndex;column:google_id" json:"-"`
 	Name                  string     `gorm:"not null" json:"name"`
 	IsSuperAdmin          bool       `gorm:"default:false" json:"is_super_admin"`
 	IsPremium             bool       `gorm:"default:false" json:"is_premium"`

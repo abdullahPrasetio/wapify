@@ -314,4 +314,27 @@ v2.x.x → P4-2 (CLI Runner)
 
 ---
 
-*Last updated: 2026-05-27 (v2.2.0 — P4-1 Insomnia Import + P4-3 Timing Chart + P4-4 SSE)*
+---
+
+## Phase 5 — Auth & Security (v2.5.x)
+
+Fokus: memperkuat autentikasi dan keamanan akun.
+
+### [P5-1] Google OAuth Login & Register 🟠 M ✅
+**Status:** **SELESAI** (2026-06-01)  
+**Perubahan:**
+- Backend: `auth_google.go` — Google OAuth2 Authorization Code flow, `findOrCreateGoogleUser` (auto-create Team + TeamMember admin), `GET /api/v1/auth/google/status` untuk toggle.
+- Backend: `auth.go` — guard login Google-only user, `ChangePassword` skip old_password jika belum punya password, `GetCurrentUser` return `has_password`.
+- Migration `000030`: tambah kolom `google_id`, buat `password_hash` nullable.
+- Frontend: deep link handler `wapbolt://auth/callback` di Electron main, tombol "Continue with Google" di `LoginPage`, modal "Set Password" kondisional di `ChangePasswordModal`.
+- Toggle: `GOOGLE_OAUTH_ENABLED=true/false` — default `false` (aman untuk env tanpa akses Google).
+
+- [x] Login dengan Google (akun baru → auto-create User + Team)
+- [x] Login dengan Google (akun existing → link Google ID)
+- [x] Set password untuk Google-only user (tanpa old_password)
+- [x] Toggle on/off via env variable
+- [x] Fix bug Forbidden popup untuk non-super-admin user
+
+---
+
+*Last updated: 2026-06-01 (v2.5.0 — P5-1 Google OAuth Login)*

@@ -13,6 +13,7 @@ export interface User {
   name: string
   is_super_admin: boolean
   is_premium: boolean
+  has_password: boolean
   premium_since: string | null
   created_at: string
   updated_at: string
