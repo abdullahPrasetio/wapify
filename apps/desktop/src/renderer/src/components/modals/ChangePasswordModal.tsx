@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { X, Key, Loader2, CheckCircle2, AlertCircle } from 'lucide-react'
 import { apiClient } from '../../api/client'
+import { useAuthStore } from '../../store/useAuthStore'
 import { toast } from 'sonner'
 
 interface ChangePasswordModalProps {
@@ -10,6 +11,9 @@ interface ChangePasswordModalProps {
 }
 
 export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({ isOpen, onClose }) => {
+  const { user } = useAuthStore()
+  const isGoogleUser = !user?.has_password
+
   const [oldPassword, setOldPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -25,22 +29,21 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({ isOpen
       return
     }
 
-    if (newPassword.length < 6) {
-      setError('Password must be at least 6 characters long')
+    if (newPassword.length < 8) {
+      setError('Password must be at least 8 characters long')
       return
     }
 
     setLoading(true)
     try {
       const res = await apiClient.put('/api/v1/auth/change-password', {
-        old_password: oldPassword,
+        old_password: isGoogleUser ? undefined : oldPassword,
         new_password: newPassword
       })
 
       if (res.status === 200) {
-        toast.success('Password updated successfully')
+        toast.success(isGoogleUser ? 'Password set successfully' : 'Password updated successfully')
         onClose()
-        // Reset fields
         setOldPassword('')
         setNewPassword('')
         setConfirmPassword('')
@@ -63,9 +66,13 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({ isOpen
             <div className="w-16 h-16 rounded-2xl bg-primary flex items-center justify-center text-white shadow-xl shadow-primary/30 mb-4">
               <Key size={32} />
             </div>
-            <Dialog.Title className="text-xl font-bold text-text">Change Password</Dialog.Title>
+            <Dialog.Title className="text-xl font-bold text-text">
+              {isGoogleUser ? 'Set Password' : 'Change Password'}
+            </Dialog.Title>
             <Dialog.Description className="text-xs text-muted mt-1">
-              Keep your account secure with a strong password
+              {isGoogleUser
+                ? 'Set a password so you can also sign in with email'
+                : 'Keep your account secure with a strong password'}
             </Dialog.Description>
           </div>
 
@@ -77,17 +84,19 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({ isOpen
               </div>
             )}
 
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-black text-muted uppercase tracking-[0.2em] ml-1">Old Password</label>
-              <input
-                required
-                type="password"
-                value={oldPassword}
-                onChange={(e) => setOldPassword(e.target.value)}
-                className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-primary/50 transition-all font-mono"
-                placeholder="••••••••"
-              />
-            </div>
+            {!isGoogleUser && (
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-muted uppercase tracking-[0.2em] ml-1">Old Password</label>
+                <input
+                  required
+                  type="password"
+                  value={oldPassword}
+                  onChange={(e) => setOldPassword(e.target.value)}
+                  className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-primary/50 transition-all font-mono"
+                  placeholder="••••••••"
+                />
+              </div>
+            )}
 
             <div className="space-y-1.5">
               <label className="text-[10px] font-black text-muted uppercase tracking-[0.2em] ml-1">New Password</label>
@@ -127,7 +136,7 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({ isOpen
                 className="flex-1 py-2.5 rounded-xl text-xs font-bold bg-primary hover:bg-primary-hover text-white transition-all shadow-lg shadow-primary/20 flex items-center justify-center gap-2 disabled:opacity-50"
               >
                 {loading ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
-                Update Password
+                {isGoogleUser ? 'Set Password' : 'Update Password'}
               </button>
             </div>
           </form>

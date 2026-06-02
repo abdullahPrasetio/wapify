@@ -1,4 +1,59 @@
 
+## [2026-06-01] — Google OAuth Login (v2.5.0)
+**Fase:** Phase 5 — Auth & Security
+**Dikerjakan oleh:** Waluyo
+**Status:** ✅ Selesai
+
+### Yang Dikerjakan
+
+#### 🔐 Google OAuth2 Login & Register
+- Implementasi full Authorization Code flow via `golang.org/x/oauth2`.
+- Endpoint baru: `GET /api/v1/auth/google` (redirect ke consent page) dan `GET /api/v1/auth/google/callback` (exchange code → JWT).
+- User baru via Google otomatis dibuatkan Team personal (nama: `"{Name}'s Workspace"`) + TeamMember role `admin`.
+- Jika email sudah ada, Google ID di-link ke akun existing tanpa membuat user baru.
+- Callback menggunakan Electron deep link `wapbolt://auth/callback?token=...` — browser tab otomatis tertutup setelah redirect.
+- Token di-URL-encode sebelum disisipkan ke deep link untuk mencegah karakter `+`/`=` merusak parsing.
+
+#### 🔒 Toggle On/Off via Env Variable
+- Env var `GOOGLE_OAUTH_ENABLED=true/false` mengontrol aktif/tidaknya fitur.
+- Endpoint publik `GET /api/v1/auth/google/status` → `{"enabled": bool}` tanpa auth.
+- Frontend fetch status saat mount — tombol "Continue with Google" hanya muncul jika `enabled: true`. Default: **disabled**.
+
+#### 🔑 Change Password untuk Google User
+- Endpoint `PUT /api/v1/auth/change-password` diupdate: skip verifikasi `old_password` jika user belum punya password (Google-only account).
+- Modal "Change Password" di frontend otomatis menyembunyikan field "Old Password" dan mengganti judul menjadi "Set Password" untuk Google user.
+- `has_password: bool` ditambahkan ke response `/api/v1/auth/me` dan tipe `User`.
+
+#### 🐛 Bug Fix — Forbidden Popup saat Login
+- `fetchConfluenceEnabled()` di `useDataStore` memanggil endpoint admin-only `/api/v1/admin/confluence/config` yang menyebabkan popup "Forbidden: Super Admin access required" untuk semua non-super-admin user. Diperbaiki ke endpoint publik `/api/v1/confluence/config`.
+
+### Perubahan File
+- `backend/internal/api/auth_google.go` — File baru: Google OAuth handlers, findOrCreateGoogleUser, generateTokenPair.
+- `backend/internal/api/auth.go` — Guard login untuk Google-only user, update ChangePassword & GetCurrentUser.
+- `backend/internal/repository/models.go` — Tambah `GoogleID *string`, buat `PasswordHash` nullable.
+- `backend/migrations/000030_add_google_oauth.up.sql` — Tambah kolom `google_id`, buat `password_hash` nullable.
+- `backend/cmd/server/main.go` — Register `SetupGoogleAuthRoutes`.
+- `backend/.env.example` — Tambah `GOOGLE_OAUTH_ENABLED`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`.
+- `apps/desktop/src/main/index.ts` — Register protokol `wapbolt://`, handler deep link macOS & Windows/Linux, IPC handler.
+- `apps/desktop/src/preload/index.ts` — Expose `openGoogleAuth` dan `onGoogleAuthCallback` ke renderer.
+- `apps/desktop/src/renderer/src/env.d.ts` — Tambah tipe untuk dua API baru.
+- `apps/desktop/src/renderer/src/store/useAuthStore.ts` — Tambah `loginWithGoogle` dan `handleGoogleCallback`.
+- `apps/desktop/src/renderer/src/components/auth/LoginPage.tsx` — Tombol Google + fetch status toggle.
+- `apps/desktop/src/renderer/src/components/modals/ChangePasswordModal.tsx` — Kondisional UI untuk Google user.
+- `apps/desktop/src/renderer/src/store/useDataStore.ts` — Fix endpoint Confluence ke publik.
+- `apps/desktop/src/renderer/src/types/index.ts` — Tambah `has_password: boolean` ke `User`.
+
+### Keputusan & Catatan
+- Memilih Electron deep link (`wapbolt://`) sebagai callback channel karena backend bersifat private — tidak bisa redirect langsung ke `localhost` dari browser.
+- `GOOGLE_OAUTH_ENABLED` default `false` agar aman di-deploy ke environment yang tidak bisa akses Google (seperti OCP dengan network policy ketat).
+- Token di-`url.QueryEscape()` sebelum dimasukkan ke deep link URL untuk mencegah karakter JWT signature merusak parsing.
+
+### Langkah Selanjutnya
+- Test konektivitas dari OCP ke `accounts.google.com` dan `googleapis.com` sebelum enable di production.
+- Set `GOOGLE_OAUTH_ENABLED=true` di `.env` production jika OCP bisa akses Google.
+
+---
+
 ## [2026-05-27] — SSE Support, Timing Chart & Insomnia Import (v2.2.0)
 **Fase:** Phase 4 — Polish & Ecosystem
 **Dikerjakan oleh:** Waluyo

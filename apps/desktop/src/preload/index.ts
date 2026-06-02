@@ -48,6 +48,17 @@ const api = {
   parseCurl: (curlCommand: string): Promise<any> => {
     return ipcRenderer.invoke('wapbolt:parse-curl', curlCommand)
   },
+  openGoogleAuth: (url: string): Promise<void> => {
+    return ipcRenderer.invoke('wapbolt:open-google-auth', url)
+  },
+  onGoogleAuthCallback: (
+    callback: (data: { token: string; refreshToken: string }) => void
+  ): (() => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, data: { token: string; refreshToken: string }): void =>
+      callback(data)
+    ipcRenderer.on('wapbolt:google-auth-callback', handler)
+    return () => ipcRenderer.removeListener('wapbolt:google-auth-callback', handler)
+  },
   getConfluencePage: (config: { 
     baseUrl: string, 
     email?: string, 

@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { subscribeWithSelector } from 'zustand/middleware'
-import { apiClient, setAuthToken } from '../api/client'
+import { apiClient, setAuthToken, getBaseUrl } from '../api/client'
 import type { User, LoginResponse } from '../types'
 
 interface AuthState {
@@ -12,6 +12,8 @@ interface AuthState {
   error: string | null
 
   login: (email: string, password: string) => Promise<void>
+  loginWithGoogle: () => Promise<void>
+  handleGoogleCallback: (token: string, refreshToken: string) => Promise<void>
   logout: () => Promise<void>
   rehydrateAuth: () => Promise<void>
   refreshUser: () => Promise<void>
@@ -108,6 +110,27 @@ export const useAuthStore = create<AuthState>()(
         set({ user: meRes.data as User })
       }
     } catch { /* silent */ }
+  },
+
+  loginWithGoogle: async () => {
+    if (!window.api?.openGoogleAuth) return
+    const url = `${getBaseUrl()}/api/v1/auth/google`
+    await window.api.openGoogleAuth(url)
+  },
+
+  handleGoogleCallback: async (token: string, refreshToken: string) => {
+    set({ isLoading: true, error: null })
+    try {
+      if (window.api) {
+        await window.api.setToken(refreshToken)
+      }
+      setAuthToken(token)
+      const meRes = await apiClient.get<User>('/api/v1/auth/me')
+      set({ user: meRes.data as User, token, isAuthenticated: true, isLoading: false })
+    } catch {
+      setAuthToken('')
+      set({ isLoading: false, error: 'Google login gagal. Coba lagi.' })
+    }
   },
 
   clearError: () => set({ error: null })

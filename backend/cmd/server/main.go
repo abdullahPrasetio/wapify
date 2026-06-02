@@ -84,6 +84,7 @@ func SetupApp() *fiber.App {
 
 	// Setup API Routes
 	api.SetupAuthRoutes(app)
+	api.SetupGoogleAuthRoutes(app)
 	api.SetupAdminRoutes(app)
 	api.SetupTeamRoutes(app)
 	api.SetupCollectionRoutes(app)

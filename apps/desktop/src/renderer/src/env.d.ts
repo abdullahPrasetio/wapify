@@ -24,6 +24,10 @@ interface WapboltAPI {
   reloadApp: () => void
   openFileDialog: () => Promise<{ path: string; name: string; size: number } | null>
   parseCurl: (curlCommand: string) => Promise<any>
+  openGoogleAuth: (url: string) => Promise<void>
+  onGoogleAuthCallback: (
+    callback: (data: { token: string; refreshToken: string }) => void
+  ) => () => void
   getConfluencePage: (config: { 
     baseUrl: string, 
     email?: string, 

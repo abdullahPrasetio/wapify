@@ -4,14 +4,23 @@ import { useAuthStore } from '../../store/useAuthStore'
 import { ServerSettingsModal } from '../modals/ServerSettingsModal'
 
 export const LoginPage = (): React.JSX.Element => {
-  const { login, isLoading, error, clearError } = useAuthStore()
+  const { login, loginWithGoogle, handleGoogleCallback, isLoading, error, clearError } = useAuthStore()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showSettings, setShowSettings] = useState(false)
   const [appVersion, setAppVersion] = useState('')
+  const [googleEnabled, setGoogleEnabled] = useState(false)
 
   useEffect(() => {
     window.api?.getAppVersion().then(setAppVersion)
+  }, [])
+
+  useEffect(() => {
+    import('../../api/client').then(({ apiClient }) => {
+      apiClient.get('/api/v1/auth/google/status')
+        .then((res) => setGoogleEnabled(res.data?.enabled === true))
+        .catch(() => setGoogleEnabled(false))
+    })
   }, [])
 
   useEffect(() => {
@@ -21,6 +30,15 @@ export const LoginPage = (): React.JSX.Element => {
     }
     return undefined
   }, [error, clearError])
+
+  // Listen for Google OAuth deep link callback from Electron main process
+  useEffect(() => {
+    if (!window.api?.onGoogleAuthCallback) return undefined
+    const unsub = window.api.onGoogleAuthCallback(({ token, refreshToken }) => {
+      handleGoogleCallback(token, refreshToken)
+    })
+    return unsub
+  }, [handleGoogleCallback])
 
   const handleSubmit = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault()
@@ -121,6 +139,36 @@ export const LoginPage = (): React.JSX.Element => {
               )}
             </button>
           </form>
+
+          {/* Divider + Google — only shown when enabled */}
+          {googleEnabled && (
+            <>
+              <div className="flex items-center gap-3 my-5">
+                <div className="flex-1 h-px bg-border" />
+                <span className="text-xs text-muted">or</span>
+                <div className="flex-1 h-px bg-border" />
+              </div>
+
+              <button
+                type="button"
+                disabled={isLoading}
+                onClick={loginWithGoogle}
+                className="w-full flex items-center justify-center gap-3 bg-background border border-border hover:border-primary/50 text-text font-medium py-2.5 rounded-lg text-sm transition-colors disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
+              >
+                {isLoading ? (
+                  <Loader2 size={16} className="animate-spin" />
+                ) : (
+                  <svg width="18" height="18" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M43.611 20.083H42V20H24v8h11.303C33.968 32.22 29.418 35 24 35c-6.075 0-11-4.925-11-11s4.925-11 11-11c2.797 0 5.352 1.06 7.28 2.78l5.657-5.657C33.9 7.37 29.21 5 24 5 12.954 5 4 13.954 4 25s8.954 20 20 20 20-8.954 20-20c0-1.341-.138-2.65-.389-3.917z" fill="#FFC107"/>
+                    <path d="M6.306 14.691l6.571 4.82C14.655 16.108 19.001 13 24 13c2.797 0 5.352 1.06 7.28 2.78l5.657-5.657C33.9 7.37 29.21 5 24 5 16.318 5 9.656 9.337 6.306 14.691z" fill="#FF3D00"/>
+                    <path d="M24 45c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238C29.21 36.023 26.715 37 24 37c-5.399 0-9.944-3.647-11.578-8.538l-6.522 5.025C9.505 40.556 16.227 45 24 45z" fill="#4CAF50"/>
+                    <path d="M43.611 20.083H42V20H24v8h11.303a11.04 11.04 0 01-3.714 5.082l6.19 5.238C42.012 34.999 44 30.271 44 25c0-1.341-.138-2.65-.389-3.917z" fill="#1976D2"/>
+                  </svg>
+                )}
+                Continue with Google
+              </button>
+            </>
+          )}
         </div>
 
         <p className="text-center text-xs text-muted mt-6">
