@@ -17,7 +17,7 @@ FROM alpine:latest
 WORKDIR /app
 
 # Install tzdata for Asia/Jakarta time zone
-RUN apk add --no-cache tzdata
+RUN apk add --no-cache tzdata curl
 
 COPY --from=builder /app/server .
 
