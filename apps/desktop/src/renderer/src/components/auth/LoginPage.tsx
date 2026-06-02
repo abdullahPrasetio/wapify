@@ -17,7 +17,7 @@ export const LoginPage = (): React.JSX.Element => {
 
   useEffect(() => {
     import('../../api/client').then(({ apiClient }) => {
-      apiClient.get('/api/v1/auth/google/status')
+      apiClient.get<{ enabled: boolean }>('/api/v1/auth/google/status')
         .then((res) => setGoogleEnabled(res.data?.enabled === true))
         .catch(() => setGoogleEnabled(false))
     })
