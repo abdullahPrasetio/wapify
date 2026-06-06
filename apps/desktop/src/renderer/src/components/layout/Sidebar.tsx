@@ -5,13 +5,8 @@ import {
   Settings,
   ChevronRight,
   ChevronDown,
-  Hash,
+  Globe,
   LogOut,
-  Users,
-  ShieldCheck,
-  UserCog,
-  Building2,
-  LayoutDashboard,
   FilePlus,
   FolderPlus,
   Trash2,
@@ -23,12 +18,14 @@ import {
   Download,
   Copy,
   Key, DatabaseZap,
-  Zap, Heart, ListTree,
+  Heart, ListTree,
   Cloud,
   RotateCcw,
-  Crown
+  Crown,
+  Clock,
+  Check
 } from 'lucide-react'
-import { useState, useEffect, useLayoutEffect, useMemo, useRef, createContext, useContext } from 'react'
+import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback, createContext, useContext } from 'react'
 import {
   DndContext,
   closestCenter,
@@ -504,6 +501,13 @@ const CollectionItem = ({ collection }: { collection: Collection }): React.JSX.E
   const [showRunner, setShowRunner] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
 
+  // Auto-fetch if expanded state was restored from localStorage but data not yet loaded
+  useEffect(() => {
+    if (isExpanded && !requestsByCollection[collection.id]) {
+      fetchCollectionContents(collection.id)
+    }
+  }, [])
+
   const handleExpand = async (): Promise<void> => {
     if (!isExpanded && !requestsByCollection[collection.id]) {
       await fetchCollectionContents(collection.id)
@@ -711,6 +715,83 @@ const PremiumBadge = (): React.JSX.Element => {
   )
 }
 
+function EnvSelector(): React.JSX.Element {
+  const { environments, activeEnvironmentId, setActiveEnvironment } = useDataStore()
+  const activeEnv = environments.find((e) => e.id === activeEnvironmentId)
+  const globalEnvs = environments.filter((e) => e.is_global)
+  const workspaceEnvs = environments.filter((e) => !e.is_global)
+
+  return (
+    <DropdownMenu.Root>
+      <DropdownMenu.Trigger asChild>
+        <button className="w-full flex items-center justify-between gap-2 px-3 py-2 bg-background border border-border rounded-lg text-xs hover:border-primary/50 transition-colors group">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${activeEnv ? 'bg-emerald-400' : 'bg-muted'}`} />
+            <span className="truncate text-text font-medium">{activeEnv?.name ?? 'No Environment'}</span>
+          </div>
+          <ChevronDown size={11} className="text-muted shrink-0 group-data-[state=open]:rotate-180 transition-transform" />
+        </button>
+      </DropdownMenu.Trigger>
+      <DropdownMenu.Portal>
+        <DropdownMenu.Content
+          align="start"
+          sideOffset={4}
+          className="z-50 w-[var(--radix-dropdown-menu-trigger-width)] bg-surface border border-border rounded-lg shadow-xl py-1 overflow-hidden"
+        >
+          <DropdownMenu.Item
+            onSelect={() => setActiveEnvironment(null)}
+            className={`flex items-center gap-2 px-3 py-2 text-xs cursor-pointer outline-none transition-colors ${!activeEnvironmentId ? 'text-primary bg-primary/10' : 'text-text hover:bg-background'}`}
+          >
+            <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${!activeEnvironmentId ? 'bg-primary' : 'bg-muted'}`} />
+            <span className="flex-1">No Environment</span>
+            {!activeEnvironmentId && <Check size={11} className="text-primary shrink-0" />}
+          </DropdownMenu.Item>
+
+          {globalEnvs.length > 0 && (
+            <>
+              <DropdownMenu.Separator className="my-1 border-t border-border" />
+              <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-muted flex items-center gap-1.5">
+                <Globe size={9} /> Global
+              </div>
+              {globalEnvs.map((env) => (
+                <DropdownMenu.Item
+                  key={env.id}
+                  onSelect={() => setActiveEnvironment(env.id)}
+                  className={`flex items-center gap-2 px-3 py-2 text-xs cursor-pointer outline-none transition-colors ${activeEnvironmentId === env.id ? 'text-primary bg-primary/10' : 'text-text hover:bg-background'}`}
+                >
+                  <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${activeEnvironmentId === env.id ? 'bg-emerald-400' : 'bg-muted'}`} />
+                  <span className="flex-1 truncate">{env.name}</span>
+                  {activeEnvironmentId === env.id && <Check size={11} className="text-primary shrink-0" />}
+                </DropdownMenu.Item>
+              ))}
+            </>
+          )}
+
+          {workspaceEnvs.length > 0 && (
+            <>
+              <DropdownMenu.Separator className="my-1 border-t border-border" />
+              <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-muted flex items-center gap-1.5">
+                <Server size={9} /> Workspace
+              </div>
+              {workspaceEnvs.map((env) => (
+                <DropdownMenu.Item
+                  key={env.id}
+                  onSelect={() => setActiveEnvironment(env.id)}
+                  className={`flex items-center gap-2 px-3 py-2 text-xs cursor-pointer outline-none transition-colors ${activeEnvironmentId === env.id ? 'text-primary bg-primary/10' : 'text-text hover:bg-background'}`}
+                >
+                  <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${activeEnvironmentId === env.id ? 'bg-emerald-400' : 'bg-muted'}`} />
+                  <span className="flex-1 truncate">{env.name}</span>
+                  {activeEnvironmentId === env.id && <Check size={11} className="text-primary shrink-0" />}
+                </DropdownMenu.Item>
+              ))}
+            </>
+          )}
+        </DropdownMenu.Content>
+      </DropdownMenu.Portal>
+    </DropdownMenu.Root>
+  )
+}
+
 export const Sidebar = (): React.JSX.Element => {
   const { user, logout } = useAuthStore()
   const [showServerSettings, setShowServerSettings] = useState(false)
@@ -727,7 +808,6 @@ export const Sidebar = (): React.JSX.Element => {
     collections,
     collectionsLoading,
     fetchTeams,
-    setActiveTeam,
     environments,
     activeEnvironmentId,
     setActiveEnvironment,
@@ -738,8 +818,6 @@ export const Sidebar = (): React.JSX.Element => {
     confluenceEnabled,
     fetchConfluenceEnabled
   } = useDataStore()
-
-  const { activeView, setActiveView } = useAppStore()
 
   useEffect(() => {
     const checkWs = () => {
@@ -758,8 +836,29 @@ export const Sidebar = (): React.JSX.Element => {
 
   const [searchQuery, setSearchQuery] = useState('')
   const [historySearch, setHistorySearch] = useState('')
-  const [isAdminMenuOpen, setIsAdminMenuOpen] = useState(false)
-  const [sidebarTab, setSidebarTab] = useState<'collections' | 'history'>('collections')
+
+  const [sidebarTab, setSidebarTab] = useState<'collections' | 'environments' | 'history'>('collections')
+  const [sidebarWidth, setSidebarWidth] = useState(256)
+  const isResizingSidebar = useRef(false)
+
+  const handleSidebarResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    isResizingSidebar.current = true
+    const startX = e.clientX
+    const startW = sidebarWidth
+    const onMove = (ev: MouseEvent) => {
+      if (!isResizingSidebar.current) return
+      const newW = Math.min(Math.max(startW + ev.clientX - startX, 160), 480)
+      setSidebarWidth(newW)
+    }
+    const onUp = () => {
+      isResizingSidebar.current = false
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }, [sidebarWidth])
   const [isNewCollectionModalOpen, setIsNewCollectionModalOpen] = useState(false)
 
   const [activeDragId, setActiveDragId] = useState<string | null>(null)
@@ -983,89 +1082,47 @@ export const Sidebar = (): React.JSX.Element => {
       onDragEnd={handleDragEnd}
       onDragCancel={() => { setActiveDragId(null); setOverInfo(null); overInfoRef.current = null }}
     >
-      <div className="w-64 h-full bg-surface border-r border-border flex flex-col flex-shrink-0 overflow-hidden">
-        <div className="h-14 flex items-center justify-between px-4 border-b border-border shrink-0">
-          <div onClick={() => setActiveView('request-builder')} className="font-semibold text-text flex items-center gap-2 cursor-pointer group">
-            <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center text-white shadow-lg shadow-primary/30 group-hover:scale-110 transition-transform">
-              <Zap size={16} fill="currentColor" />
-            </div>
-            <span className="text-sm font-black tracking-tight">WAPBOLT</span>
-          </div>
-          {/* <button 
-            onClick={() => {
-              if (window.api) window.api.reloadApp();
-              else fetchTeams();
-            }} 
-            title="Reload Application" 
-            className="text-muted hover:text-text transition-colors"
-          >
-            <RefreshCw size={14} className={teamsLoading ? 'animate-spin' : ''} />
-          </button> */}
+      <div className="h-full bg-surface border-r border-border flex flex-row flex-shrink-0 overflow-hidden relative" style={{ width: sidebarWidth + 64 }}>
+        {/* Icon rail */}
+        <div className="w-16 shrink-0 h-full bg-surface border-r border-border flex flex-col items-center py-2 gap-0.5">
+          {([
+            { id: 'collections', icon: <FolderIcon size={15} />, label: 'Collections' },
+            { id: 'environments', icon: <Globe size={15} />, label: 'Environ' },
+            { id: 'history', icon: <Clock size={15} />, label: 'History' },
+          ] as const).map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setSidebarTab(tab.id)}
+              title={tab.id === 'environments' ? 'Environments' : tab.label}
+              className={`w-14 flex flex-col items-center gap-0.5 py-1.5 rounded-lg transition-colors ${sidebarTab === tab.id ? 'bg-primary/15 text-primary' : 'text-muted hover:text-text hover:bg-background'}`}
+            >
+              {tab.icon}
+              <span className="text-[8px] font-semibold leading-none tracking-tight">{tab.label}</span>
+            </button>
+          ))}
+          <div className="flex-1" />
+          {activeTeamId && (
+            <button
+              onClick={() => setShowStandaloneMock(true)}
+              title="Workspace Mock Server"
+              className="w-14 flex flex-col items-center gap-0.5 py-1.5 rounded-lg text-emerald-400 hover:bg-emerald-500/10 transition-colors"
+            >
+              <DatabaseZap size={15} />
+              <span className="text-[8px] font-semibold leading-none tracking-tight">Mock</span>
+            </button>
+          )}
         </div>
 
-        <div className="flex-1 overflow-y-auto min-h-0 flex flex-col">
-          {user?.is_super_admin && (
-            <div className="px-3 py-2 border-b border-border shrink-0">
-              <div onClick={() => setIsAdminMenuOpen(!isAdminMenuOpen)} className="text-xs font-semibold text-primary uppercase tracking-wider mb-1.5 flex items-center justify-between cursor-pointer hover:text-primary-hover">
-                <div className="flex items-center gap-1.5"><ShieldCheck size={13} /> Admin Panel</div>
-                {isAdminMenuOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-              </div>
-              {isAdminMenuOpen && (
-                <div className="space-y-1 mt-2 mb-1">
-                  <div onClick={() => setActiveView('request-builder')} className={`flex items-center gap-2 px-2 py-1.5 rounded text-xs cursor-pointer ${activeView === 'request-builder' ? 'bg-primary/10 text-primary' : 'text-text hover:bg-background'}`}>
-                    <LayoutDashboard size={12} /> Dashboard
-                  </div>
-                  <div onClick={() => setActiveView('admin-users')} className={`flex items-center gap-2 px-2 py-1.5 rounded text-xs cursor-pointer ${activeView === 'admin-users' ? 'bg-primary/10 text-primary' : 'text-text hover:bg-background'}`}>
-                    <UserCog size={12} /> User Management
-                  </div>
-                  <div onClick={() => setActiveView('admin-teams')} className={`flex items-center gap-2 px-2 py-1.5 rounded text-xs cursor-pointer ${activeView === 'admin-teams' ? 'bg-primary/10 text-primary' : 'text-text hover:bg-background'}`}>
-                    <Building2 size={12} /> Workspace Management
-                  </div>
-                  <div onClick={() => setActiveView('admin-donations')} className={`flex items-center gap-2 px-2 py-1.5 rounded text-xs cursor-pointer ${activeView === 'admin-donations' ? 'bg-primary/10 text-primary' : 'text-text hover:bg-background'}`}>
-                    <Heart size={12} /> Donation Settings
-                  </div>
-                  <div onClick={() => setShowConfluenceSettings(true)} className={`flex items-center gap-2 px-2 py-1.5 rounded text-xs cursor-pointer text-text hover:bg-background`}>
-                    <Cloud size={12} className="text-blue-500" /> Confluence Sync
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          <div className="px-3 py-2 border-b border-border shrink-0">
-            <div className="text-xs font-bold text-text/60 uppercase tracking-widest mb-1.5 flex items-center justify-between">
-              <div className="flex items-center gap-1.5"><Users size={12} /> Workspaces</div>
-              <button onClick={() => { const name = window.prompt('Workspace Name:'); if (name) useDataStore.getState().createTeam(name, '') }} title="New Workspace" className="text-muted hover:text-text transition-colors"><Plus size={12} /></button>
-            </div>
-            <div className="space-y-0.5">
-              {teams.map((team) => (
-                <div key={team.id} onClick={() => { setActiveTeam(team.id); setActiveView('request-builder') }} className={`flex items-center px-2 py-1.5 rounded cursor-pointer text-xs transition-colors ${team.id === activeTeamId ? 'bg-primary/15 text-primary font-medium' : 'text-text hover:bg-background'}`}>
-                  <div className={`w-1.5 h-1.5 rounded-full mr-2 shrink-0 ${team.id === activeTeamId ? 'bg-primary' : 'bg-muted'}`} />
-                  <span className="truncate">{team.name}</span>
-                </div>
-              ))}
-            </div>
-
-            {activeTeamId && (
-              <div onClick={() => setShowStandaloneMock(true)} className="flex items-center gap-2 px-2 py-1.5 rounded text-[10px] cursor-pointer text-emerald-400 hover:bg-emerald-500/10 transition-colors mt-2 border border-emerald-500/10 bg-emerald-500/5 font-black uppercase tracking-[0.1em] shadow-lg shadow-emerald-500/5">
-                <DatabaseZap size={11} /> Workspace Mock Server
-              </div>
-            )}
-          </div>
-
-          <div className="flex px-3 pt-3 gap-2 border-b border-border items-center">
-            <div className="flex flex-1 gap-4">
-              <div onClick={() => setSidebarTab('collections')} className={`pb-2 text-xs font-bold uppercase tracking-wider cursor-pointer border-b-2 transition-all ${sidebarTab === 'collections' ? 'border-primary text-primary' : 'border-transparent text-muted hover:text-text'}`}>Collections</div>
-              <div onClick={() => setSidebarTab('history')} className={`pb-2 text-xs font-bold uppercase tracking-wider cursor-pointer border-b-2 transition-all ${sidebarTab === 'history' ? 'border-primary text-primary' : 'border-transparent text-muted hover:text-text'}`}>History</div>
-            </div>
-
+        {/* Content panel */}
+        <div className="flex flex-col overflow-hidden" style={{ width: sidebarWidth }}>
+          {/* Panel header */}
+          <div className="px-3 py-2 border-b border-border shrink-0 flex items-center justify-between h-9">
+            <span className="text-[10px] font-black uppercase tracking-widest text-muted">
+              {sidebarTab === 'collections' ? 'Collections' : sidebarTab === 'environments' ? 'Environments' : 'History'}
+            </span>
             {sidebarTab === 'collections' && (
-              <button
-                onClick={collapseAll}
-                title="Collapse All"
-                className="mb-2 p-1 rounded hover:bg-background text-muted hover:text-text transition-colors"
-              >
-                <ListTree size={14} />
+              <button onClick={collapseAll} title="Collapse All" className="p-1 rounded hover:bg-background text-muted hover:text-text transition-colors">
+                <ListTree size={13} />
               </button>
             )}
           </div>
@@ -1089,6 +1146,14 @@ export const Sidebar = (): React.JSX.Element => {
                   )}
                 </div>
                 {collectionsLoading ? <div className="text-center py-8 text-xs text-muted">Loading...</div> : filteredCollections.map((c) => <CollectionItem key={c.id} collection={c} />)}
+              </div>
+            ) : sidebarTab === 'environments' ? (
+              <div className="flex flex-col h-full px-3 py-3 gap-3">
+                <div className="text-[10px] font-black text-muted uppercase tracking-[0.2em] flex items-center justify-between">
+                  <div className="flex items-center gap-1"><Globe size={11} /> Environment</div>
+                  <EnvironmentModal />
+                </div>
+                <EnvSelector />
               </div>
             ) : (
               <div className="flex flex-col h-full">
@@ -1223,29 +1288,8 @@ export const Sidebar = (): React.JSX.Element => {
               </div>
             )}
           </div>
-        </div>
 
-        <div className="border-t border-border shrink-0">
-          <div className="px-3 py-2 border-b border-border">
-            <div className="text-[10px] font-black text-muted uppercase tracking-[0.2em] mb-2 flex items-center justify-between">
-              <div className="flex items-center gap-1"><Hash size={11} /> Environment</div>
-              <EnvironmentModal />
-            </div>
-            <select value={activeEnvironmentId ?? ''} onChange={(e) => setActiveEnvironment(e.target.value === '' ? null : Number(e.target.value))} className="w-full bg-background border border-border rounded text-xs px-2 py-1.5 text-text focus:border-primary outline-none cursor-pointer">
-              <option value="">No Environment</option>
-              {environments.filter(e => e.is_global).length > 0 && (
-                <optgroup label="🌍 Global Environments">
-                  {environments.filter(e => e.is_global).map((env) => <option key={env.id} value={env.id}>{env.name}</option>)}
-                </optgroup>
-              )}
-              {environments.filter(e => !e.is_global).length > 0 && (
-                <optgroup label="🏢 Workspace Environments">
-                  {environments.filter(e => !e.is_global).map((env) => <option key={env.id} value={env.id}>{env.name}</option>)}
-                </optgroup>
-              )}
-            </select>
-          </div>
-
+          <div className="border-t border-border shrink-0">
           <div className="px-3 py-2 flex flex-col gap-1 border-t border-border/50 bg-background/50">
             {appVersion && <div className="px-1 text-[9px] font-black uppercase tracking-[0.2em] text-muted/70 mb-1 text-center">Wapbolt v{appVersion}</div>}
             <div className="flex items-center justify-between min-w-0 px-1">
@@ -1321,7 +1365,14 @@ export const Sidebar = (): React.JSX.Element => {
               </span>
             </div>
           </div>
+          </div>
         </div>
+
+        {/* Resize handle */}
+        <div
+          onMouseDown={handleSidebarResizeStart}
+          className="absolute right-0 top-0 w-1 h-full cursor-col-resize hover:bg-primary/40 transition-colors z-10"
+        />
 
         {showServerSettings && <ServerSettingsModal onClose={() => setShowServerSettings(false)} />}
         {showConfluenceSettings && <ConfluenceSettingsModal onClose={() => setShowConfluenceSettings(false)} />}

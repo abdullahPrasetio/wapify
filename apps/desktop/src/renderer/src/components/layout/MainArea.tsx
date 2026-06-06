@@ -5,7 +5,7 @@ import { useAuthStore } from '../../store/useAuthStore'
 import { KeyValueEditor } from '../ui/KeyValueEditor'
 import { VariableOverlayInput } from '../ui/VariableOverlayInput'
 import { SetVarModal } from '../modals/SetVarModal'
-import { Shield, Eye, EyeOff, X, RefreshCw, Save, Lock, Users, ChevronDown, FileCode2, Terminal as TerminalIcon, Code, Box, Globe, Link as LinkIcon, BookOpen, Zap, ShieldCheck, FileText, Copy, XCircle, Minus, Plus } from 'lucide-react'
+import { Shield, Eye, EyeOff, X, RefreshCw, Save, Lock, Users, ChevronDown, ChevronRight, FileCode2, Terminal as TerminalIcon, Code, Box, Globe, Link as LinkIcon, BookOpen, Zap, ShieldCheck, FileText, Copy, XCircle, Minus, Plus } from 'lucide-react'
 import * as ContextMenu from '@radix-ui/react-context-menu'
 import { ResponseArea } from './ResponseArea'
 import { HistoryDetailView } from './HistoryDetailView'
@@ -21,6 +21,7 @@ import { parseCurlCommand, generateCurl } from '../../utils/curlParser'
 import Editor, { loader } from '@monaco-editor/react'
 import * as monaco from 'monaco-editor'
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
+import ReactDOM from 'react-dom'
 import type { FieldValidationRule, FieldValidations, ExtractionRule, SchemaAssertion } from '../../types'
 import { toast } from 'sonner'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
@@ -447,29 +448,21 @@ const EditorArea = ({
                 onClick={() => {
                   try {
                     const json = JSON.parse(workingRequest.body as string)
-                    onUpdate({ body: JSON.stringify(json, null, 2) })
-                    toast.success('JSON Beautified')
-                  } catch (e) {
-                    toast.error('Invalid JSON: Cannot beautify')
+                    const isMinified = (workingRequest.body as string).trim().indexOf('\n') === -1
+                    if (isMinified) {
+                      onUpdate({ body: JSON.stringify(json, null, 2) })
+                      toast.success('JSON Beautified')
+                    } else {
+                      onUpdate({ body: JSON.stringify(json) })
+                      toast.success('JSON Minified')
+                    }
+                  } catch {
+                    toast.error('Invalid JSON')
                   }
                 }}
                 className="text-[9px] font-black uppercase tracking-widest text-muted hover:text-primary transition-colors cursor-pointer"
               >
-                Beautify
-              </button>
-              <button
-                onClick={() => {
-                  try {
-                    const json = JSON.parse(workingRequest.body as string)
-                    onUpdate({ body: JSON.stringify(json) })
-                    toast.success('JSON Minified')
-                  } catch (e) {
-                    toast.error('Invalid JSON: Cannot minify')
-                  }
-                }}
-                className="text-[9px] font-black uppercase tracking-widest text-muted hover:text-primary transition-colors cursor-pointer"
-              >
-                Unbeautify
+                {(workingRequest.body as string)?.trim().indexOf('\n') === -1 ? 'Beautify' : 'Minified'}
               </button>
             </div>
           )}
@@ -1376,28 +1369,50 @@ const ctxMenuShortcutCls = 'ml-auto text-[10px] text-muted font-mono'
 
 const RequestTabs = (): React.JSX.Element => {
   const { tabs, activeTabId, setActiveTab, closeTab, forceCloseTab, closeOtherTabs, closeAllTabs, forceCloseAllTabs, duplicateTab, openDraftRequest } = useDataStore()
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const overflowBtnRef = useRef<HTMLButtonElement>(null)
+  const overflowDropRef = useRef<HTMLDivElement>(null)
+  const [hasOverflow, setHasOverflow] = useState(false)
+  const [overflowOpen, setOverflowOpen] = useState(false)
+  const [overflowPos, setOverflowPos] = useState({ top: 0, left: 0 })
+
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const check = () => setHasOverflow(el.scrollWidth > el.clientWidth)
+    check()
+    const ro = new ResizeObserver(check)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [tabs])
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (
+        overflowDropRef.current && !overflowDropRef.current.contains(e.target as Node) &&
+        overflowBtnRef.current && !overflowBtnRef.current.contains(e.target as Node)
+      ) setOverflowOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const isMac = navigator.platform.toUpperCase().includes('MAC')
       const mod = isMac ? e.metaKey : e.ctrlKey
 
-      // ⌘T / Ctrl+T — New Request
       if (mod && e.key === 't') {
         e.preventDefault()
         openDraftRequest({})
         return
       }
-
-      // ⌘W / Ctrl+W — Close active tab
       if (mod && !e.altKey && e.key === 'w') {
         e.preventDefault()
         const { activeTabId: currentId } = useDataStore.getState()
         if (currentId) closeTab(currentId)
         return
       }
-
-      // ⌥⌘W / Ctrl+Alt+W — Force close active tab
       if (mod && e.altKey && e.key === 'w') {
         e.preventDefault()
         const { activeTabId: currentId } = useDataStore.getState()
@@ -1405,116 +1420,126 @@ const RequestTabs = (): React.JSX.Element => {
         return
       }
     }
-
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [closeTab, forceCloseTab, openDraftRequest])
 
-  if (!tabs || tabs.length === 0) return <></>
+  const handleOverflowOpen = () => {
+    if (overflowBtnRef.current) {
+      const rect = overflowBtnRef.current.getBoundingClientRect()
+      setOverflowPos({ top: rect.bottom + 4, left: rect.right - 200 })
+    }
+    setOverflowOpen((v) => !v)
+  }
+
+  const overflowDropdown = overflowOpen ? ReactDOM.createPortal(
+    <div
+      ref={overflowDropRef}
+      style={{ position: 'fixed', top: overflowPos.top, left: overflowPos.left, zIndex: 99999 }}
+      className="w-52 bg-surface border border-border rounded-lg shadow-xl py-1 overflow-hidden"
+    >
+      <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-muted">All Tabs</div>
+      {tabs.map((tab) => (
+        <button
+          key={tab.requestId}
+          onClick={() => { setActiveTab(tab.requestId); setOverflowOpen(false) }}
+          className={`w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-background transition-colors text-left ${activeTabId === tab.requestId ? 'text-primary' : 'text-text'}`}
+        >
+          <span className={`text-[9px] font-black shrink-0 w-8 ${METHOD_COLOR[tab.method] ?? 'text-muted'}`}>{tab.method}</span>
+          <span className="truncate flex-1">{tab.name}</span>
+          {tab.isDirty && <span className="text-primary shrink-0">•</span>}
+        </button>
+      ))}
+    </div>,
+    document.body
+  ) : null
 
   return (
-    <div className="flex bg-background border-b border-border overflow-x-auto no-scrollbar shrink-0">
-      {tabs.map((tab) => (
-        <ContextMenu.Root key={tab.requestId}>
-          <ContextMenu.Trigger asChild>
-            <div
-              onClick={(): void => setActiveTab(tab.requestId)}
-              className={`group flex items-center h-10 px-3 border-r border-border cursor-pointer transition-all min-w-[120px] max-w-[200px] relative ${activeTabId === tab.requestId
-                ? 'bg-surface border-t-2 border-t-primary'
-                : 'hover:bg-surface/50'
-                }`}
-            >
-              <span
-                className={`text-[9px] font-black mr-2 shrink-0 ${METHOD_COLOR[tab.method] ?? 'text-muted'}`}
+    <div className="flex bg-background border-b border-border shrink-0 items-stretch">
+      {/* Scrollable tab list */}
+      <div ref={scrollRef} className="flex overflow-x-auto no-scrollbar flex-1">
+        {tabs.map((tab) => (
+          <ContextMenu.Root key={tab.requestId}>
+            <ContextMenu.Trigger asChild>
+              <div
+                onClick={(): void => setActiveTab(tab.requestId)}
+                className={`group flex items-center h-10 px-3 border-r border-border cursor-pointer transition-all min-w-[120px] max-w-[200px] relative shrink-0 ${activeTabId === tab.requestId
+                  ? 'bg-surface border-t-2 border-t-primary'
+                  : 'hover:bg-surface/50'
+                  }`}
               >
-                {tab.method}
-              </span>
-              <span
-                className={`text-xs truncate flex-1 ${activeTabId === tab.requestId ? 'text-text font-medium' : 'text-muted'}`}
-              >
-                {tab.name}
-                {tab.isDirty && <span className="ml-1 text-primary">•</span>}
-              </span>
-              <button
-                onClick={(e): void => {
-                  e.stopPropagation()
-                  closeTab(tab.requestId)
-                }}
-                className="ml-2 p-0.5 rounded-full hover:bg-border transition-colors opacity-0 group-hover:opacity-100 cursor-pointer"
-              >
-                <X size={10} />
-              </button>
-            </div>
-          </ContextMenu.Trigger>
+                <span className={`text-[9px] font-black mr-2 shrink-0 ${METHOD_COLOR[tab.method] ?? 'text-muted'}`}>
+                  {tab.method}
+                </span>
+                <span className={`text-xs truncate flex-1 ${activeTabId === tab.requestId ? 'text-text font-medium' : 'text-muted'}`}>
+                  {tab.name}
+                  {tab.isDirty && <span className="ml-1 text-primary">•</span>}
+                </span>
+                <button
+                  onClick={(e): void => { e.stopPropagation(); closeTab(tab.requestId) }}
+                  className="ml-2 p-0.5 rounded-full hover:bg-border transition-colors opacity-0 group-hover:opacity-100 cursor-pointer shrink-0"
+                >
+                  <X size={10} />
+                </button>
+              </div>
+            </ContextMenu.Trigger>
 
-          <ContextMenu.Portal>
-            <ContextMenu.Content className="bg-surface border border-border rounded-lg shadow-2xl p-1 z-[200] min-w-[200px] animate-in fade-in-0 zoom-in-95">
-              <ContextMenu.Item
-                className={ctxMenuItemCls}
-                onSelect={() => openDraftRequest({})}
-              >
-                <Plus size={13} className="text-muted" />
-                New Request
-                <span className={ctxMenuShortcutCls}>⌘T</span>
-              </ContextMenu.Item>
+            <ContextMenu.Portal>
+              <ContextMenu.Content className="bg-surface border border-border rounded-lg shadow-2xl p-1 z-[200] min-w-[200px] animate-in fade-in-0 zoom-in-95">
+                <ContextMenu.Item className={ctxMenuItemCls} onSelect={() => openDraftRequest({})}>
+                  <Plus size={13} className="text-muted" /> New Request <span className={ctxMenuShortcutCls}>⌘T</span>
+                </ContextMenu.Item>
+                <ContextMenu.Item className={ctxMenuItemCls} onSelect={() => duplicateTab(tab.requestId)}>
+                  <Copy size={13} className="text-muted" /> Duplicate Tab
+                </ContextMenu.Item>
+                <div className={ctxMenuSeparatorCls} />
+                <ContextMenu.Item className={ctxMenuItemCls} onSelect={() => closeTab(tab.requestId)}>
+                  <X size={13} className="text-muted" /> Close Tab <span className={ctxMenuShortcutCls}>⌘W</span>
+                </ContextMenu.Item>
+                <ContextMenu.Item className={ctxMenuItemCls} onSelect={() => forceCloseTab(tab.requestId)}>
+                  <XCircle size={13} className="text-muted" /> Force Close Tab <span className={ctxMenuShortcutCls}>⌥⌘W</span>
+                </ContextMenu.Item>
+                <ContextMenu.Item className={ctxMenuItemCls} onSelect={() => closeOtherTabs(tab.requestId)}>
+                  <Minus size={13} className="text-muted" /> Close Other Tabs
+                </ContextMenu.Item>
+                <div className={ctxMenuSeparatorCls} />
+                <ContextMenu.Item className={ctxMenuItemCls} onSelect={() => closeAllTabs()}>
+                  <X size={13} className="text-muted" /> Close All Tabs
+                </ContextMenu.Item>
+                <ContextMenu.Item className={`${ctxMenuItemCls} text-rose-400 hover:text-rose-400 hover:bg-rose-500/10`} onSelect={() => forceCloseAllTabs()}>
+                  <XCircle size={13} /> Force Close All Tabs
+                </ContextMenu.Item>
+              </ContextMenu.Content>
+            </ContextMenu.Portal>
+          </ContextMenu.Root>
+        ))}
+      </div>
 
-              <ContextMenu.Item
-                className={ctxMenuItemCls}
-                onSelect={() => duplicateTab(tab.requestId)}
-              >
-                <Copy size={13} className="text-muted" />
-                Duplicate Tab
-              </ContextMenu.Item>
+      {/* Overflow indicator */}
+      {hasOverflow && (
+        <>
+          <button
+            ref={overflowBtnRef}
+            onClick={handleOverflowOpen}
+            title="Show all tabs"
+            className="px-2 border-r border-border text-muted hover:text-text hover:bg-surface/50 transition-colors shrink-0 flex items-center"
+          >
+            <ChevronRight size={14} />
+          </button>
+          {overflowDropdown}
+        </>
+      )}
 
-              <div className={ctxMenuSeparatorCls} />
-
-              <ContextMenu.Item
-                className={ctxMenuItemCls}
-                onSelect={() => closeTab(tab.requestId)}
-              >
-                <X size={13} className="text-muted" />
-                Close Tab
-                <span className={ctxMenuShortcutCls}>⌘W</span>
-              </ContextMenu.Item>
-
-              <ContextMenu.Item
-                className={ctxMenuItemCls}
-                onSelect={() => forceCloseTab(tab.requestId)}
-              >
-                <XCircle size={13} className="text-muted" />
-                Force Close Tab
-                <span className={ctxMenuShortcutCls}>⌥⌘W</span>
-              </ContextMenu.Item>
-
-              <ContextMenu.Item
-                className={ctxMenuItemCls}
-                onSelect={() => closeOtherTabs(tab.requestId)}
-              >
-                <Minus size={13} className="text-muted" />
-                Close Other Tabs
-              </ContextMenu.Item>
-
-              <div className={ctxMenuSeparatorCls} />
-
-              <ContextMenu.Item
-                className={ctxMenuItemCls}
-                onSelect={() => closeAllTabs()}
-              >
-                <X size={13} className="text-muted" />
-                Close All Tabs
-              </ContextMenu.Item>
-
-              <ContextMenu.Item
-                className={`${ctxMenuItemCls} text-rose-400 hover:text-rose-400 hover:bg-rose-500/10`}
-                onSelect={() => forceCloseAllTabs()}
-              >
-                <XCircle size={13} />
-                Force Close All Tabs
-              </ContextMenu.Item>
-            </ContextMenu.Content>
-          </ContextMenu.Portal>
-        </ContextMenu.Root>
-      ))}
+      {/* New tab button — only show when there are existing tabs */}
+      {tabs.length > 0 && (
+        <button
+          onClick={() => openDraftRequest({})}
+          title="New Request (⌘T)"
+          className="px-3 text-muted hover:text-text hover:bg-surface/50 transition-colors shrink-0 flex items-center"
+        >
+          <Plus size={14} />
+        </button>
+      )}
     </div>
   )
 }
@@ -1550,22 +1575,23 @@ export const MainArea = (): React.JSX.Element => {
   const [isShortcutsModalOpen, setIsShortcutsModalOpen] = useState(false)
   const [builderHeight, setBuilderHeight] = useState(60) // in percentage
   const [isResizing, setIsResizing] = useState(false)
+  const mainPanelRef = useRef<HTMLDivElement>(null)
 
   const activeEnv = environments.find((e) => e.id === activeEnvironmentId) ?? null
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
-      if (!isResizing) return
-      const height = (e.clientY / window.innerHeight) * 100
+      if (!isResizing || !mainPanelRef.current) return
+      const rect = mainPanelRef.current.getBoundingClientRect()
+      const relativeY = e.clientY - rect.top
+      const totalHeight = rect.height
 
-      // Batasi agar bagian bawah (Response Area) minimal punya tinggi 80px 
-      // agar tab (Body, Headers, dll) tetap terlihat
-      const minBottomHeightPx = 80
-      const maxTopHeightPct = ((window.innerHeight - minBottomHeightPx) / window.innerHeight) * 100
+      const minTopPx = 300 // minimum request builder height (URL bar + protocol + toolbar + tabs + some body space)
+      const minBottomPx = 80  // minimum response area height (tab bar ~33px + padding + border buffer)
 
-      if (height > 15 && height < maxTopHeightPct) {
-        setBuilderHeight(height)
-      }
+      const clampedY = Math.min(Math.max(relativeY, minTopPx), totalHeight - minBottomPx)
+      const heightPct = (clampedY / totalHeight) * 100
+      setBuilderHeight(heightPct)
     }
     const handleMouseUp = () => setIsResizing(false)
 
@@ -1702,7 +1728,7 @@ export const MainArea = (): React.JSX.Element => {
 
   return (
     <div className="flex-1 flex overflow-hidden">
-      <div className="flex-1 bg-background flex flex-col overflow-hidden">
+      <div className="flex-1 bg-background flex flex-col overflow-hidden" ref={mainPanelRef}>
         <RequestTabs />
 
         {/* Top half: Request Builder */}

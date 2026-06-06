@@ -15,8 +15,34 @@ if (process.defaultApp) {
   app.setAsDefaultProtocolClient('wapbolt')
 }
 
-import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { autoUpdater } from 'electron-updater'
+
+const isDev = !app.isPackaged
+
+// Use separate user data directory in dev to avoid lock conflicts with production app
+if (isDev) {
+  app.setPath('userData', `${app.getPath('userData')}-dev`)
+}
+
+function setAppUserModelId(id: string): void {
+  if (process.platform === 'win32') app.setAppUserModelId(isDev ? process.execPath : id)
+}
+
+function watchWindowShortcuts(window: BrowserWindow): void {
+  const { webContents } = window
+  webContents.on('before-input-event', (event, input) => {
+    if (input.type === 'keyDown') {
+      if (!isDev) {
+        if (input.code === 'KeyR' && (input.control || input.meta)) event.preventDefault()
+      } else {
+        if (input.code === 'F12') {
+          if (webContents.isDevToolsOpened()) webContents.closeDevTools()
+          else webContents.openDevTools({ mode: 'undocked' })
+        }
+      }
+    }
+  })
+}
 import log from 'electron-log'
 import icon from '../../resources/icon.png?asset'
 import keytar from 'keytar'
@@ -417,6 +443,9 @@ function createWindow(): void {
     title: 'Wapbolt',
     autoHideMenuBar: true,
     ...(process.platform === 'linux' ? { icon } : {}),
+    ...(process.platform === 'darwin'
+      ? { titleBarStyle: 'hiddenInset', trafficLightPosition: { x: 14, y: 14 } }
+      : { frame: false }),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false
@@ -432,7 +461,7 @@ function createWindow(): void {
     return { action: 'deny' }
   })
 
-  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
+  if (isDev && process.env['ELECTRON_RENDERER_URL']) {
     mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
   } else {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
@@ -478,10 +507,10 @@ function handleDeepLink(url: string): void {
 }
 
 app.whenReady().then(() => {
-  electronApp.setAppUserModelId('io.wapbolt.desktop')
+  setAppUserModelId('io.wapbolt.desktop')
 
   app.on('browser-window-created', (_, window) => {
-    optimizer.watchWindowShortcuts(window)
+    watchWindowShortcuts(window)
   })
 
   createWindow()

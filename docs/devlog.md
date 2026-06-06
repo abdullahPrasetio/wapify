@@ -1,4 +1,51 @@
 
+## [2026-06-06] — UI Polish: Sidebar Layout, Tab Bar & Environment Selector
+**Fase:** Phase 5 — Auth & Security / UI Polish
+**Dikerjakan oleh:** Waluyo
+**Status:** ✅ Selesai
+
+### Yang Dikerjakan
+
+#### 🗂️ Sidebar Layout Fix
+- Bug: bagian bawah sidebar (version, user profile, WS status) muncul sebagai kolom ketiga di `flex-row` karena berada di luar div content panel. Diperbaiki dengan memindahkannya ke dalam `flex-col` content panel.
+- Icon rail diperlebar dari `w-11` → `w-16` (64px) agar label teks tidak overflow.
+- Tombol icon rail diberi label teks di bawah icon (gaya Postman): `Collections`, `Environ`, `History`, `Mock`.
+- Icon `Hash` diganti `Globe` untuk tab Environments.
+
+#### 📑 Tab Bar (RequestTabs) — Postman-style
+- Tombol `+` (New Request) ditambahkan di ujung kanan tab bar.
+- Chevron `>` muncul otomatis saat tab melebihi lebar container (deteksi via `ResizeObserver` — `scrollWidth > clientWidth`).
+- Klik chevron membuka dropdown portal (`ReactDOM.createPortal`) berisi semua tab dengan method badge + nama + dirty indicator.
+- Keyboard shortcut: `⌘T` buka draft request baru, `⌘W` tutup tab aktif, `⌥⌘W` tutup semua.
+
+#### ◀▶ Navbar — Prev/Next Tab
+- Tombol chevron kiri/kanan di `TopNavbar` sebelumnya menggunakan `window.history.back/forward()` yang tidak berfungsi di Electron.
+- Diganti dengan navigasi tab berbasis index dari Zustand store — prev/next tab dalam array `tabs`.
+- Tombol di-disable (opacity 30%, `cursor-not-allowed`) saat tidak ada tab sebelum/sesudah.
+
+#### ➕ New Workspace — Inline Form
+- `window.prompt()` diganti dengan inline input form di dalam dropdown WorkspaceSwitcher.
+- Input muncul di dalam dropdown dengan auto-focus, submit via Enter, batal via Escape.
+- Tombol ArrowRight sebagai submit; disabled saat nama kosong atau sedang loading.
+
+#### 🌍 Environment Selector — Custom Dropdown
+- `<select>` native browser diganti dengan custom dropdown menggunakan `@radix-ui/react-dropdown-menu`.
+- Trigger button menampilkan dot indicator (hijau = aktif, abu = none) + nama environment.
+- Dropdown dikelompokkan per section: **Global** (Globe icon) dan **Workspace** (Server icon), dengan checkmark di item aktif.
+- Konsisten dengan theme dark app, tidak lagi bergantung pada tampilan native OS.
+
+### Perubahan File
+- `apps/desktop/src/renderer/src/components/layout/Sidebar.tsx` — Layout fix bottom section, icon rail labels, komponen `EnvSelector` baru, TypeScript error fixes (unused imports/vars).
+- `apps/desktop/src/renderer/src/components/layout/MainArea.tsx` — `RequestTabs` rewrite dengan overflow detection, `+` button, chevron dropdown portal.
+- `apps/desktop/src/renderer/src/components/layout/TopNavbar.tsx` — Prev/next tab navigation, inline new workspace form.
+
+### Keputusan & Catatan
+- `ResizeObserver` dipakai (bukan `window.resize`) agar overflow detection akurat saat sidebar di-resize, bukan hanya window resize.
+- Dropdown environment menggunakan `DropdownMenu.Portal` dari Radix sehingga tidak terpotong oleh `overflow: hidden` parent.
+- TypeScript strict mode mendeteksi beberapa unused imports/vars (`Users`, `Zap`, `setActiveTeam`, `activeView`, `setActiveView`) — semua dihapus.
+
+---
+
 ## [2026-06-01] — Google OAuth Login (v2.5.0)
 **Fase:** Phase 5 — Auth & Security
 **Dikerjakan oleh:** Waluyo

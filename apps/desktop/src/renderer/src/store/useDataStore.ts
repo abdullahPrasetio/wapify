@@ -562,7 +562,12 @@ export const useDataStore = create<DataState>()(
               const teams = response.data as Team[]
               set({ teams, teamsLoading: false })
 
-              if (teams.length > 0 && !get().activeTeamId) {
+              const currentTeamId = get().activeTeamId
+              if (currentTeamId && teams.some((t) => t.id === currentTeamId)) {
+                // Team already selected from previous session — re-fetch data without resetting selection
+                await Promise.all([get().fetchCollections(currentTeamId), get().fetchEnvironments(currentTeamId)])
+                await get().fetchHistory()
+              } else if (teams.length > 0) {
                 await get().setActiveTeam(teams[0].id)
               }
             } else {
@@ -708,7 +713,11 @@ export const useDataStore = create<DataState>()(
             workingRequest: {
               method: initialData.method || 'GET',
               url: initialData.url || '',
-              headers: (initialData.headers as Record<string, string>) || {},
+              headers: (initialData.headers as Record<string, string>) || (
+                (!initialData.body_type || initialData.body_type === 'raw-json')
+                  ? { 'Content-Type': 'application/json' }
+                  : {}
+              ),
               body: (initialData.body as any) || '',
               body_type: initialData.body_type || 'raw-json',
               auth_config: (initialData.auth_config as AuthConfig) || { type: 'No Auth' },
@@ -1301,17 +1310,11 @@ export const useDataStore = create<DataState>()(
             if (response.status === 200) {
               const envs = response.data as Environment[]
               const currentActiveId = get().activeEnvironmentId
-              const stillExists = envs.some((e) => e.id === currentActiveId)
+              const stillExists = currentActiveId === null || envs.some((e) => e.id === currentActiveId)
 
               set({
                 environments: envs,
-                activeEnvironmentId: stillExists
-                  ? currentActiveId
-                  : currentActiveId === null
-                    ? null
-                    : envs.length > 0
-                      ? envs[0].id
-                      : null
+                activeEnvironmentId: stillExists ? currentActiveId : null
               })
             }
           } catch {

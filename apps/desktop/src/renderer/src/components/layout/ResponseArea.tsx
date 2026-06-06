@@ -5,7 +5,7 @@ import * as monaco from 'monaco-editor'
 
 // Configure Monaco to use the bundled version (OFFLINE)
 loader.config({ monaco })
-import { Clock, Database, Globe, ChevronDown, ChevronRight, Zap, X, Camera, GitCompare, BarChart2 } from 'lucide-react'
+import { Clock, Database, Globe, ChevronDown, ChevronRight, Zap, X, Camera, GitCompare, BarChart2, Wand2, FileCode, Trash2 } from 'lucide-react'
 import { useState, useEffect, useCallback } from 'react'
 import type { RequestHistory } from '../../types'
 import { toast } from 'sonner'
@@ -20,6 +20,7 @@ export const ResponseArea = (): React.JSX.Element => {
     logs,
     clearLogs,
     saveExample,
+    deleteExample,
     setWorkingRequest,
     locksByRequest,
     responseSnapshots,
@@ -28,16 +29,18 @@ export const ResponseArea = (): React.JSX.Element => {
     history,
     fetchHistory,
     historyLoading,
+    requests,
   } = useDataStore()
   const { fontSize, theme } = useAppStore()
   const monacoTheme = theme === 'system'
     ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'vs-dark' : 'vs')
     : (theme === 'dark' ? 'vs-dark' : 'vs')
-  const [activeTab, setActiveTab] = useState<'Body' | 'Headers' | 'Tests' | 'Console' | 'Timing'>('Body')
+  const [activeTab, setActiveTab] = useState<'Body' | 'Headers' | 'Tests' | 'Console' | 'Timing' | 'Examples'>('Body')
   const [isPromptOpen, setIsPromptOpen] = useState(false)
   const [showExtract, setShowExtract] = useState(false)
   const [extractPath, setExtractPath] = useState('')
   const [extractVar, setExtractVar] = useState('')
+  const [isBeautified, setIsBeautified] = useState(true)
 
   const loadHistoryOnce = useCallback(() => {
     if (history.length === 0 && !historyLoading) fetchHistory()
@@ -112,9 +115,22 @@ export const ResponseArea = (): React.JSX.Element => {
 
   const statusColor = status >= 200 && status < 300 ? 'text-success' : 'text-danger'
 
-  const formattedData = typeof data === 'object' ? JSON.stringify(data, null, 2) : String(data)
+  const formattedData = (() => {
+    if (typeof data === 'object') {
+      return isBeautified ? JSON.stringify(data, null, 2) : JSON.stringify(data)
+    }
+    try {
+      const parsed = JSON.parse(String(data))
+      return isBeautified ? JSON.stringify(parsed, null, 2) : JSON.stringify(parsed)
+    } catch {
+      return String(data)
+    }
+  })()
 
-  const TABS = ['Body', 'Headers', 'Test Results', 'Console', 'Timing']
+  const TABS = ['Body', 'Headers', 'Test Results', 'Console', 'Timing', 'Examples']
+
+  const activeRequest = typeof activeTabId === 'number' ? requests.find((r) => r.id === activeTabId) : null
+  const examples = activeRequest?.examples ?? []
 
   const requestHistory = typeof activeTabId === 'number'
     ? history.filter((h) => h.request_id === activeTabId).slice(-30).reverse()
@@ -198,6 +214,13 @@ export const ResponseArea = (): React.JSX.Element => {
               <Zap size={10} /> Extract
             </button>
             <button
+              onClick={() => setIsBeautified((v) => !v)}
+              className={`flex items-center gap-1 text-[10px] font-bold transition-colors px-2 py-1 rounded ${isBeautified ? 'bg-primary text-white' : 'text-primary bg-primary/10 hover:bg-primary/20'}`}
+              title={isBeautified ? 'Switch to minified' : 'Switch to beautified'}
+            >
+              <Wand2 size={10} /> {isBeautified ? 'Beautified' : 'Minified'}
+            </button>
+            <button
               onClick={(): void => {
                 navigator.clipboard.writeText(formattedData)
                 toast.success('Response copied to clipboard')
@@ -253,6 +276,7 @@ export const ResponseArea = (): React.JSX.Element => {
               else if (tab === 'Headers') setActiveTab('Headers')
               else if (tab === 'Test Results') setActiveTab('Tests')
               else if (tab === 'Timing') setActiveTab('Timing')
+              else if (tab === 'Examples') setActiveTab('Examples')
               else setActiveTab('Console')
             }}
             className={`px-4 py-2 text-xs font-semibold cursor-pointer border-b-2 transition-colors relative ${
@@ -260,7 +284,8 @@ export const ResponseArea = (): React.JSX.Element => {
               (activeTab === 'Headers' && tab === 'Headers') ||
               (activeTab === 'Tests' && tab === 'Test Results') ||
               (activeTab === 'Console' && tab === 'Console') ||
-              (activeTab === 'Timing' && tab === 'Timing')
+              (activeTab === 'Timing' && tab === 'Timing') ||
+              (activeTab === 'Examples' && tab === 'Examples')
                 ? 'border-primary text-primary'
                 : 'border-transparent text-muted hover:text-text'
             }`}
@@ -273,6 +298,9 @@ export const ResponseArea = (): React.JSX.Element => {
             )}
             {tab === 'Console' && filteredLogs.length > 0 && (
               <div className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-primary" />
+            )}
+            {tab === 'Examples' && examples.length > 0 && (
+              <span className="ml-1.5 px-1 rounded-sm bg-surface text-[9px] border border-border">{examples.length}</span>
             )}
           </div>
         ))}
@@ -423,6 +451,15 @@ export const ResponseArea = (): React.JSX.Element => {
               </div>
             )}
 
+            {activeTab === 'Examples' && (
+              <ExamplesTab
+                examples={examples}
+                onDelete={deleteExample}
+                monacoTheme={monacoTheme}
+                fontSize={fontSize}
+              />
+            )}
+
             {activeTab === 'Console' && (
               <div className="h-full flex flex-col overflow-hidden bg-background">
                 <div className="px-4 py-2 border-b border-border flex items-center justify-between bg-surface/30">
@@ -452,6 +489,95 @@ export const ResponseArea = (): React.JSX.Element => {
           </>
         )}
       </div>
+    </div>
+  )
+}
+
+function ExamplesTab({
+  examples,
+  onDelete,
+  monacoTheme,
+  fontSize,
+}: {
+  examples: import('../../types').RequestExample[]
+  onDelete: (id: number) => Promise<void>
+  monacoTheme: string
+  fontSize: number
+}): React.JSX.Element {
+  const [selectedId, setSelectedId] = useState<number | null>(examples[0]?.id ?? null)
+  const selected = examples.find((e) => e.id === selectedId) ?? null
+
+  if (examples.length === 0) {
+    return (
+      <div className="h-full flex flex-col items-center justify-center text-muted opacity-50 italic gap-2">
+        <FileCode size={32} className="opacity-20" />
+        <p className="text-xs">No examples yet. Send a request and click &quot;Save as Example&quot;.</p>
+      </div>
+    )
+  }
+
+  const bodyValue = (() => {
+    if (!selected) return ''
+    try { return JSON.stringify(JSON.parse(selected.response_body), null, 2) } catch { return selected.response_body }
+  })()
+
+  return (
+    <div className="h-full flex overflow-hidden">
+      {/* Sidebar: example list */}
+      <div className="w-48 shrink-0 border-r border-border flex flex-col overflow-y-auto bg-surface/20">
+        {examples.map((ex) => (
+          <div
+            key={ex.id}
+            onClick={() => setSelectedId(ex.id)}
+            className={`group flex items-center justify-between px-3 py-2 cursor-pointer text-xs border-b border-border/40 transition-colors ${selectedId === ex.id ? 'bg-primary/10 text-primary font-semibold' : 'text-text hover:bg-surface/50'}`}
+          >
+            <div className="flex flex-col min-w-0">
+              <span className="truncate font-medium">{ex.name}</span>
+              <span className={`text-[10px] font-black ${ex.response_status >= 200 && ex.response_status < 300 ? 'text-success' : 'text-danger'}`}>
+                {ex.response_status}
+              </span>
+            </div>
+            <button
+              onClick={(e) => { e.stopPropagation(); onDelete(ex.id) }}
+              className="opacity-0 group-hover:opacity-100 text-muted hover:text-danger transition-all ml-1 shrink-0"
+              title="Delete example"
+            >
+              <Trash2 size={12} />
+            </button>
+          </div>
+        ))}
+      </div>
+
+      {/* Main: example detail */}
+      {selected ? (
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <div className="shrink-0 px-4 py-2 border-b border-border bg-surface/30 flex items-center gap-4">
+            <span className="text-[10px] font-black text-muted uppercase">Status</span>
+            <span className={`text-xs font-black ${selected.response_status >= 200 && selected.response_status < 300 ? 'text-success' : 'text-danger'}`}>
+              {selected.response_status} {getStatusText(selected.response_status)}
+            </span>
+            <span className="text-[10px] font-black text-muted uppercase ml-4">Method</span>
+            <span className="text-xs font-bold text-text">{selected.request_method}</span>
+          </div>
+          <div className="flex-1 overflow-hidden">
+            <Editor
+              height="100%"
+              defaultLanguage="json"
+              theme={monacoTheme}
+              value={bodyValue}
+              options={{
+                readOnly: true,
+                minimap: { enabled: false },
+                fontSize,
+                lineNumbers: 'on',
+                scrollBeyondLastLine: false,
+                automaticLayout: true,
+                padding: { top: 10, bottom: 10 }
+              }}
+            />
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }

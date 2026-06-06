@@ -337,4 +337,63 @@ Fokus: memperkuat autentikasi dan keamanan akun.
 
 ---
 
-*Last updated: 2026-06-01 (v2.5.0 — P5-1 Google OAuth Login)*
+---
+
+## Phase 6 — UI Polish (v2.6.x)
+
+Fokus: memperbaiki tampilan dan UX komponen inti agar lebih konsisten dan profesional.
+
+### [P6-1] Sidebar Layout & Icon Rail 🟢 S ✅
+**Status:** **SELESAI** (2026-06-06)  
+**Perubahan:**
+- Bug fix: bottom section (version, user profile, WS status) muncul sebagai kolom ketiga karena berada di luar content panel div — dipindahkan ke dalam `flex-col` content panel.
+- Icon rail diperlebar `w-11` → `w-16`; label teks di bawah setiap icon (gaya Postman): `Collections`, `Environ`, `History`, `Mock`.
+- Icon `Hash` → `Globe` untuk tab Environments.
+- TypeScript fixes: hapus unused imports (`Users`, `Zap`) dan unused vars (`setActiveTeam`, `activeView`, `setActiveView`).
+
+- [x] Fix layout bug bottom section
+- [x] Label teks di bawah icon rail
+- [x] Icon konsisten (Globe untuk environments)
+- [x] TypeScript clean (no unused vars/imports)
+
+---
+
+### [P6-2] Tab Bar — Postman-style 🟢 S ✅
+**Status:** **SELESAI** (2026-06-06)  
+**Perubahan:**
+- Tombol `+` di ujung kanan tab bar untuk buka draft request baru (`⌘T`).
+- Chevron `>` muncul otomatis saat tab overflow (deteksi via `ResizeObserver`).
+- Dropdown chevron menampilkan semua tab dengan method badge + nama + dirty indicator (via `ReactDOM.createPortal`).
+- Keyboard shortcut: `⌘T` new request, `⌘W` close tab, `⌥⌘W` close all.
+
+- [x] Tombol `+` new request
+- [x] Chevron overflow dengan dropdown semua tab
+- [x] Keyboard shortcuts
+
+---
+
+### [P6-3] Navbar — Prev/Next Tab & New Workspace Form 🟢 S ✅
+**Status:** **SELESAI** (2026-06-06)  
+**Perubahan:**
+- Chevron ◀▶ di navbar diganti dari `window.history` (no-op di Electron) ke navigasi berbasis index Zustand `tabs` array.
+- `window.prompt()` untuk New Workspace diganti inline input form di dalam dropdown — auto-focus, Enter submit, Escape batal.
+
+- [x] Prev/next tab navigation fungsional di Electron
+- [x] Inline form New Workspace tanpa native prompt
+
+---
+
+### [P6-4] Environment Selector — Custom Dropdown 🟢 S ✅
+**Status:** **SELESAI** (2026-06-06)  
+**Perubahan:**
+- `<select>` native OS diganti custom dropdown menggunakan `@radix-ui/react-dropdown-menu`.
+- Trigger: dot indicator (hijau = aktif) + nama environment + ChevronDown.
+- Dropdown: section Global (Globe icon) & Workspace (Server icon), checkmark di item aktif, hover state sesuai theme.
+
+- [x] Custom dropdown konsisten dengan theme app
+- [x] Section Global / Workspace dengan label
+- [x] Dot color indicator status aktif
+
+---
+
+*Last updated: 2026-06-06 (v2.6.0 — P6-1..4 UI Polish)*

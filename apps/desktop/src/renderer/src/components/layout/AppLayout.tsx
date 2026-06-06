@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { Sidebar } from './Sidebar'
 import { MainArea } from './MainArea'
+import { TopNavbar } from './TopNavbar'
 import { useAppStore } from '../../store/useAppStore'
 import { useDataStore } from '../../store/useDataStore'
 import { UserManagement } from '../admin/UserManagement'
@@ -78,9 +79,12 @@ export const AppLayout = (): React.JSX.Element => {
   }
 
   return (
-    <div className="flex h-screen w-screen bg-background text-text overflow-hidden font-sans">
-      <Sidebar />
-      {renderContent()}
+    <div className="flex flex-col h-screen w-screen bg-background text-text overflow-hidden font-sans">
+      <TopNavbar />
+      <div className="flex flex-1 min-h-0 overflow-hidden">
+        <Sidebar />
+        {renderContent()}
+      </div>
       <GlobalSearchModal />
     </div>
   )
