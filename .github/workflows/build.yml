@@ -49,7 +49,7 @@ jobs:
         with:
           # Gunakan RELEASE_TOKEN untuk bisa upload ke repo lain
           github_token: ${{ secrets.RELEASE_TOKEN }}
-          repository: abdullahPrasetio/wapify-desktop-releases
+          repository: abdullahPrasetio/wapbolt-desktop-releases
           package_root: apps/desktop
           # Tambahkan ini agar sinkron dengan GitHub Release
           release: true
