@@ -5,6 +5,40 @@ import { useAuthStore } from '../../store/useAuthStore'
 import { useAppStore } from '../../store/useAppStore'
 import { useDataStore } from '../../store/useDataStore'
 
+const IS_WINDOWS = navigator.userAgent.includes('Windows')
+
+function WindowControls(): React.JSX.Element | null {
+  if (!IS_WINDOWS) return null
+  return (
+    <div
+      className="flex items-center shrink-0"
+      style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+    >
+      <button
+        onClick={() => window.api?.minimizeWindow()}
+        className="w-10 h-11 flex items-center justify-center text-muted hover:text-text hover:bg-white/10 transition-colors"
+        title="Minimize"
+      >
+        <svg width="10" height="1" viewBox="0 0 10 1" fill="currentColor"><rect width="10" height="1"/></svg>
+      </button>
+      <button
+        onClick={() => window.api?.maximizeWindow()}
+        className="w-10 h-11 flex items-center justify-center text-muted hover:text-text hover:bg-white/10 transition-colors"
+        title="Maximize"
+      >
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1"><rect x="0.5" y="0.5" width="9" height="9"/></svg>
+      </button>
+      <button
+        onClick={() => window.api?.closeWindow()}
+        className="w-10 h-11 flex items-center justify-center text-muted hover:text-white hover:bg-red-500 transition-colors"
+        title="Close"
+      >
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"><line x1="0" y1="0" x2="10" y2="10"/><line x1="10" y1="0" x2="0" y2="10"/></svg>
+      </button>
+    </div>
+  )
+}
+
 function WorkspaceSwitcher(): React.JSX.Element {
   const { teams, activeTeamId, setActiveTeam, createTeam } = useDataStore()
   const [open, setOpen] = useState(false)
@@ -244,11 +278,11 @@ export const TopNavbar = (): React.JSX.Element => {
 
   return (
     <div
-      className="h-11 shrink-0 flex items-center px-4 gap-3 border-b border-border bg-surface/60 backdrop-blur-sm"
+      className={`h-11 shrink-0 flex items-center pl-4 gap-3 border-b border-border bg-surface/60 backdrop-blur-sm ${IS_WINDOWS ? '' : 'pr-4'}`}
       style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
     >
-      {/* macOS traffic lights spacer */}
-      <div className="w-16 shrink-0" />
+      {/* macOS traffic lights spacer — hidden on Windows */}
+      {!IS_WINDOWS && <div className="w-16 shrink-0" />}
 
       {/* Prev / Next Tab */}
       <div
@@ -316,6 +350,9 @@ export const TopNavbar = (): React.JSX.Element => {
           {initials}
         </div>
       </div>
+
+      {/* Windows window controls */}
+      <WindowControls />
     </div>
   )
 }

@@ -117,6 +117,11 @@ export class WebSocketClient {
       this.reconnectTimer = null
     }
     if (this.ws) {
+      // Explicitly leave active request so server removes presence immediately
+      const activeTabId = useDataStore.getState().activeTabId
+      if (activeTabId) {
+        this.send({ type: 'LEAVE_REQUEST', request_id: activeTabId })
+      }
       this.ws.close()
       this.ws = null
     }

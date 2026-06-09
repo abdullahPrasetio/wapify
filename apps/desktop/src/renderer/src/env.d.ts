@@ -24,6 +24,9 @@ interface WapboltAPI {
   reloadApp: () => void
   openFileDialog: () => Promise<{ path: string; name: string; size: number } | null>
   parseCurl: (curlCommand: string) => Promise<any>
+  minimizeWindow: () => void
+  maximizeWindow: () => void
+  closeWindow: () => void
   openGoogleAuth: (url: string) => Promise<void>
   onGoogleAuthCallback: (
     callback: (data: { token: string; refreshToken: string }) => void

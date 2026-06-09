@@ -51,6 +51,9 @@ const api = {
   openGoogleAuth: (url: string): Promise<void> => {
     return ipcRenderer.invoke('wapbolt:open-google-auth', url)
   },
+  minimizeWindow: (): void => ipcRenderer.send('wapbolt:minimize'),
+  maximizeWindow: (): void => ipcRenderer.send('wapbolt:maximize'),
+  closeWindow: (): void => ipcRenderer.send('wapbolt:close'),
   onGoogleAuthCallback: (
     callback: (data: { token: string; refreshToken: string }) => void
   ): (() => void) => {

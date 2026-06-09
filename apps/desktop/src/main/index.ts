@@ -560,6 +560,17 @@ app.whenReady().then(() => {
     shell.openExternal(googleAuthUrl)
   })
 
+  ipcMain.on('wapbolt:minimize', () => {
+    BrowserWindow.getFocusedWindow()?.minimize()
+  })
+  ipcMain.on('wapbolt:maximize', () => {
+    const win = BrowserWindow.getFocusedWindow()
+    if (win) win.isMaximized() ? win.unmaximize() : win.maximize()
+  })
+  ipcMain.on('wapbolt:close', () => {
+    BrowserWindow.getFocusedWindow()?.close()
+  })
+
   app.on('activate', function () {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
