@@ -48,13 +48,23 @@ function WsStatusBadge(): React.JSX.Element {
 }
 
 function App(): React.JSX.Element {
-  const { isAuthenticated, logout, rehydrateAuth, isRehydrating } = useAuthStore()
+  const { isAuthenticated, logout, rehydrateAuth, isRehydrating, handleGoogleCallback } = useAuthStore()
   const { theme } = useAppStore()
   const [licenseError, setLicenseError] = useState<{ message: string; code: string } | null>(null)
 
   useEffect(() => {
     rehydrateAuth()
   }, [])
+
+  // Global Google OAuth deep link listener — must live here, not in LoginPage,
+  // so the callback is always captured regardless of which page is rendered.
+  useEffect(() => {
+    if (!window.api?.onGoogleAuthCallback) return undefined
+    const unsub = window.api.onGoogleAuthCallback(({ token, refreshToken }) => {
+      handleGoogleCallback(token, refreshToken)
+    })
+    return unsub
+  }, [handleGoogleCallback])
 
   // Theme Management
   useEffect(() => {

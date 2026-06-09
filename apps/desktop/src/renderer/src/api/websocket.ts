@@ -245,13 +245,21 @@ export function initWebSocketIntegration() {
     wsClient.connect(initialData.activeTeamId, initialAuth.user.id, initialAuth.user.name)
   }
 
-  // Listen to auth logout
+  // Listen to auth changes (logout or user switch)
   useAuthStore.subscribe(
     (state) => state.user,
-    (user) => {
+    (user, prevUser) => {
       if (!user) {
         console.log('[Wapbolt WS] User logged out, disconnecting...')
         wsClient.disconnect()
+      } else if (prevUser && user.id !== prevUser.id) {
+        // User switched account — reconnect with new identity
+        console.log('[Wapbolt WS] User changed, reconnecting with new identity...')
+        wsClient.disconnect()
+        const activeTeamId = useDataStore.getState().activeTeamId
+        if (activeTeamId) {
+          wsClient.connect(activeTeamId, user.id, user.name)
+        }
       }
     }
   )

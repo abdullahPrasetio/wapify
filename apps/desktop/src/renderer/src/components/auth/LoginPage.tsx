@@ -4,7 +4,7 @@ import { useAuthStore } from '../../store/useAuthStore'
 import { ServerSettingsModal } from '../modals/ServerSettingsModal'
 
 export const LoginPage = (): React.JSX.Element => {
-  const { login, loginWithGoogle, handleGoogleCallback, isLoading, error, clearError } = useAuthStore()
+  const { login, loginWithGoogle, isLoading, error, clearError } = useAuthStore()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showSettings, setShowSettings] = useState(false)
@@ -30,15 +30,6 @@ export const LoginPage = (): React.JSX.Element => {
     }
     return undefined
   }, [error, clearError])
-
-  // Listen for Google OAuth deep link callback from Electron main process
-  useEffect(() => {
-    if (!window.api?.onGoogleAuthCallback) return undefined
-    const unsub = window.api.onGoogleAuthCallback(({ token, refreshToken }) => {
-      handleGoogleCallback(token, refreshToken)
-    })
-    return unsub
-  }, [handleGoogleCallback])
 
   const handleSubmit = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault()
