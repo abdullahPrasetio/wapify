@@ -373,7 +373,19 @@ const EditorArea = ({
   }
 
   const handleBodyTypeChange = (type: string): void => {
-    onUpdate({ body_type: type })
+    const currentBody = workingRequest.body
+    const isRaw = type.startsWith('raw-')
+    const isArrayBased = type === 'form-data' || type === 'x-www-form-urlencoded'
+
+    let newBody: string | any[] = currentBody
+    if (isRaw && Array.isArray(currentBody)) {
+      newBody = ''
+    } else if (isArrayBased && !Array.isArray(currentBody)) {
+      newBody = []
+    } else if (type === 'none' || type === 'binary') {
+      newBody = Array.isArray(currentBody) ? '' : currentBody
+    }
+    onUpdate({ body_type: type, body: newBody })
   }
 
   const getMonacoLang = (type: string) => {
@@ -448,7 +460,7 @@ const EditorArea = ({
                 onClick={() => {
                   try {
                     const json = JSON.parse(workingRequest.body as string)
-                    const isMinified = (workingRequest.body as string).trim().indexOf('\n') === -1
+                    const isMinified = typeof workingRequest.body === 'string' && workingRequest.body.trim().indexOf('\n') === -1
                     if (isMinified) {
                       onUpdate({ body: JSON.stringify(json, null, 2) })
                       toast.success('JSON Beautified')
@@ -462,7 +474,7 @@ const EditorArea = ({
                 }}
                 className="text-[9px] font-black uppercase tracking-widest text-muted hover:text-primary transition-colors cursor-pointer"
               >
-                {(workingRequest.body as string)?.trim().indexOf('\n') === -1 ? 'Beautify' : 'Minified'}
+                {typeof workingRequest.body === 'string' && workingRequest.body.trim().indexOf('\n') === -1 ? 'Beautify' : 'Minified'}
               </button>
             </div>
           )}

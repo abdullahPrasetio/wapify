@@ -95,14 +95,15 @@ export const parseCurlCommand = async (curlCommand: string): Promise<ParsedCurl 
         }
         i++
       } else if (token === '--url' || token === '--location') {
-        // Skip --location, check if next token is URL
-        if (tokens[i+1] && tokens[i+1].startsWith('http')) {
-          result.url = tokens[i+1]
+        if (tokens[i+1] && !tokens[i+1].startsWith('-')) {
+          const raw = tokens[i+1]
+          result.url = /^https?:\/\//i.test(raw) ? raw : `http://${raw}`
           i++
         }
       } else if (!token.startsWith('-')) {
-        if (!result.url && token.startsWith('http')) {
-          result.url = token
+        if (!result.url) {
+          const raw = token
+          result.url = /^https?:\/\//i.test(raw) ? raw : `http://${raw}`
         }
       }
     }
