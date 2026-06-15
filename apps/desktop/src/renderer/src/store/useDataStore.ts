@@ -31,7 +31,26 @@ const isSafeJsonPath = (path: string): boolean => !PROTO_POLLUTION_RE.test(path)
 const normalizeRequest = (req: ApiRequest): ApiRequest => {
   if (!req) return req
 
-  const bodyType = req.body_type || 'raw-json'
+  const inferBodyType = (body: unknown, headers: Record<string, string> | undefined): string => {
+    // Detect from body structure first (most reliable)
+    const isArrayBody = Array.isArray(body) ||
+      (typeof body === 'object' && body !== null && 'array' in body && Array.isArray((body as any).array))
+    if (isArrayBody) {
+      const ct = Object.entries(headers || {}).find(([k]) => k.toLowerCase() === 'content-type')?.[1] || ''
+      return ct.includes('multipart/form-data') ? 'form-data' : 'x-www-form-urlencoded'
+    }
+    // Fallback: infer from Content-Type header
+    const ct = Object.entries(headers || {}).find(([k]) => k.toLowerCase() === 'content-type')?.[1] || ''
+    if (ct.includes('application/x-www-form-urlencoded')) return 'x-www-form-urlencoded'
+    if (ct.includes('multipart/form-data')) return 'form-data'
+    if (ct.includes('application/xml') || ct.includes('text/xml')) return 'raw-xml'
+    if (ct.includes('text/html')) return 'raw-html'
+    return 'raw-json'
+  }
+
+  const bodyType = (!req.body_type || req.body_type === 'raw-json')
+    ? inferBodyType(req.body, req.headers as Record<string, string>)
+    : req.body_type
   let body = req.body
 
   if (bodyType.startsWith('raw-')) {
@@ -705,27 +724,28 @@ export const useDataStore = create<DataState>()(
         openDraftRequest: (initialData, name = 'Draft Request') => {
           const { tabs } = get()
           const draftId = `draft-${Date.now()}`
+          const normalizedDraft = normalizeRequest(initialData as ApiRequest)
 
           const newTab: RequestTab = {
             requestId: draftId,
             name: name,
-            method: initialData.method || 'GET',
+            method: normalizedDraft.method || 'GET',
             workingRequest: {
-              method: initialData.method || 'GET',
-              url: initialData.url || '',
-              headers: (initialData.headers as Record<string, string>) || (
-                (!initialData.body_type || initialData.body_type === 'raw-json')
+              method: normalizedDraft.method || 'GET',
+              url: normalizedDraft.url || '',
+              headers: (normalizedDraft.headers as Record<string, string>) || (
+                (!normalizedDraft.body_type || normalizedDraft.body_type === 'raw-json')
                   ? { 'Content-Type': 'application/json' }
                   : {}
               ),
-              body: (initialData.body as any) || '',
-              body_type: initialData.body_type || 'raw-json',
+              body: (normalizedDraft.body as any) || '',
+              body_type: normalizedDraft.body_type || 'raw-json',
               auth_config: (initialData.auth_config as AuthConfig) || { type: 'No Auth' },
-              pre_request_script: initialData.pre_request_script || '',
-              post_request_script: initialData.post_request_script || '',
+              pre_request_script: normalizedDraft.pre_request_script || '',
+              post_request_script: normalizedDraft.post_request_script || '',
               field_validations: { headers: {}, body: {} },
-              extraction_rules: (initialData as any).extraction_rules || [],
-              schema_assertions: (initialData as any).schema_assertions || []
+              extraction_rules: normalizedDraft.extraction_rules || [],
+              schema_assertions: normalizedDraft.schema_assertions || []
             }, lastResponse: null,
             isSending: false,
             isDirty: true,
@@ -748,6 +768,12 @@ export const useDataStore = create<DataState>()(
             return
           }
 
+          const normalizedExample = normalizeRequest({
+            body: example.request_body ?? '',
+            body_type: '',
+            headers: (example.request_headers as Record<string, string>) || {},
+          } as ApiRequest)
+
           const newTab: RequestTab = {
             requestId: exampleId,
             name: `[Example] ${example.name}`,
@@ -755,9 +781,9 @@ export const useDataStore = create<DataState>()(
             workingRequest: {
               method: example.request_method as any,
               url: example.request_url,
-              headers: (example.request_headers as Record<string, string>) || {},
-              body: (typeof example.request_body === 'string' ? example.request_body : JSON.stringify(example.request_body, null, 2)) || '',
-              body_type: 'raw-json',
+              headers: normalizedExample.headers as Record<string, string> || {},
+              body: normalizedExample.body as any,
+              body_type: normalizedExample.body_type,
               auth_config: { type: 'No Auth' },
               pre_request_script: '',
               post_request_script: '',
@@ -929,6 +955,7 @@ export const useDataStore = create<DataState>()(
               url: workingRequest.url,
               headers: workingRequest.headers,
               body: bodyObj,
+              body_type: workingRequest.body_type,
               auth_config: workingRequest.auth_config,
               pre_request_script: workingRequest.pre_request_script,
               post_request_script: workingRequest.post_request_script,
@@ -2280,7 +2307,9 @@ export const useDataStore = create<DataState>()(
             request_method: tab.workingRequest.method,
             request_url: tab.workingRequest.url,
             request_headers: tab.workingRequest.headers,
-            request_body: typeof tab.workingRequest.body === 'string' ? tab.workingRequest.body : JSON.stringify(tab.workingRequest.body),
+            request_body: Array.isArray(tab.workingRequest.body)
+              ? tab.workingRequest.body
+              : (typeof tab.workingRequest.body === 'string' ? { raw: tab.workingRequest.body } : tab.workingRequest.body),
             response_status: tab.lastResponse.status,
             response_headers: tab.lastResponse.headers,
             response_body: typeof tab.lastResponse.data === 'string' ? tab.lastResponse.data : JSON.stringify(tab.lastResponse.data)

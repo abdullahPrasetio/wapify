@@ -10,9 +10,9 @@ type CreateExamplePayload struct {
 	Name            string           `json:"name"`
 	RequestMethod   string           `json:"request_method"`
 	RequestURL      string           `json:"request_url"`
-	RequestHeaders  repository.JSONB `json:"request_headers"`
-	RequestBody     string           `json:"request_body"`
-	ResponseStatus  int              `json:"response_status"`
+	RequestHeaders  repository.JSONB    `json:"request_headers"`
+	RequestBody     repository.JSONBAny `json:"request_body"`
+	ResponseStatus  int                 `json:"response_status"`
 	ResponseHeaders repository.JSONB `json:"response_headers"`
 	ResponseBody    string           `json:"response_body"`
 }
@@ -79,7 +79,7 @@ func UpdateExample(c *fiber.Ctx) error {
 	repository.DB.First(&request, example.RequestID)
 	var collection repository.Collection
 	repository.DB.First(&collection, request.CollectionID)
-	
+
 	if !isEditorOrAbove(c, collection.TeamID) {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Forbidden", "code": "FORBIDDEN"})
 	}
@@ -96,7 +96,7 @@ func UpdateExample(c *fiber.Ctx) error {
 	if req.RequestHeaders != nil {
 		example.RequestHeaders = req.RequestHeaders
 	}
-	if req.RequestBody != "" {
+	if req.RequestBody != nil {
 		example.RequestBody = req.RequestBody
 	}
 	if req.ResponseStatus != 0 {

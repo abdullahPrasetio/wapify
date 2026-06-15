@@ -77,7 +77,7 @@ export interface RequestExample {
   request_method: string
   request_url: string
   request_headers: Record<string, unknown>
-  request_body: string
+  request_body: unknown
   response_status: number
   response_headers: Record<string, unknown>
   response_body: string

@@ -152,7 +152,7 @@ func TestUpdateExample(t *testing.T) {
 			RequestMethod:   "POST",
 			RequestURL:      "http://test.com",
 			RequestHeaders:  repository.JSONB{"h": "v"},
-			RequestBody:     "body",
+			RequestBody:     repository.JSONBAny(`{"raw":"body"}`),
 			ResponseStatus:  200,
 			ResponseHeaders: repository.JSONB{"rh": "rv"},
 			ResponseBody:    "resp",

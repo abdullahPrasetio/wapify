@@ -604,9 +604,9 @@ func processPostmanItems(tx *gorm.DB, items []PostmanItem, collectionID uint, fo
 			}
 
 			// 3. Process Examples (Responses) - responses are at item level in Postman v2.1
-			requestBodyRaw := ""
-			if item.Request.Body != nil {
-				requestBodyRaw = item.Request.Body.Raw
+			var requestBodyJSONB repository.JSONBAny
+			if item.Request.Body != nil && item.Request.Body.Raw != "" {
+				requestBodyJSONB, _ = json.Marshal(map[string]interface{}{"raw": item.Request.Body.Raw})
 			}
 			for _, res := range item.Responses {
 				resHeaders := repository.JSONB{}
@@ -620,8 +620,8 @@ func processPostmanItems(tx *gorm.DB, items []PostmanItem, collectionID uint, fo
 					RequestMethod:   item.Request.Method,
 					RequestURL:      urlStr,
 					RequestHeaders:  headers,
-					RequestBody:     requestBodyRaw,
-					ResponseStatus:  res.Code,
+					RequestBody:    requestBodyJSONB,
+					ResponseStatus: res.Code,
 					ResponseHeaders: resHeaders,
 					ResponseBody:    res.Body,
 				}

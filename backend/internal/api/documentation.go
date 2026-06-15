@@ -355,13 +355,8 @@ func generateSwagger(tree *collectionTree) openAPISpec {
 			// Collect named request examples
 			reqExamples := map[string]interface{}{}
 			for _, ex := range r.Examples {
-				if ex.RequestBody != "" {
-					var parsed interface{}
-					if json.Unmarshal([]byte(ex.RequestBody), &parsed) == nil {
-						reqExamples[ex.Name] = map[string]interface{}{"value": parsed}
-					} else {
-						reqExamples[ex.Name] = map[string]interface{}{"value": ex.RequestBody}
-					}
+				if len(ex.RequestBody) > 0 {
+					reqExamples[ex.Name] = map[string]interface{}{"value": ex.RequestBody}
 				}
 			}
 			if len(reqExamples) > 0 {

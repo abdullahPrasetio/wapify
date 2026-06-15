@@ -26,6 +26,9 @@ func (j *JSONB) Scan(value interface{}) error {
 	return json.Unmarshal(b, j)
 }
 
+// JSONBAny is a helper type for PostgreSQL JSONB columns that can hold any JSON value (object or array)
+type JSONBAny = json.RawMessage
+
 // JSONBArray is a helper type for PostgreSQL JSONB columns (Arrays)
 type JSONBArray []interface{}
 
@@ -140,9 +143,9 @@ type RequestExample struct {
 	Name            string    `gorm:"not null" json:"name"`
 	RequestMethod   string    `gorm:"not null" json:"request_method"`
 	RequestURL      string    `gorm:"not null" json:"request_url"`
-	RequestHeaders  JSONB     `gorm:"type:jsonb;default:'{}'" json:"request_headers"`
-	RequestBody     string    `gorm:"type:text" json:"request_body"`
-	ResponseStatus  int       `gorm:"not null" json:"response_status"`
+	RequestHeaders JSONB    `gorm:"type:jsonb;default:'{}'" json:"request_headers"`
+	RequestBody    JSONBAny `gorm:"type:jsonb;default:'{}'" json:"request_body"`
+	ResponseStatus int      `gorm:"not null" json:"response_status"`
 	ResponseHeaders JSONB     `gorm:"type:jsonb;default:'{}'" json:"response_headers"`
 	ResponseBody    string    `gorm:"type:text" json:"response_body"`
 	CreatedAt       time.Time `json:"created_at"`
