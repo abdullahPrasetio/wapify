@@ -18,11 +18,92 @@ type LoginRequest struct {
 
 func SetupAuthRoutes(app *fiber.App) {
 	authGroup := app.Group("/api/v1/auth")
+	authGroup.Get("/setup-status", GetSetupStatus)
+	authGroup.Post("/setup", SetupSuperAdmin)
 	authGroup.Post("/login", Login)
 	authGroup.Post("/refresh", Refresh)
 	authGroup.Post("/logout", Logout)
 	authGroup.Put("/change-password", middleware.RequireAuth, ChangePassword)
 	authGroup.Get("/me", middleware.RequireAuth, GetCurrentUser)
+}
+
+func GetSetupStatus(c *fiber.Ctx) error {
+	var count int64
+	repository.DB.Model(&repository.User{}).Count(&count)
+	return c.JSON(fiber.Map{"needs_setup": count == 0})
+}
+
+func SetupSuperAdmin(c *fiber.Ctx) error {
+	var count int64
+	repository.DB.Model(&repository.User{}).Count(&count)
+	if count > 0 {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Setup already completed", "code": "FORBIDDEN"})
+	}
+
+	var req struct {
+		Email    string `json:"email"`
+		Name     string `json:"name"`
+		Password string `json:"password"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body", "code": "BAD_REQUEST"})
+	}
+	if req.Email == "" || req.Name == "" || req.Password == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Email, name, and password are required", "code": "VALIDATION_ERROR"})
+	}
+	if len(req.Password) < 8 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Password must be at least 8 characters", "code": "VALIDATION_ERROR"})
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to hash password"})
+	}
+
+	user := repository.User{
+		Email:        req.Email,
+		Name:         req.Name,
+		PasswordHash: string(hash),
+		IsSuperAdmin: true,
+	}
+	if err := repository.DB.Create(&user).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to create user"})
+	}
+
+	user.RoleSignature = CalculateRoleSignature(user.ID, user.Email, user.IsSuperAdmin)
+	repository.DB.Save(&user)
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"user_id":        user.ID,
+		"email":          user.Email,
+		"is_super_admin": user.IsSuperAdmin,
+		"exp":            time.Now().Add(time.Hour * 24).Unix(),
+	})
+	t, err := token.SignedString([]byte(os.Getenv("JWT_SECRET")))
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to generate token"})
+	}
+
+	refreshToken := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"user_id": user.ID,
+		"exp":     time.Now().Add(time.Hour * 24 * 90).Unix(),
+	})
+	rt, err := refreshToken.SignedString([]byte(os.Getenv("JWT_SECRET")))
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to generate refresh token"})
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
+		"token":         t,
+		"refresh_token": rt,
+		"user": fiber.Map{
+			"id":             user.ID,
+			"email":          user.Email,
+			"name":           user.Name,
+			"is_super_admin": user.IsSuperAdmin,
+			"is_premium":     user.IsPremium,
+		},
+	})
 }
 
 func GetCurrentUser(c *fiber.Ctx) error {

@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react'
-import { Loader2, AlertCircle, Settings, Zap } from 'lucide-react'
+import { Loader2, AlertCircle, Settings, Zap, ShieldCheck } from 'lucide-react'
 import { useAuthStore } from '../../store/useAuthStore'
 import { ServerSettingsModal } from '../modals/ServerSettingsModal'
+import type { LoginResponse } from '../../types'
+import { setAuthToken } from '../../api/client'
 
 export const LoginPage = (): React.JSX.Element => {
   const { login, loginWithGoogle, isLoading, error, clearError } = useAuthStore()
@@ -10,6 +12,12 @@ export const LoginPage = (): React.JSX.Element => {
   const [showSettings, setShowSettings] = useState(false)
   const [appVersion, setAppVersion] = useState('')
   const [googleEnabled, setGoogleEnabled] = useState(false)
+  const [needsSetup, setNeedsSetup] = useState(false)
+  const [setupName, setSetupName] = useState('')
+  const [setupEmail, setSetupEmail] = useState('')
+  const [setupPassword, setSetupPassword] = useState('')
+  const [setupError, setSetupError] = useState('')
+  const [setupLoading, setSetupLoading] = useState(false)
 
   useEffect(() => {
     window.api?.getAppVersion().then(setAppVersion)
@@ -17,11 +25,20 @@ export const LoginPage = (): React.JSX.Element => {
 
   useEffect(() => {
     import('../../api/client').then(({ apiClient }) => {
+      apiClient.get<{ needs_setup: boolean }>('/api/v1/auth/setup-status')
+        .then((res) => setNeedsSetup(res.data?.needs_setup === true))
+        .catch(() => setNeedsSetup(false))
+    })
+  }, [])
+
+  useEffect(() => {
+    if (needsSetup) return
+    import('../../api/client').then(({ apiClient }) => {
       apiClient.get<{ enabled: boolean }>('/api/v1/auth/google/status')
         .then((res) => setGoogleEnabled(res.data?.enabled === true))
         .catch(() => setGoogleEnabled(false))
     })
-  }, [])
+  }, [needsSetup])
 
   useEffect(() => {
     if (error) {
@@ -35,6 +52,35 @@ export const LoginPage = (): React.JSX.Element => {
     e.preventDefault()
     if (!email || !password) return
     await login(email, password)
+  }
+
+  const handleSetup = async (e: React.FormEvent): Promise<void> => {
+    e.preventDefault()
+    if (!setupEmail || !setupName || !setupPassword) return
+    setSetupLoading(true)
+    setSetupError('')
+    try {
+      const { apiClient } = await import('../../api/client')
+      const { useAuthStore: store } = await import('../../store/useAuthStore')
+      const res = await apiClient.post<LoginResponse>('/api/v1/auth/setup', {
+        email: setupEmail,
+        name: setupName,
+        password: setupPassword,
+      })
+      if (res.status === 201 && res.data?.token) {
+        const { token, refresh_token, user } = res.data
+        setAuthToken(token)
+        if (refresh_token && window.api) await window.api.setToken(refresh_token)
+        store.setState({ user, token, isAuthenticated: true })
+      } else {
+        const err = res.data as unknown as { error?: string }
+        setSetupError(err?.error ?? 'Setup gagal. Coba lagi.')
+      }
+    } catch {
+      setSetupError('Tidak dapat terhubung ke server.')
+    } finally {
+      setSetupLoading(false)
+    }
   }
 
   return (
@@ -64,7 +110,67 @@ export const LoginPage = (): React.JSX.Element => {
           <p className="text-muted text-sm mt-1 font-medium">API Testing, Built for Teams</p>
         </div>
 
-        {/* Login Card */}
+        {/* Setup Super Admin Card */}
+        {needsSetup ? (
+          <div className="bg-surface border border-primary/40 rounded-xl p-8 shadow-2xl shadow-black/30">
+            <div className="flex items-center gap-2 mb-1">
+              <ShieldCheck size={18} className="text-primary" />
+              <h2 className="text-lg font-semibold text-text">Setup Super Admin</h2>
+            </div>
+            <p className="text-xs text-muted mb-6">Buat akun pertama sebagai administrator utama.</p>
+
+            {setupError && (
+              <div className="mb-4 flex items-start gap-3 bg-danger/10 border border-danger/30 rounded-lg px-4 py-3 text-sm text-danger">
+                <AlertCircle size={16} className="mt-0.5 shrink-0" />
+                <span>{setupError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSetup} className="space-y-4">
+              <div>
+                <label className="text-xs font-medium text-muted uppercase tracking-wider block mb-1.5">Nama</label>
+                <input
+                  type="text"
+                  value={setupName}
+                  onChange={(e) => setSetupName(e.target.value)}
+                  placeholder="Admin Name"
+                  autoFocus
+                  required
+                  className="w-full bg-background border border-border rounded-lg px-4 py-2.5 text-sm text-text placeholder-muted focus:outline-none focus:border-primary transition-colors"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted uppercase tracking-wider block mb-1.5">Email</label>
+                <input
+                  type="email"
+                  value={setupEmail}
+                  onChange={(e) => setSetupEmail(e.target.value)}
+                  placeholder="admin@example.com"
+                  required
+                  className="w-full bg-background border border-border rounded-lg px-4 py-2.5 text-sm text-text placeholder-muted focus:outline-none focus:border-primary transition-colors"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted uppercase tracking-wider block mb-1.5">Password</label>
+                <input
+                  type="password"
+                  value={setupPassword}
+                  onChange={(e) => setSetupPassword(e.target.value)}
+                  placeholder="Min. 8 karakter"
+                  required
+                  className="w-full bg-background border border-border rounded-lg px-4 py-2.5 text-sm text-text placeholder-muted focus:outline-none focus:border-primary transition-colors"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={setupLoading || !setupEmail || !setupName || !setupPassword}
+                className="w-full bg-primary hover:bg-primary-hover text-white font-semibold py-2.5 rounded-lg text-sm flex items-center justify-center gap-2 transition-colors shadow-md shadow-primary/30 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer mt-2"
+              >
+                {setupLoading ? <><Loader2 size={16} className="animate-spin" />Menyiapkan...</> : 'Buat Akun Admin'}
+              </button>
+            </form>
+          </div>
+        ) : (
         <div className="bg-surface border border-border rounded-xl p-8 shadow-2xl shadow-black/30">
           <h2 className="text-lg font-semibold text-text mb-6">Sign in to your account</h2>
 
@@ -161,9 +267,10 @@ export const LoginPage = (): React.JSX.Element => {
             </>
           )}
         </div>
+        )}
 
         <p className="text-center text-xs text-muted mt-6">
-          Tidak punya akun? Hubungi administrator.
+          {needsSetup ? 'Selesaikan setup untuk mulai menggunakan Wapbolt.' : 'Tidak punya akun? Hubungi administrator.'}
         </p>
       </div>
 

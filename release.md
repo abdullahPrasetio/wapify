@@ -1,5 +1,16 @@
 # Wapbolt Release Notes
 
+## [v2.5.11] — 2026-06-22
+
+### ✨ Feature
+
+- **First-run Setup Super Admin** — saat database kosong (belum ada user sama sekali), halaman login otomatis beralih ke form "Setup Super Admin". User mengisi nama, email, dan password, lalu langsung auto-login masuk ke app. Endpoint setup (`POST /api/v1/auth/setup`) otomatis ditolak `403` setelah ada user pertama sehingga tidak bisa diakses ulang.
+  - BE: `GET /api/v1/auth/setup-status` — return `{ needs_setup: bool }`
+  - BE: `POST /api/v1/auth/setup` — buat super admin pertama + issue JWT langsung
+  - FE: `LoginPage` cek setup-status saat mount, render form setup atau form login sesuai kondisi
+
+---
+
 ## [v2.5.10] — 2026-06-22
 
 ### 🐛 Bug Fix
