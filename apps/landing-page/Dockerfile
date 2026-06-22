@@ -1,6 +1,10 @@
 # Stage 1: Build
 FROM node:20-alpine AS build
 WORKDIR /app
+
+ARG VITE_LICENSE_API=https://license.wapbolt.io
+ENV VITE_LICENSE_API=$VITE_LICENSE_API
+
 COPY package*.json ./
 RUN npm install --force
 COPY . .
