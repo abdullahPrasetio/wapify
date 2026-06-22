@@ -99,6 +99,15 @@ const Navbar = ({ theme, toggleTheme }: any) => {
 export default function App() {
   const [theme, setTheme] = useState(localStorage.getItem('theme') || 'dark');
   const [formData, setFormData] = useState({ name: '', email: '', description: '' });
+  const [submitting, setSubmitting] = useState(false);
+  const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
+
+  const LICENSE_API = import.meta.env.VITE_LICENSE_API || 'http://localhost:9100';
+
+  const showToast = (msg: string, type: 'success' | 'error') => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 4500);
+  };
 
   // Gunakan useLayoutEffect agar perubahan class terjadi sebelum render visual (mencegah flicker)
   useLayoutEffect(() => {
@@ -113,16 +122,33 @@ export default function App() {
 
   const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
 
-  const handleSendEmail = (e: React.FormEvent) => {
+  const handleSendEmail = async (e: React.FormEvent) => {
     e.preventDefault();
-    const subject = encodeURIComponent(`Wapbolt Beta Inquiry from ${formData.name}`);
-    const body = encodeURIComponent(
-      `Name: ${formData.name}\n` +
-      `Email: ${formData.email}\n\n` +
-      `Message/Description:\n${formData.description}`
-    );
-    const gmailUrl = `https://mail.google.com/mail/u/0/?fs=1&to=temancode@gmail.com&su=${subject}&body=${body}&tf=cm`;
-    window.open(gmailUrl, '_blank');
+    if (submitting) return;
+    setSubmitting(true);
+    try {
+      const res = await fetch(`${LICENSE_API}/api/license-requests`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: formData.name.trim(),
+          email: formData.email.trim(),
+          message: formData.description.trim(),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        const until = data.valid_until ? ` Aktif hingga: ${new Date(data.valid_until).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}.` : '';
+        showToast(`License terkirim ke email Anda!${until}`, 'success');
+        setFormData({ name: '', email: '', description: '' });
+      } else {
+        showToast(data.error || 'Gagal mengirim request. Coba lagi.', 'error');
+      }
+    } catch {
+      showToast('Tidak dapat terhubung ke server. Coba lagi nanti.', 'error');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -318,8 +344,8 @@ export default function App() {
                   <MessageSquare className="absolute left-5 top-5 text-slate-500" size={20} />
                   <textarea placeholder="Tell us about your setup (e.g. PC or STB)" required rows={4} className="w-full bg-black/40 border border-white/10 rounded-2xl py-5 pl-14 pr-6 text-white focus:border-primary transition-all font-bold text-sm resize-none" value={formData.description} onChange={e => setFormData({ ...formData, description: e.target.value })}></textarea>
                 </div>
-                <button type="submit" className="w-full bg-primary hover:bg-primary/90 text-white py-6 rounded-2xl font-black text-xl flex items-center justify-center gap-4 shadow-2xl transition-all active:scale-95 group uppercase tracking-widest">
-                  Register Beta <Send size={24} className="group-hover:translate-x-2 transition-transform" />
+                <button type="submit" disabled={submitting} className="w-full bg-primary hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed text-white py-6 rounded-2xl font-black text-xl flex items-center justify-center gap-4 shadow-2xl transition-all active:scale-95 group uppercase tracking-widest">
+                  {submitting ? 'Mengirim...' : <>Register Beta <Send size={24} className="group-hover:translate-x-2 transition-transform" /></>}
                 </button>
               </div>
             </form>
@@ -346,6 +372,26 @@ export default function App() {
           </a>
         </div>
       </footer>
+
+      {/* TOAST */}
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            initial={{ opacity: 0, y: 60, x: '-50%' }}
+            animate={{ opacity: 1, y: 0, x: '-50%' }}
+            exit={{ opacity: 0, y: 60, x: '-50%' }}
+            transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+            className={`fixed bottom-8 left-1/2 z-999 flex items-center gap-3 px-6 py-4 rounded-2xl shadow-2xl backdrop-blur-xl border font-bold text-sm ${
+              toast.type === 'success'
+                ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-300'
+                : 'bg-red-500/10 border-red-500/40 text-red-300'
+            }`}
+          >
+            {toast.type === 'success' ? <CheckCircle2 size={20} /> : <X size={20} />}
+            {toast.msg}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

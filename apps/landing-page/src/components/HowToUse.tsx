@@ -22,13 +22,28 @@ const steps = [
     title: 'Setup Backend',
     color: 'from-emerald-600 to-emerald-400',
     borderColor: 'border-emerald-500/30',
-    description: 'Deploy Go backend ke server atau STB Android Anda. Single binary, tanpa dependency eksternal selain PostgreSQL.',
+    description: 'Pull Docker image Wapbolt lalu jalankan dengan env variable yang diperlukan. PostgreSQL harus sudah berjalan sebelumnya.',
     details: [
-      'Copy binary ke server (STB/VPS/Docker)',
-      'Buat file .env dari .env.example',
-      'Jalankan: ./wapbolt-server',
+      'Pull image dari Docker Hub',
+      'Siapkan PostgreSQL & isi env variable',
+      'Jalankan docker run — backend siap',
     ],
-    code: '# Docker (recommended)\ndocker compose up -d\n\n# Atau binary langsung\n./wapbolt-server --port=8080',
+    code: `# 1. Pull image
+docker pull abdullahprasetio/wapbolt-backend-client:latest
+
+# 2. Jalankan dengan env
+docker run -d \\
+  --name wapbolt \\
+  -p 8000:8000 \\
+  -e PORT=8000 \\
+  -e DB_HOST=your-db-host \\
+  -e DB_PORT=5432 \\
+  -e DB_USER=postgres \\
+  -e DB_PASSWORD=yourpassword \\
+  -e DB_NAME=wapify \\
+  -e JWT_SECRET=ganti-dengan-string-acak-panjang \\
+  -e LICENSE_KEY=<license-key-dari-email> \\
+  abdullahprasetio/wapbolt-backend-client:latest`,
   },
   {
     number: '03',
@@ -36,13 +51,13 @@ const steps = [
     title: 'Aktivasi Lisensi',
     color: 'from-purple-600 to-purple-400',
     borderColor: 'border-purple-500/30',
-    description: 'Masukkan license key Ed25519 yang Anda terima. Validasi terjadi sepenuhnya offline — tidak ada koneksi ke server lisensi.',
+    description: 'Setelah request di landing page, license key dikirim langsung ke email Anda. Tambahkan ke docker run sebagai env variable.',
     details: [
-      'Buka Wapbolt → Settings → License',
-      'Paste license key Anda',
-      'Klik Activate — selesai!',
+      'Cek email — license key terkirim otomatis',
+      'Tambahkan -e LICENSE_KEY=<key> ke docker run',
+      'Validasi terjadi offline via Ed25519 — tanpa koneksi ke server lisensi',
     ],
-    code: '# Format license key\nWAPBOLT-XXXX-XXXX-XXXX-XXXX\n\n# Validasi offline dengan Ed25519',
+    code: '# Tambahkan ke docker run:\n-e LICENSE_KEY=eyJjbGllbnRfbmFtZSI6Ii4u...\n\n# Atau jika sudah jalan, restart container:\ndocker stop wapbolt && docker rm wapbolt\n# lalu docker run ulang dengan LICENSE_KEY',
   },
   {
     number: '04',

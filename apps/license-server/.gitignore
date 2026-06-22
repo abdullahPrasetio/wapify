@@ -1,0 +1,9 @@
+# Environment
+.env
+
+# Build output
+license-server
+
+# IDE
+.idea/
+.vscode/
