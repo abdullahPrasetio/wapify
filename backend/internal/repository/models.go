@@ -59,6 +59,7 @@ type User struct {
 	PremiumSince         *time.Time `json:"premium_since"`
 	RoleSignature         string     `json:"-"`
 	LastDonationPromptAt *time.Time `json:"last_donation_prompt_at"`
+	LastRatedAt          *time.Time `json:"last_rated_at"`
 	CreatedAt             time.Time  `json:"created_at"`
 	UpdatedAt             time.Time  `json:"updated_at"`
 }

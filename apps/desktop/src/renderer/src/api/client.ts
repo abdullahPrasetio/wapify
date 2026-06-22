@@ -1,5 +1,8 @@
 import type { IpcResponse } from '../types'
 
+// URL license server — hardcoded, tidak bisa diubah oleh self-host admin
+export const LICENSE_SERVER_URL = 'https://wapbolt-api.temancode.my.id'
+
 // Base URL untuk Wapbolt backend - Bisa dikonfigurasi via settings
 export const getBaseUrl = (): string => {
   const savedUrl = localStorage.getItem('wapbolt_server_url')

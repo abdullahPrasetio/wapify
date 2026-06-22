@@ -1,5 +1,25 @@
 # Wapbolt Release Notes
 
+## [v2.5.12] — 2026-06-22
+
+### ✨ Feature
+
+- **Rating System** — user yang sudah login dapat memberi rating (1–5 bintang) + komentar opsional ke instance Wapbolt. Rating dikirim ke BE, di-sign HMAC-SHA256 menggunakan license key, lalu FE meneruskan blob terenkripsi ke license server secara silent (fire-and-forget).
+  - BE: `POST /api/v1/rating` — throttle per user via `RATING_INTERVAL_DAYS` env (default 30 hari), catat `last_rated_at`
+  - BE: `GET /api/v1/rating/status` — return `{ should_rate, is_overdue }` untuk auto-popup logic di FE
+  - FE: Auto-popup 5 detik setelah login jika belum pernah rating (soft, bisa skip) atau sudah > interval hari (wajib, tidak bisa ditutup hingga submit)
+  - FE: Tombol "Beri Rating" di dropdown user sidebar untuk trigger manual
+  - License server: `POST /api/ratings` — verifikasi HMAC blob, simpan `InstanceRating`; `GET /api/admin/ratings` untuk admin
+  - `LICENSE_SERVER_URL` di-hardcode di binary Electron — self-host admin tidak bisa redirect rating ke server lain
+
+- **Auto-migrate DB on startup** — binary backend kini menjalankan migrasi DB otomatis saat server start via embedded SQL (`embed.FS`). User Docker tidak perlu jalankan `make migrate-up` manual.
+  - Migration files dipindah ke `backend/internal/repository/migrations/` agar bisa di-embed
+  - Import alias `migratepg` untuk hindari konflik nama package `postgres`
+
+- **License server Docker multi-platform** — `make docker-build` di `apps/license-server` kini build untuk `linux/amd64` + `linux/arm64` sekaligus via `docker buildx`, push ke `abdullahprasetio/wapbolt_server`, support `TAG` variable
+
+---
+
 ## [v2.5.11] — 2026-06-22
 
 ### ✨ Feature

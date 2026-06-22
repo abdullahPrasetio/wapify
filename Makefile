@@ -83,7 +83,7 @@ push-tag:
 	git push origin $(TAG)
 
 migrate-up:
-	migrate -path $(BACKEND_DIR)/migrations -database "$(DB_URL)" up
+	migrate -path $(BACKEND_DIR)/internal/repository/migrations -database "$(DB_URL)" up
 
 migrate-down:
-	migrate -path $(BACKEND_DIR)/migrations -database "$(DB_URL)" down
+	migrate -path $(BACKEND_DIR)/internal/repository/migrations -database "$(DB_URL)" down

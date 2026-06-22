@@ -2,6 +2,19 @@ package model
 
 import "time"
 
+type InstanceRating struct {
+	ID           uint      `gorm:"primaryKey" json:"id"`
+	LicenseEmail string    `gorm:"size:255;not null;index" json:"license_email"`
+	UserName     string    `gorm:"size:255;not null" json:"user_name"`
+	UserEmail    string    `gorm:"size:255;not null" json:"user_email"`
+	UserCount    int64     `json:"user_count"`
+	Rating       int       `gorm:"not null" json:"rating"`
+	Comment      string    `gorm:"type:text" json:"comment"`
+	Version      string    `gorm:"size:50" json:"version"`
+	RatedAt      time.Time `gorm:"not null" json:"rated_at"`
+	CreatedAt    time.Time `json:"created_at"`
+}
+
 type LicenseRequest struct {
 	ID         uint      `gorm:"primaryKey" json:"id"`
 	Name       string    `gorm:"size:255;not null" json:"name"`

@@ -101,6 +101,7 @@ func SetupApp() *fiber.App {
 	api.SetupDonationRoutes(app)
 	api.SetupNotificationRoutes(app)
 	api.SetupConfluenceRoutes(app)
+	api.SetupRatingRoutes(app)
 
 	// Default Route
 	app.Get("/", func(c *fiber.Ctx) error {

@@ -23,7 +23,8 @@ import {
   RotateCcw,
   Crown,
   Clock,
-  Check
+  Check,
+  Star
 } from 'lucide-react'
 import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback, createContext, useContext } from 'react'
 import {
@@ -60,6 +61,7 @@ import { StandaloneMockPanel } from "./StandaloneMockPanel"
 import { ConfluenceSettingsModal } from '../modals/ConfluenceSettingsModal'
 import { UserConfluenceSettingsModal } from '../modals/UserConfluenceSettingsModal'
 import { CollectionModal } from '../modals/CollectionModal'
+import { RatingModal } from '../modals/RatingModal'
 import type { ApiRequest, Collection, Folder, RequestExample } from '../../types'
 import { DocumentationPanel } from './DocumentationPanel'
 import { MockServerPanel } from './MockServerPanel'
@@ -800,6 +802,8 @@ export const Sidebar = (): React.JSX.Element => {
   const [showStandaloneMock, setShowStandaloneMock] = useState(false)
   const [showConfluenceSettings, setShowConfluenceSettings] = useState(false)
   const [appVersion, setAppVersion] = useState<string>('')
+  const [showRating, setShowRating] = useState(false)
+  const [ratingRequired, setRatingRequired] = useState(false)
   const [wsStatus, setWsStatus] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected')
 
   const {
@@ -874,6 +878,24 @@ export const Sidebar = (): React.JSX.Element => {
 
   useEffect(() => { fetchTeams() }, [fetchTeams])
   useEffect(() => { fetchConfluenceEnabled() }, [fetchConfluenceEnabled])
+
+  const hasCheckedRating = useRef(false)
+  useEffect(() => {
+    if (!user || hasCheckedRating.current) return
+    hasCheckedRating.current = true
+    const timer = setTimeout(async () => {
+      try {
+        const res = await apiClient.get<{ should_rate: boolean; is_overdue: boolean }>('/api/v1/rating/status')
+        if (res.data.should_rate) {
+          setRatingRequired(res.data.is_overdue)
+          setShowRating(true)
+        }
+      } catch {
+        // silent
+      }
+    }, 5000)
+    return () => clearTimeout(timer)
+  }, [user])
 
   useEffect(() => {
     const handleOpenSettings = () => setShowServerSettings(true)
@@ -1336,8 +1358,16 @@ export const Sidebar = (): React.JSX.Element => {
                       App Settings
                     </DropdownMenu.Item>
                     
+                    <DropdownMenu.Item
+                      onClick={() => setShowRating(true)}
+                      className="flex items-center px-2 py-1.5 text-xs text-text hover:bg-background hover:text-text rounded cursor-pointer outline-none data-[highlighted]:bg-background"
+                    >
+                      <Star size={14} className="mr-2 text-yellow-400" />
+                      Beri Rating
+                    </DropdownMenu.Item>
+
                     <DropdownMenu.Separator className="h-px bg-border my-1" />
-                    
+
                     <DropdownMenu.Item
                       onClick={logout}
                       className="flex items-center px-2 py-1.5 text-xs text-danger hover:bg-danger/10 hover:text-danger rounded cursor-pointer outline-none data-[highlighted]:bg-danger/10"
@@ -1375,6 +1405,7 @@ export const Sidebar = (): React.JSX.Element => {
         {showConfluenceSettings && <ConfluenceSettingsModal onClose={() => setShowConfluenceSettings(false)} />}
         {showUserConfluence && <UserConfluenceSettingsModal onClose={() => setShowUserConfluence(false)} />}
         {showChangePassword && <ChangePasswordModal isOpen={showChangePassword} onClose={() => setShowChangePassword(false)} />}
+        {showRating && <RatingModal appVersion={appVersion} required={ratingRequired} onClose={() => setShowRating(false)} />}
         {showStandaloneMock && activeTeam && (
           <StandaloneMockPanel
             teamId={activeTeam.id}

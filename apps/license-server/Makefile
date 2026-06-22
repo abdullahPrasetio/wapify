@@ -1,6 +1,7 @@
 APP     = license-server
-IMAGE   = wapbolt-license-server
+IMAGE   = abdullahprasetio/wapbolt_server
 PORT   ?= 9100
+TAG    ?= latest
 
 .PHONY: run build docker-build docker-run docker-stop clean tidy
 
@@ -14,14 +15,19 @@ tidy:
 	go mod tidy
 
 docker-build:
-	docker build -t $(IMAGE) .
+	docker buildx build \
+		--platform linux/amd64,linux/arm64 \
+		-t $(IMAGE):$(TAG) \
+		-t $(IMAGE):latest \
+		--push \
+		.
 
 docker-run:
 	docker run -d \
 		--name wapbolt-license \
 		-p $(PORT):$(PORT) \
 		--env-file .env \
-		$(IMAGE)
+		$(IMAGE):$(TAG)
 
 docker-stop:
 	docker stop wapbolt-license && docker rm wapbolt-license

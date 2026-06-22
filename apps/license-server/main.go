@@ -27,6 +27,15 @@ func main() {
 
 	app.Use(logger.New())
 
+	// /api/ratings boleh diakses dari mana saja (Electron tidak punya fixed origin)
+	// Harus didaftarkan SEBELUM global CORS agar tidak di-restrict ke CORS_ORIGINS
+	ratingsOpenCORS := cors.New(cors.Config{
+		AllowOrigins: "*",
+		AllowHeaders: "Content-Type",
+		AllowMethods: "POST,OPTIONS",
+	})
+	app.Use("/api/ratings", ratingsOpenCORS)
+
 	allowOrigins := os.Getenv("CORS_ORIGINS")
 	if allowOrigins == "" {
 		log.Fatal().Msg("CORS_ORIGINS env is required — set to your landing page URL, e.g. https://wapbolt.io")
@@ -58,11 +67,17 @@ func main() {
 	// Public — dengan rate limiter
 	app.Post("/api/license-requests", ipLimiter, handler.SubmitRequest)
 
+	// Rating dari instance self-host (blob terverifikasi HMAC)
+	app.Post("/api/ratings", handler.ReceiveRating)
+
 	// Admin (protected by X-Admin-Key header)
 	admin := app.Group("/api/admin/license-requests", handler.RequireAdminKey)
 	admin.Get("/", handler.ListRequests)
 	admin.Patch("/:id/revoke", handler.RevokeRequest)
 	admin.Delete("/:id", handler.DeleteRequest)
+
+	adminRatings := app.Group("/api/admin/ratings", handler.RequireAdminKey)
+	adminRatings.Get("/", handler.ListRatings)
 
 	port := getEnv("PORT", "9100")
 	log.Info().Str("port", port).Msg("Starting Wapbolt License Server")

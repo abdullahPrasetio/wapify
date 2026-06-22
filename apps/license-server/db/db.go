@@ -24,7 +24,7 @@ func Connect() error {
 		return fmt.Errorf("failed to connect to postgres: %w", err)
 	}
 
-	if err := conn.AutoMigrate(&model.LicenseRequest{}); err != nil {
+	if err := conn.AutoMigrate(&model.LicenseRequest{}, &model.InstanceRating{}); err != nil {
 		return fmt.Errorf("auto-migrate failed: %w", err)
 	}
 
