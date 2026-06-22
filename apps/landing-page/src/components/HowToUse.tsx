@@ -40,7 +40,7 @@ docker run -d \\
   -e DB_PORT=5432 \\
   -e DB_USER=postgres \\
   -e DB_PASSWORD=yourpassword \\
-  -e DB_NAME=wapify \\
+  -e DB_NAME=wapbolt \\
   -e JWT_SECRET=ganti-dengan-string-acak-panjang \\
   -e LICENSE_KEY=<license-key-dari-email> \\
   abdullahprasetio/wapbolt-backend-client:latest`,
