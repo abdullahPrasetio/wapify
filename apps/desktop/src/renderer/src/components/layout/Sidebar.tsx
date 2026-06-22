@@ -501,15 +501,15 @@ const CollectionItem = ({ collection }: { collection: Collection }): React.JSX.E
   const [showRunner, setShowRunner] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
 
-  // Auto-fetch if expanded state was restored from localStorage but data not yet loaded
+  // Auto-fetch on mount if collection is expanded (handles localStorage-restored state)
   useEffect(() => {
-    if (isExpanded && !requestsByCollection[collection.id]) {
+    if (isExpanded) {
       fetchCollectionContents(collection.id)
     }
   }, [])
 
   const handleExpand = async (): Promise<void> => {
-    if (!isExpanded && !requestsByCollection[collection.id]) {
+    if (!isExpanded) {
       await fetchCollectionContents(collection.id)
     }
     toggleExpand(`collection-${collection.id}`)

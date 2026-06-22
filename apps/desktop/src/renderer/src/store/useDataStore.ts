@@ -678,8 +678,9 @@ export const useDataStore = create<DataState>()(
                 ...allRequests
               ]
             }))
-          } catch {
-            // silent fail
+          } catch (err) {
+            console.error(`[Wapbolt] Failed to fetch collection ${collectionId} contents:`, err)
+            throw err
           }
         },
 

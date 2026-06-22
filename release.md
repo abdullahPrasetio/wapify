@@ -1,5 +1,15 @@
 # Wapbolt Release Notes
 
+## [v2.5.10] — 2026-06-22
+
+### 🐛 Bug Fix
+
+- **Sidebar folder "Empty" intermittent** — folder di sidebar kadang tampil "Empty" padahal request sudah ada. Root cause: `fetchCollectionContents` hanya dipanggil sekali saat pertama expand; kalau WS sync event terlewat atau fetch sebelumnya gagal diam-diam, folder tetap stale.
+  - `handleExpand` sekarang selalu refetch saat collection di-expand (bukan hanya saat data belum ada pertama kali)
+  - `fetchCollectionContents` tidak lagi silent fail — error di-log ke console dan di-throw agar caller bisa detect
+
+---
+
 ## [v2.4.0] — 2026-05-29
 
 ### 🔗 OpenAPI Sync to Confluence
