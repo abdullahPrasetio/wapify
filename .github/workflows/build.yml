@@ -56,7 +56,7 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           build-args: |
-            VITE_LICENSE_API=${{ secrets.VITE_LICENSE_API || 'https://license.wapbolt.io' }}
+            VITE_LICENSE_API=${{ secrets.VITE_LICENSE_API || 'https://wapbolt-api.temancode.my.id' }}
           tags: |
             abdullahprasetio/wapbolt-landing:${{ github.ref_name }}
             abdullahprasetio/wapbolt-landing:latest

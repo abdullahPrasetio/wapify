@@ -2,7 +2,7 @@
 FROM node:20-alpine AS build
 WORKDIR /app
 
-ARG VITE_LICENSE_API=https://license.wapbolt.io
+ARG VITE_LICENSE_API=https://wapbolt-api.temancode.my.id
 ENV VITE_LICENSE_API=$VITE_LICENSE_API
 
 COPY package*.json ./
