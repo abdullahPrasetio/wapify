@@ -213,6 +213,7 @@ export interface DocRequest {
   url: string
   headers: Record<string, unknown>
   body: Record<string, unknown>
+  body_type?: string
   field_validations: FieldValidations
   examples?: RequestExample[]
 }

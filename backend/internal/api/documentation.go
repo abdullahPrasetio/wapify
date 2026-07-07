@@ -58,6 +58,7 @@ type DocRequest struct {
 	URL              string                 `json:"url"`
 	Headers          map[string]interface{} `json:"headers"`
 	Body             map[string]interface{} `json:"body"`
+	BodyType         string                 `json:"body_type"`
 	FieldValidations map[string]interface{} `json:"field_validations"`
 	Examples         []repository.RequestExample `json:"examples,omitempty"`
 }
@@ -145,6 +146,7 @@ func toDocRequest(r repository.Request) DocRequest {
 		URL:              r.URL,
 		Headers:          headers,
 		Body:             body,
+		BodyType:         r.BodyType,
 		FieldValidations: fieldValidations,
 		Examples:         r.Examples,
 	}

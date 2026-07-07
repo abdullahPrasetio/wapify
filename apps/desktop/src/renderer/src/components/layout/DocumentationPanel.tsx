@@ -122,6 +122,30 @@ function collectAllVariables(doc: CollectionDocs): string[] {
   return Array.from(vars)
 }
 
+// Backend stores non-plain-object bodies (form-data/urlencoded arrays, raw
+// text) wrapped as { array: [...] } or { raw: "..." } since the JSONB column
+// can only hold an object. Unwrap that shape here so docs/cURL/Confluence
+// rendering shows the real fields instead of the wrapper.
+type NormalizedBody =
+  | { kind: 'empty' }
+  | { kind: 'fields'; fields: { key: string; value: unknown; enabled?: boolean }[] }
+  | { kind: 'raw'; raw: string }
+  | { kind: 'object'; obj: Record<string, unknown> }
+
+function normalizeDocBody(body: Record<string, unknown> | undefined | null, bodyType?: string): NormalizedBody {
+  if (!body || Object.keys(body).length === 0) return { kind: 'empty' }
+
+  const keys = Object.keys(body)
+  const isArrayBodyType = bodyType === 'form-data' || bodyType === 'x-www-form-urlencoded'
+  if ((isArrayBodyType || keys.length === 1) && Array.isArray((body as any).array)) {
+    return { kind: 'fields', fields: (body as any).array }
+  }
+  if (keys.length === 1 && keys[0] === 'raw' && typeof (body as any).raw === 'string') {
+    return { kind: 'raw', raw: (body as any).raw }
+  }
+  return { kind: 'object', obj: body }
+}
+
 // ─── Highlighted text component ───────────────────────────────────────────────
 
 interface VarHighlightProps {
@@ -481,10 +505,17 @@ export const DocumentationPanel: React.FC<DocumentationPanelProps> = ({
                 curl += ` \\\n  -H "${k}: ${resolveText(String(v))}"`
               })
             }
-            if (r.body && Object.keys(r.body).length > 0) {
-              let bodyStr = JSON.stringify(r.body)
-              bodyStr = resolveText(bodyStr)
-              curl += ` \\\n  -d '${bodyStr}'`
+            const normalized = normalizeDocBody(r.body, r.body_type)
+            if (normalized.kind === 'fields') {
+              const encoded = normalized.fields
+                .filter((f) => f.enabled !== false && f.key)
+                .map((f) => `${encodeURIComponent(f.key)}=${encodeURIComponent(resolveText(String(f.value ?? '')))}`)
+                .join('&')
+              if (encoded) curl += ` \\\n  -d '${encoded}'`
+            } else if (normalized.kind === 'raw') {
+              curl += ` \\\n  -d '${resolveText(normalized.raw)}'`
+            } else if (normalized.kind === 'object') {
+              curl += ` \\\n  -d '${resolveText(JSON.stringify(normalized.obj))}'`
             }
             return curl
           }
@@ -509,10 +540,22 @@ export const DocumentationPanel: React.FC<DocumentationPanelProps> = ({
           }
 
           // Body Table
-          if (req.body && Object.keys(req.body).length > 0) {
+          const normalizedBody = normalizeDocBody(req.body, req.body_type)
+          if (normalizedBody.kind === 'fields') {
             reqHtml += '<h3>Request Body</h3>'
             reqHtml += '<table><tbody><tr><th>Field</th><th>Value</th><th>Validation</th><th>Description</th></tr>'
-            Object.entries(req.body).forEach(([k, v]) => {
+            normalizedBody.fields.filter((f) => f.enabled !== false && f.key).forEach((f) => {
+              const rule = req.field_validations?.body?.[f.key]
+              reqHtml += `<tr><td><strong>${f.key}</strong></td><td><code>${resolveText(String(f.value ?? ''))}</code></td><td>${renderValidation(rule)}</td><td>${rule?.description || ''}</td></tr>`
+            })
+            reqHtml += '</tbody></table>'
+          } else if (normalizedBody.kind === 'raw') {
+            reqHtml += '<h3>Request Body</h3>'
+            reqHtml += `<ac:structured-macro ac:name="code" ac:schema-version="1"><ac:parameter ac:name="language">text</ac:parameter><ac:parameter ac:name="theme">Emacs</ac:parameter><ac:plain-text-body><![CDATA[\n${resolveText(normalizedBody.raw)}\n]]></ac:plain-text-body></ac:structured-macro>`
+          } else if (normalizedBody.kind === 'object') {
+            reqHtml += '<h3>Request Body</h3>'
+            reqHtml += '<table><tbody><tr><th>Field</th><th>Value</th><th>Validation</th><th>Description</th></tr>'
+            Object.entries(normalizedBody.obj).forEach(([k, v]) => {
               const rule = req.field_validations?.body?.[k]
               const valStr = typeof v === 'object' ? JSON.stringify(v) : String(v)
               reqHtml += `<tr><td><strong>${k}</strong></td><td><code>${resolveText(valStr)}</code></td><td>${renderValidation(rule)}</td><td>${rule?.description || ''}</td></tr>`
@@ -1231,61 +1274,76 @@ const RequestDetail: React.FC<{
               </button>
             </div>
             {/* Render body as annotated field table */}
-            {request.body && typeof request.body === 'object' && !Array.isArray(request.body) ? (
-              <div className="border border-border rounded-lg overflow-hidden">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="bg-white/5 border-b border-border">
-                      <th className="text-left px-4 py-2.5 font-medium text-muted w-[20%]">Field</th>
-                      <th className="text-left px-4 py-2.5 font-medium text-muted w-[25%]">Value</th>
-                      <th className="text-left px-4 py-2.5 font-medium text-muted w-[20%]">Validation</th>
-                      <th className="text-left px-4 py-2.5 font-medium text-muted w-[35%]">Description</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {Object.entries(request.body).map(([field, val]) => {
-                      const rawStr = typeof val === 'string' ? val : JSON.stringify(val)
-                      const rule = request.field_validations?.body?.[field]
-                      const hasAnnotations = rule && (rule.rules.length > 0 || rule.description || rule.min > 0 || rule.max > 0)
+            {(() => {
+              const normalizedBody = normalizeDocBody(request.body, request.body_type)
+              const bodyFieldRows: [string, unknown][] =
+                normalizedBody.kind === 'fields'
+                  ? normalizedBody.fields
+                      .filter((f) => f.enabled !== false && f.key)
+                      .map((f) => [f.key, f.value])
+                  : normalizedBody.kind === 'object'
+                    ? Object.entries(normalizedBody.obj)
+                    : []
 
-                      return (
-                        <tr key={field} className="border-b border-white/5 last:border-0">
-                          <td className="px-4 py-2.5 font-mono text-text/90 font-medium">{field}</td>
-                          <td className="px-4 py-2.5 font-mono text-text/70">
-                            <VarHighlight
-                              text={rawStr}
-                              envVars={envVars}
-                              onSetVar={onSetVar}
-                            />
-                          </td>
-                          <td className="px-4 py-2.5">
-                            {hasAnnotations ? (
-                              <ValidationBadges rule={rule} />
-                            ) : (
-                              <span className="text-muted/40 text-[10px] italic">—</span>
-                            )}
-                          </td>
-                          <td className="px-4 py-2.5 text-sm text-text/90 leading-relaxed">
-                            {rule?.description || <span className="text-muted/30 text-xs italic">—</span>}
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              // Fallback: raw JSON view (for arrays or primitive bodies)
-              <div className="bg-background/80 shadow-inner border border-border rounded-lg p-4 overflow-x-auto">
-                <pre className="text-xs text-text/90 font-mono whitespace-pre-wrap leading-relaxed">
-                  <VarHighlight
-                    text={JSON.stringify(request.body, null, 2)}
-                    envVars={envVars}
-                    onSetVar={onSetVar}
-                  />
-                </pre>
-              </div>
-            )}
+              if (normalizedBody.kind === 'raw') {
+                return (
+                  <div className="bg-background/80 shadow-inner border border-border rounded-lg p-4 overflow-x-auto">
+                    <pre className="text-xs text-text/90 font-mono whitespace-pre-wrap leading-relaxed">
+                      <VarHighlight
+                        text={normalizedBody.raw}
+                        envVars={envVars}
+                        onSetVar={onSetVar}
+                      />
+                    </pre>
+                  </div>
+                )
+              }
+
+              return (
+                <div className="border border-border rounded-lg overflow-hidden">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="bg-white/5 border-b border-border">
+                        <th className="text-left px-4 py-2.5 font-medium text-muted w-[20%]">Field</th>
+                        <th className="text-left px-4 py-2.5 font-medium text-muted w-[25%]">Value</th>
+                        <th className="text-left px-4 py-2.5 font-medium text-muted w-[20%]">Validation</th>
+                        <th className="text-left px-4 py-2.5 font-medium text-muted w-[35%]">Description</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {bodyFieldRows.map(([field, val]) => {
+                        const rawStr = typeof val === 'string' ? val : JSON.stringify(val)
+                        const rule = request.field_validations?.body?.[field]
+                        const hasAnnotations = rule && (rule.rules.length > 0 || rule.description || rule.min > 0 || rule.max > 0)
+
+                        return (
+                          <tr key={field} className="border-b border-white/5 last:border-0">
+                            <td className="px-4 py-2.5 font-mono text-text/90 font-medium">{field}</td>
+                            <td className="px-4 py-2.5 font-mono text-text/70">
+                              <VarHighlight
+                                text={rawStr}
+                                envVars={envVars}
+                                onSetVar={onSetVar}
+                              />
+                            </td>
+                            <td className="px-4 py-2.5">
+                              {hasAnnotations ? (
+                                <ValidationBadges rule={rule} />
+                              ) : (
+                                <span className="text-muted/40 text-[10px] italic">—</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-2.5 text-sm text-text/90 leading-relaxed">
+                              {rule?.description || <span className="text-muted/30 text-xs italic">—</span>}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )
+            })()}
           </div>
         )}
 
