@@ -1,5 +1,17 @@
 # Wapbolt Release Notes
 
+## [v2.5.15] — 2026-07-07
+
+### 🐛 Bug Fix
+
+- **Confluence Sync toggle admin tidak tersinkron** — `fetchConfluenceEnabled` di store hanya meng-update state saat backend membalas `200`. Saat admin mematikan fitur, backend membalas `403` sehingga state `confluenceEnabled` tetap nyangkut `true` (macet di kondisi terakhir yang pernah sukses). Sekarang state selalu di-set eksplisit `true`/`false` sesuai response, dua arah toggle (on↔off) konsisten.
+- **Menu "Confluence Settings" (user) tidak pernah muncul** — frontend membaca field `confluence_enabled` dari response `/api/v1/confluence/config`, padahal backend mengirim field `enabled`. Mismatch ini membuat menu selalu tersembunyi walau admin sudah mengaktifkan fitur.
+- **Tombol "Confluence Sync" di Admin Panel tidak membuka modal apa pun** — `onClick` cuma menutup dropdown tanpa memicu modal settings global. Sekarang men-dispatch event yang didengarkan `Sidebar` untuk membuka `ConfluenceSettingsModal`.
+- **Modal admin diam-diam "berhasil" walau save gagal** — `handleSave` tidak mengecek status response sebelum menutup modal. Sekarang error dari backend ditampilkan, dan state global di-refresh otomatis setelah save sukses.
+- **State tidak live saat masuk halaman dokumentasi** — `DocumentationPanel` sekarang fetch ulang status Confluence setiap kali dibuka, sehingga tombol "Sync to Confluence" selalu merefleksikan kondisi admin terkini tanpa perlu reload aplikasi.
+
+---
+
 ## [v2.5.11] — 2026-06-22
 
 ### ✨ Feature

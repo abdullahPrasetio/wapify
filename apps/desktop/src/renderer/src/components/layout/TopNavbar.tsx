@@ -231,7 +231,10 @@ function AdminDropdown(): React.JSX.Element | null {
       ))}
       <div className="border-t border-border mt-1 pt-1">
         <button
-          onClick={() => { setOpen(false) }}
+          onClick={() => {
+            setOpen(false)
+            window.dispatchEvent(new CustomEvent('wapbolt:open-confluence-settings'))
+          }}
           className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-background transition-colors text-muted hover:text-blue-400"
         >
           <Cloud size={12} className="text-blue-400" /> Confluence Sync

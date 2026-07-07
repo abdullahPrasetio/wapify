@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { X, Check, Cloud, Shield, AlertCircle, Loader2 } from 'lucide-react'
 import { apiClient } from '../../api/client'
+import { useDataStore } from '../../store/useDataStore'
 
 interface ConfluenceSettingsModalProps {
   onClose: () => void
@@ -35,7 +36,12 @@ export const ConfluenceSettingsModal: React.FC<ConfluenceSettingsModalProps> = (
     setIsSaving(true)
     setError(null)
     try {
-      await apiClient.put('/api/v1/admin/confluence/config', config)
+      const response = await apiClient.put('/api/v1/admin/confluence/config', config)
+      if (response.status !== 200) {
+        setError((response.data as any)?.error || 'Failed to save Confluence configuration')
+        return
+      }
+      await useDataStore.getState().fetchConfluenceEnabled()
       onClose()
     } catch (err: any) {
       setError('Failed to save Confluence configuration')

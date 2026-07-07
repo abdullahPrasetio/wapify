@@ -288,7 +288,7 @@ export const DocumentationPanel: React.FC<DocumentationPanelProps> = ({
   collectionName,
   onClose
 }) => {
-  const { environments, activeEnvironmentId, updateEnvironment, openExample, deleteExample, confluenceEnabled } = useDataStore()
+  const { environments, activeEnvironmentId, updateEnvironment, openExample, deleteExample, confluenceEnabled, fetchConfluenceEnabled } = useDataStore()
   const { setActiveView } = useAppStore()
   const activeEnv = environments.find((e) => e.id === activeEnvironmentId) ?? null
   const envVars: Record<string, string> = activeEnv?.variables ?? {}
@@ -301,6 +301,10 @@ export const DocumentationPanel: React.FC<DocumentationPanelProps> = ({
   const [settingVar, setSettingVar] = useState<string | null>(null)
   const [isSyncing, setIsSyncing] = useState(false)
   const [showSyncOptions, setShowSyncOptions] = useState(false)
+
+  useEffect(() => {
+    fetchConfluenceEnabled()
+  }, [fetchConfluenceEnabled])
 
   useEffect(() => {
     const fetchDocs = async () => {

@@ -881,15 +881,20 @@ export const Sidebar = (): React.JSX.Element => {
     const handleOpenConfluence = () => {
       setShowUserConfluence(true)
     }
+    const handleOpenConfluenceAdmin = () => {
+      setShowConfluenceSettings(true)
+    }
 
     window.addEventListener('wapbolt:open-settings', handleOpenSettings)
     window.addEventListener('wapbolt:open-standalone-mock', handleOpenMock)
     window.addEventListener('wapbolt:open-user-confluence-settings', handleOpenConfluence)
+    window.addEventListener('wapbolt:open-confluence-settings', handleOpenConfluenceAdmin)
 
     return () => {
       window.removeEventListener('wapbolt:open-settings', handleOpenSettings)
       window.removeEventListener('wapbolt:open-standalone-mock', handleOpenMock)
       window.removeEventListener('wapbolt:open-user-confluence-settings', handleOpenConfluence)
+      window.removeEventListener('wapbolt:open-confluence-settings', handleOpenConfluenceAdmin)
     }
   }, [])
 
