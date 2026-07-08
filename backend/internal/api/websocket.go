@@ -13,6 +13,12 @@ import (
 	"gorm.io/gorm"
 )
 
+const (
+	wsWriteWait  = 10 * time.Second
+	wsPongWait   = 60 * time.Second
+	wsPingPeriod = (wsPongWait * 9) / 10 // must stay below wsPongWait
+)
+
 // WSEventType defines the type of websocket event
 type WSEventType string
 
@@ -59,6 +65,7 @@ type Client struct {
 func (c *Client) WriteMessage(messageType int, data []byte) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	c.Conn.SetWriteDeadline(time.Now().Add(wsWriteWait))
 	return c.Conn.WriteMessage(messageType, data)
 }
 
@@ -112,6 +119,34 @@ func SetupWebSocketRoutes(router fiber.Router) {
 
 		WSHub.Register(client)
 		defer WSHub.Unregister(client)
+
+		// Real WS-level keep-alive: a proxy/load-balancer sitting in front of
+		// the backend may drop connections it considers idle, and app-level
+		// JSON "PING" messages from the client aren't always recognized as
+		// activity by such proxies. Native ping/pong control frames are.
+		// This also lets us reap dead connections (e.g. laptop sleep, network
+		// drop without a clean close) instead of leaving them registered forever.
+		_ = c.SetReadDeadline(time.Now().Add(wsPongWait))
+		c.SetPongHandler(func(string) error {
+			return c.SetReadDeadline(time.Now().Add(wsPongWait))
+		})
+
+		done := make(chan struct{})
+		defer close(done)
+		go func() {
+			ticker := time.NewTicker(wsPingPeriod)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-ticker.C:
+					if err := client.WriteMessage(websocket.PingMessage, nil); err != nil {
+						return
+					}
+				case <-done:
+					return
+				}
+			}
+		}()
 
 		// Listen for messages
 		for {
@@ -224,7 +259,8 @@ func (h *Hub) HandleEvent(client *Client, event WSEvent) {
 		}
 
 	case "PING":
-		// Heartbeat, do nothing
+		msg, _ := json.Marshal(WSEvent{Type: "PONG"})
+		client.WriteMessage(websocket.TextMessage, msg)
 		return
 	case EventUnlockRequest:
 		h.mu.Lock()

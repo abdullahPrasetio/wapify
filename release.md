@@ -1,5 +1,19 @@
 # Wapbolt Release Notes
 
+## [v2.5.16] — 2026-07-08
+
+### 🐛 Bug Fix
+
+- **Swagger & Markdown export masih tampilkan body mentah** — sama seperti bug di docs viewer, endpoint export Swagger dan Markdown pakai `r.Body` langsung tanpa membongkar bungkusan `{"array": [...]}` / `{"raw": "..."}"` dari storage. Sekarang keduanya pakai `normalizeExampleBody()` supaya menampilkan field sebenarnya.
+- **WebSocket collaboration sering "Disconnected"** — server cuma mengandalkan pesan JSON `PING` (dianggurin, tidak ada balasan), yang tidak selalu dianggap "activity" oleh reverse proxy/load balancer di depan backend. Sekarang server mengirim native WS ping/pong control frame + read deadline 60 detik, jadi lebih tahan idle-timeout proxy dan bisa mereap koneksi yang benar-benar mati.
+- **Toast disconnect terlalu berisik** — toast "Disconnected from collaboration server" sekarang ditunda 4 detik; kalau reconnect berhasil dalam waktu itu (blip singkat, redeploy cepat), tidak ada toast sama sekali.
+
+### ✨ Feature
+
+- **Validation tab deteksi nested JSON di field urlencoded** — kalau value suatu field form-data/urlencoded adalah JSON string yang valid (misal `request={"mpan":"..."}`), sub-field-nya (`request.mpan`) sekarang ikut muncul sebagai baris validasi terpisah, tidak lagi jadi satu field string yang opaque.
+
+---
+
 ## [v2.5.15] — 2026-07-07
 
 ### 🐛 Bug Fix

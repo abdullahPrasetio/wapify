@@ -11,10 +11,18 @@ const getWsBaseUrl = () => {
   return baseUrl.replace(/^http/, 'ws')
 }
 
+// How long to wait after a disconnect before telling the user — most drops
+// (brief network blip, laptop sleep/resume, backend redeploy) recover within
+// a few seconds via the reconnect loop, and surfacing every one of those as
+// an error toast is just noise. Only tell the user if it stays down.
+const DISCONNECT_TOAST_GRACE_MS = 4000
+
 export class WebSocketClient {
   public ws: WebSocket | null = null
   private isConnecting = false
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
+  private disconnectToastTimer: ReturnType<typeof setTimeout> | null = null
+  private disconnectToastShown = false
   private _wasConnected = false
 
   public connect(teamId: number, userId: number, userName: string) {
@@ -30,12 +38,21 @@ export class WebSocketClient {
         console.log('[Wapbolt WS] Connected to collaboration server')
         const isReconnect = this._wasConnected
         this._wasConnected = true
-        toast.success(isReconnect ? 'Reconnected to collaboration server' : 'Connected to collaboration server', { id: 'ws-status' })
-        useNotificationStore.getState().addLocalNotification(
-          isReconnect ? 'Collaboration Reconnected' : 'Collaboration Connected',
-          isReconnect ? 'You have rejoined the collaboration server.' : 'You have joined the collaboration server.',
-          'collaboration'
-        )
+
+        if (this.disconnectToastTimer) {
+          // Reconnected within the grace period — the user never saw a
+          // disconnect toast, so skip the "reconnected" one too (silent recovery).
+          clearTimeout(this.disconnectToastTimer)
+          this.disconnectToastTimer = null
+        } else if (!isReconnect || this.disconnectToastShown) {
+          toast.success(isReconnect ? 'Reconnected to collaboration server' : 'Connected to collaboration server', { id: 'ws-status' })
+          useNotificationStore.getState().addLocalNotification(
+            isReconnect ? 'Collaboration Reconnected' : 'Collaboration Connected',
+            isReconnect ? 'You have rejoined the collaboration server.' : 'You have joined the collaboration server.',
+            'collaboration'
+          )
+        }
+        this.disconnectToastShown = false
         this.isConnecting = false
         if (this.reconnectTimer) {
           clearTimeout(this.reconnectTimer)
@@ -67,12 +84,20 @@ export class WebSocketClient {
 
       this.ws.onclose = () => {
         console.log('[Wapbolt WS] Disconnected')
-        toast.error('Disconnected from collaboration server', { id: 'ws-status' })
         this.ws = null
         this.isConnecting = false
         this.stopHeartbeat()
         // Clear all presence/locks locally
         useDataStore.getState().clearPresenceAndLocks()
+
+        if (!this.disconnectToastTimer) {
+          this.disconnectToastTimer = setTimeout(() => {
+            this.disconnectToastTimer = null
+            this.disconnectToastShown = true
+            toast.error('Disconnected from collaboration server', { id: 'ws-status' })
+          }, DISCONNECT_TOAST_GRACE_MS)
+        }
+
         this.scheduleReconnect(teamId, userId, userName)
       }
 
@@ -115,6 +140,10 @@ export class WebSocketClient {
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer)
       this.reconnectTimer = null
+    }
+    if (this.disconnectToastTimer) {
+      clearTimeout(this.disconnectToastTimer)
+      this.disconnectToastTimer = null
     }
     if (this.ws) {
       // Explicitly leave active request so server removes presence immediately

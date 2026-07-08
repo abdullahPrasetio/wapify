@@ -1277,7 +1277,26 @@ const ValidationEditorTab: React.FC<ValidationEditorTabProps> = ({
     const body = workingRequest.body
     const bt = workingRequest.body_type
     if (bt === 'form-data' || bt === 'x-www-form-urlencoded') {
-      if (Array.isArray(body)) return body.map((item: any) => item.key).filter(Boolean)
+      if (!Array.isArray(body)) return []
+      const keys: string[] = []
+      body.forEach((item: any) => {
+        if (!item?.key) return
+        keys.push(item.key)
+        // Some APIs pass a JSON-encoded object as a single urlencoded field
+        // (e.g. `request={"mpan":"..."}`) — surface its inner fields too so
+        // they can get their own validation rules instead of being opaque.
+        if (typeof item.value === 'string') {
+          try {
+            const parsed = JSON.parse(item.value)
+            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+              Object.keys(parsed).forEach((nested) => keys.push(`${item.key}.${nested}`))
+            }
+          } catch {
+            // not JSON, treat as a plain string field
+          }
+        }
+      })
+      return keys
     }
     if (bt?.startsWith('raw-')) {
       try {
