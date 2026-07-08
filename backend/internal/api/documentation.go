@@ -242,7 +242,7 @@ func generateMarkdown(tree *collectionTree) string {
 
 			if len(r.Body) > 0 {
 				sb.WriteString("**Request Body:**\n\n")
-				bodyJSON, _ := json.MarshalIndent(r.Body, "", "  ")
+				bodyJSON, _ := json.MarshalIndent(normalizeExampleBody(r.Body), "", "  ")
 				sb.WriteString("```json\n" + string(bodyJSON) + "\n```\n\n")
 			}
 
@@ -350,7 +350,7 @@ func generateSwagger(tree *collectionTree) openAPISpec {
 		if method == "post" || method == "put" || method == "patch" {
 			schema := map[string]interface{}{"type": "object"}
 			if len(r.Body) > 0 {
-				schema["example"] = r.Body
+				schema["example"] = normalizeExampleBody(r.Body)
 			}
 			jsonContent := map[string]interface{}{"schema": schema}
 
@@ -445,6 +445,44 @@ func generateSwagger(tree *collectionTree) openAPISpec {
 }
 
 // --- Helpers ---
+
+// normalizeExampleBody unwraps the {"array": [...]} / {"raw": "..."} storage
+// shapes back into a realistic example value. The body column is JSONB (an
+// object), so form-data/urlencoded bodies (stored client-side as an array of
+// {key, value, enabled}) and raw text bodies get wrapped under a synthetic
+// key before saving — see toJSONB in request.go. Docs/exports should show
+// the unwrapped shape, not the storage wrapper.
+func normalizeExampleBody(body map[string]interface{}) interface{} {
+	if len(body) != 1 {
+		return body
+	}
+	if arr, ok := body["array"].([]interface{}); ok {
+		example := map[string]interface{}{}
+		for _, item := range arr {
+			row, ok := item.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			if enabled, ok := row["enabled"].(bool); ok && !enabled {
+				continue
+			}
+			key, _ := row["key"].(string)
+			if key == "" {
+				continue
+			}
+			example[key] = row["value"]
+		}
+		return example
+	}
+	if raw, ok := body["raw"].(string); ok {
+		var parsed interface{}
+		if json.Unmarshal([]byte(raw), &parsed) == nil {
+			return parsed
+		}
+		return raw
+	}
+	return body
+}
 
 func extractURLPath(rawURL string) string {
 	// Remove protocol and host
