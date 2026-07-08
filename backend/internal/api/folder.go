@@ -60,12 +60,34 @@ func MoveFolder(c *fiber.Ctx) error {
 		}
 	}
 
+	movingToNewCollection := payload.CollectionID != folder.CollectionID
+
 	folder.CollectionID = payload.CollectionID
 	folder.ParentFolderID = payload.ParentFolderID
 	folder.OrderIndex = payload.OrderIndex
 
 	if err := repository.DB.Save(&folder).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to move folder", "code": "INTERNAL_SERVER_ERROR"})
+	}
+
+	// Sub-folders and requests keep their folder_id/parent_folder_id chain,
+	// but every view (docs, folder/request lists) filters by collection_id —
+	// without cascading it, everything nested under the moved folder becomes
+	// invisible in the new collection while still "belonging" to the old one.
+	if movingToNewCollection {
+		descendantFolderIDs := []uint{folder.ID}
+		frontier := []uint{folder.ID}
+		for len(frontier) > 0 {
+			var children []repository.Folder
+			repository.DB.Where("parent_folder_id IN ?", frontier).Find(&children)
+			frontier = frontier[:0]
+			for _, ch := range children {
+				descendantFolderIDs = append(descendantFolderIDs, ch.ID)
+				frontier = append(frontier, ch.ID)
+			}
+		}
+		repository.DB.Model(&repository.Folder{}).Where("id IN ?", descendantFolderIDs).Update("collection_id", payload.CollectionID)
+		repository.DB.Model(&repository.Request{}).Where("folder_id IN ?", descendantFolderIDs).Update("collection_id", payload.CollectionID)
 	}
 
 	// Real-time broadcast

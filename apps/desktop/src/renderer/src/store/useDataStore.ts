@@ -1007,8 +1007,13 @@ export const useDataStore = create<DataState>()(
             })
             if (response.status === 201) {
               const newCol = response.data as Collection
+              // The backend's WS "TEAM" broadcast can trigger a fetchCollections()
+              // refetch that lands before this response does, so `newCol` may
+              // already be in state by the time we get here — don't append twice.
               set((state) => ({
-                collections: [...state.collections, newCol],
+                collections: state.collections.some((c) => c.id === newCol.id)
+                  ? state.collections
+                  : [...state.collections, newCol],
                 requestsByCollection: { ...state.requestsByCollection, [newCol.id]: [] },
                 foldersByCollection: { ...state.foldersByCollection, [newCol.id]: [] }
               }))
@@ -1311,9 +1316,13 @@ export const useDataStore = create<DataState>()(
 
             if (response.status === 201) {
               const newFolder = response.data as Folder
+              // The backend's WS "COLLECTION" broadcast can trigger a
+              // fetchCollectionContents() refetch that lands before this
+              // response does, so don't append newFolder if it's already there.
               set((state) => {
                 const colId = collectionId
                 const colFolders = state.foldersByCollection[colId] || []
+                if (colFolders.some((f) => f.id === newFolder.id)) return state
                 return {
                   foldersByCollection: {
                     ...state.foldersByCollection,

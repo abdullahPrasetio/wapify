@@ -146,6 +146,46 @@ function normalizeDocBody(body: Record<string, unknown> | undefined | null, body
   return { kind: 'object', obj: body }
 }
 
+// Recursively surfaces nested object keys as dotted paths (e.g. "request.id")
+// so every level of a JSON body gets its own row — mirrors flattenObjectKeys
+// in MainArea.tsx's Validation tab so docs show the same field names the
+// validation rules were actually saved under.
+function flattenObjectRows(obj: Record<string, unknown>, prefix = ''): [string, unknown][] {
+  const rows: [string, unknown][] = []
+  Object.entries(obj).forEach(([k, v]) => {
+    const path = prefix ? `${prefix}.${k}` : k
+    rows.push([path, v])
+    if (v && typeof v === 'object' && !Array.isArray(v)) {
+      rows.push(...flattenObjectRows(v as Record<string, unknown>, path))
+    }
+  })
+  return rows
+}
+
+// Some APIs pass a JSON-encoded object as a single urlencoded/form-data field
+// (e.g. `request={"mpan":"..."}`). The Validation tab (MainArea.tsx) surfaces
+// those inner keys as their own dotted field ("request.mpan") so they can get
+// their own rule. Mirror that here so docs/exports show the same rows the
+// validation rules were actually saved under — otherwise a nested field's
+// rule never matches the flat "request" row and looks like it has none.
+function expandFieldRows(fields: { key: string; value: unknown; enabled?: boolean }[]): [string, unknown][] {
+  const rows: [string, unknown][] = []
+  fields.filter((f) => f.enabled !== false && f.key).forEach((f) => {
+    rows.push([f.key, f.value])
+    if (typeof f.value === 'string') {
+      try {
+        const parsed = JSON.parse(f.value)
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+          rows.push(...flattenObjectRows(parsed, f.key))
+        }
+      } catch {
+        // not JSON, keep as a plain string field
+      }
+    }
+  })
+  return rows
+}
+
 // ─── Highlighted text component ───────────────────────────────────────────────
 
 interface VarHighlightProps {
@@ -544,9 +584,9 @@ export const DocumentationPanel: React.FC<DocumentationPanelProps> = ({
           if (normalizedBody.kind === 'fields') {
             reqHtml += '<h3>Request Body</h3>'
             reqHtml += '<table><tbody><tr><th>Field</th><th>Value</th><th>Validation</th><th>Description</th></tr>'
-            normalizedBody.fields.filter((f) => f.enabled !== false && f.key).forEach((f) => {
-              const rule = req.field_validations?.body?.[f.key]
-              reqHtml += `<tr><td><strong>${f.key}</strong></td><td><code>${resolveText(String(f.value ?? ''))}</code></td><td>${renderValidation(rule)}</td><td>${rule?.description || ''}</td></tr>`
+            expandFieldRows(normalizedBody.fields).forEach(([field, val]) => {
+              const rule = req.field_validations?.body?.[field]
+              reqHtml += `<tr><td><strong>${field}</strong></td><td><code>${resolveText(String(val ?? ''))}</code></td><td>${renderValidation(rule)}</td><td>${rule?.description || ''}</td></tr>`
             })
             reqHtml += '</tbody></table>'
           } else if (normalizedBody.kind === 'raw') {
@@ -555,7 +595,7 @@ export const DocumentationPanel: React.FC<DocumentationPanelProps> = ({
           } else if (normalizedBody.kind === 'object') {
             reqHtml += '<h3>Request Body</h3>'
             reqHtml += '<table><tbody><tr><th>Field</th><th>Value</th><th>Validation</th><th>Description</th></tr>'
-            Object.entries(normalizedBody.obj).forEach(([k, v]) => {
+            flattenObjectRows(normalizedBody.obj).forEach(([k, v]) => {
               const rule = req.field_validations?.body?.[k]
               const valStr = typeof v === 'object' ? JSON.stringify(v) : String(v)
               reqHtml += `<tr><td><strong>${k}</strong></td><td><code>${resolveText(valStr)}</code></td><td>${renderValidation(rule)}</td><td>${rule?.description || ''}</td></tr>`
@@ -1278,11 +1318,9 @@ const RequestDetail: React.FC<{
               const normalizedBody = normalizeDocBody(request.body, request.body_type)
               const bodyFieldRows: [string, unknown][] =
                 normalizedBody.kind === 'fields'
-                  ? normalizedBody.fields
-                      .filter((f) => f.enabled !== false && f.key)
-                      .map((f) => [f.key, f.value])
+                  ? expandFieldRows(normalizedBody.fields)
                   : normalizedBody.kind === 'object'
-                    ? Object.entries(normalizedBody.obj)
+                    ? flattenObjectRows(normalizedBody.obj)
                     : []
 
               if (normalizedBody.kind === 'raw') {

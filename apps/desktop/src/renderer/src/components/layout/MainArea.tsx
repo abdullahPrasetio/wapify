@@ -1151,6 +1151,21 @@ const EditorArea = ({
 
 // ─── Validation Tab ───────────────────────────────────────────────────────────
 
+// Recursively surfaces nested object keys as dotted paths (e.g. "request.id")
+// so each level of a JSON body can get its own validation rule instead of the
+// whole nested object being one opaque field.
+function flattenObjectKeys(obj: Record<string, unknown>, prefix = ''): string[] {
+  const keys: string[] = []
+  Object.entries(obj).forEach(([k, v]) => {
+    const path = prefix ? `${prefix}.${k}` : k
+    keys.push(path)
+    if (v && typeof v === 'object' && !Array.isArray(v)) {
+      keys.push(...flattenObjectKeys(v as Record<string, unknown>, path))
+    }
+  })
+  return keys
+}
+
 const AVAILABLE_RULES = [
   'required', 'nullable', 'string', 'integer', 'numeric',
   'boolean', 'email', 'url', 'array', 'object', 'unique'
@@ -1289,7 +1304,7 @@ const ValidationEditorTab: React.FC<ValidationEditorTabProps> = ({
           try {
             const parsed = JSON.parse(item.value)
             if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-              Object.keys(parsed).forEach((nested) => keys.push(`${item.key}.${nested}`))
+              keys.push(...flattenObjectKeys(parsed, item.key))
             }
           } catch {
             // not JSON, treat as a plain string field
@@ -1302,7 +1317,7 @@ const ValidationEditorTab: React.FC<ValidationEditorTabProps> = ({
       try {
         const parsed = JSON.parse(body as string)
         if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-          return Object.keys(parsed)
+          return flattenObjectKeys(parsed)
         }
       } catch {
         // not JSON

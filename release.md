@@ -1,5 +1,15 @@
 # Wapbolt Release Notes
 
+## [v2.5.17] — 2026-07-08
+
+### 🐛 Bug Fix
+
+- **Collection/Folder tampak ke-create 2x di sidebar** — race condition antara optimistic update lokal dan refetch penuh yang dipicu broadcast WebSocket (`ENTITY_UPDATED`). Kalau refetch itu selesai lebih dulu dari response HTTP create, item baru ke-append dua kali sampai refresh manual. `createCollection` dan `createFolder` sekarang cek duplikat by-id sebelum append.
+- **Folder yang dipindah antar collection jadi "0 endpoints" di Docs** — `MoveFolder` cuma update `collection_id` folder itu sendiri, tidak cascade ke sub-folder & request di dalamnya. Docs viewer dan list folder/request lain filter ketat berdasarkan `collection_id`, jadi request-nya tetap "menempel" ke collection lama walau foldernya sudah pindah. Sekarang `MoveFolder` mencari seluruh turunan (rekursif) dan meng-update `collection_id`-nya sekaligus. *(Catatan: data yang sudah kadung salah sebelum fix ini masih perlu diperbaiki manual.)*
+- **Validation tab & Docs tidak konsisten untuk body bersarang** — field urlencoded yang value-nya JSON string (`request={"mpan":"..."}`) dan body raw-JSON bersarang (`{"request":{"id":1}}`) sekarang di-flatten rekursif jadi dotted path (`request.mpan`, `request.id`) di kedua tempat — sebelumnya Validation tab mendeteksi sub-field ini tapi tabel Docs tidak, jadi rule yang sudah di-set terlihat kosong di Docs.
+
+---
+
 ## [v2.5.16] — 2026-07-08
 
 ### 🐛 Bug Fix
