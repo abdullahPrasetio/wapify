@@ -120,6 +120,9 @@ type Request struct {
 	Headers           JSONB     `gorm:"type:jsonb;default:'{}';column:headers" json:"headers"`
 	Body              JSONB     `gorm:"type:jsonb;default:'{}';column:body" json:"body"`
 	BodyType          string    `gorm:"column:body_type;default:raw-json" json:"body_type"`
+	// BodyVariants menyimpan body per body_type (raw-json, form-data, x-www-form-urlencoded, dst)
+	// agar pindah tab body di editor tidak menghilangkan isi tipe lain, mirip Postman.
+	BodyVariants      JSONB     `gorm:"type:jsonb;default:'{}';column:body_variants" json:"body_variants"`
 	AuthConfig        JSONB     `gorm:"type:jsonb;default:'{}';column:auth_config" json:"auth_config"`
 	FieldValidations  JSONB     `gorm:"type:jsonb;default:'{}';column:field_validations" json:"field_validations"`
 	CollectionID      uint      `gorm:"not null;column:collection_id" json:"collection_id"`

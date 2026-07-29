@@ -372,20 +372,37 @@ const EditorArea = ({
     setIsHeaderBulk(false)
   }
 
+  // Kunci variant "raw" digeneralisir (bukan per-bahasa raw-json/raw-xml/dst) supaya
+  // ganti bahasa raw tidak dianggap tipe body yang berbeda.
+  const variantKey = (type: string): string => (type.startsWith('raw-') ? 'raw' : type)
+
   const handleBodyTypeChange = (type: string): void => {
     const currentBody = workingRequest.body
-    const isRaw = type.startsWith('raw-')
-    const isArrayBased = type === 'form-data' || type === 'x-www-form-urlencoded'
+    const prevType = workingRequest.body_type
+    const isRawSwitch = prevType?.startsWith('raw-') && type.startsWith('raw-')
 
-    let newBody: string | any[] = currentBody
-    if (isRaw && Array.isArray(currentBody)) {
-      newBody = ''
-    } else if (isArrayBased && !Array.isArray(currentBody)) {
-      newBody = []
-    } else if (type === 'none' || type === 'binary') {
-      newBody = Array.isArray(currentBody) ? '' : currentBody
+    // Simpan body saat ini ke body_variants (persisten & ikut ter-save ke DB) berdasarkan tipe
+    // sebelumnya, sebelum diganti — kecuali sesama raw (json/xml/html/text) yang berbagi 1 buffer teks.
+    const variants = { ...(workingRequest.body_variants || {}) }
+    if (!isRawSwitch && prevType) {
+      variants[variantKey(prevType)] = currentBody
     }
-    onUpdate({ body_type: type, body: newBody })
+
+    const cachedKey = variantKey(type)
+    const cached = variants[cachedKey]
+
+    let newBody: string | any[]
+    if (isRawSwitch) {
+      newBody = currentBody
+    } else if (type.startsWith('raw-')) {
+      newBody = typeof cached === 'string' ? cached : (Array.isArray(currentBody) ? '' : currentBody)
+    } else if (type === 'form-data' || type === 'x-www-form-urlencoded') {
+      newBody = Array.isArray(cached) ? cached : (Array.isArray(currentBody) ? currentBody : [])
+    } else {
+      // none, binary, graphql: pertahankan apa adanya
+      newBody = currentBody
+    }
+    onUpdate({ body_type: type, body: newBody, body_variants: variants })
   }
 
   const getMonacoLang = (type: string) => {

@@ -92,6 +92,7 @@ const normalizeRequest = (req: ApiRequest): ApiRequest => {
     ...req,
     body,
     body_type: bodyType,
+    body_variants: (req.body_variants as Record<string, unknown>) || {},
     headers: req.headers || {},
     auth_config: (req.auth_config as AuthConfig) || { type: 'No Auth' },
     pre_request_script: req.pre_request_script || '',
@@ -128,6 +129,8 @@ export interface WorkingRequest {
   headers: Record<string, string>
   body: string | any[] // Bisa string untuk raw, atau array untuk form-data/urlencoded
   body_type: string
+  /** Body tersimpan per tipe (raw-json, form-data, x-www-form-urlencoded, dst) agar pindah tab body tidak kehilangan isi tipe lain */
+  body_variants: Record<string, unknown>
   auth_config: AuthConfig
   pre_request_script: string
   post_request_script: string
@@ -702,6 +705,7 @@ export const useDataStore = create<DataState>()(
               headers: normalizedRequest.headers || {},
               body: normalizedRequest.body as any,
               body_type: normalizedRequest.body_type,
+              body_variants: (normalizedRequest.body_variants as Record<string, unknown>) || {},
               auth_config: (normalizedRequest.auth_config as AuthConfig) || { type: 'No Auth' },
               pre_request_script: normalizedRequest.pre_request_script || '',
               post_request_script: normalizedRequest.post_request_script || '',
@@ -739,6 +743,7 @@ export const useDataStore = create<DataState>()(
               ),
               body: (normalizedDraft.body as any) || '',
               body_type: normalizedDraft.body_type || 'raw-json',
+              body_variants: (normalizedDraft.body_variants as Record<string, unknown>) || {},
               auth_config: (initialData.auth_config as AuthConfig) || { type: 'No Auth' },
               pre_request_script: normalizedDraft.pre_request_script || '',
               post_request_script: normalizedDraft.post_request_script || '',
@@ -783,6 +788,7 @@ export const useDataStore = create<DataState>()(
               headers: normalizedExample.headers as Record<string, string> || {},
               body: normalizedExample.body as any,
               body_type: normalizedExample.body_type,
+              body_variants: {},
               auth_config: { type: 'No Auth' },
               pre_request_script: '',
               post_request_script: '',
@@ -948,6 +954,13 @@ export const useDataStore = create<DataState>()(
               }
             }
 
+            // Sinkronkan body aktif ke variants sebelum disimpan, supaya tipe yang sedang
+            // dipakai juga ikut ter-persist di body_variants.
+            const bodyVariants = {
+              ...(workingRequest.body_variants || {}),
+              [workingRequest.body_type]: workingRequest.body
+            }
+
             const response = await apiClient.put(`/api/v1/requests/${activeTab.requestId}`, {
               id: activeTab.requestId,
               method: workingRequest.method,
@@ -955,6 +968,7 @@ export const useDataStore = create<DataState>()(
               headers: workingRequest.headers,
               body: bodyObj,
               body_type: workingRequest.body_type,
+              body_variants: bodyVariants,
               auth_config: workingRequest.auth_config,
               pre_request_script: workingRequest.pre_request_script,
               post_request_script: workingRequest.post_request_script,
@@ -1248,6 +1262,7 @@ export const useDataStore = create<DataState>()(
                         headers: normalizedReq.headers || {},
                         body: normalizedReq.body as any,
                         body_type: normalizedReq.body_type,
+                        body_variants: (normalizedReq.body_variants as Record<string, unknown>) || {},
                         auth_config: (normalizedReq.auth_config as AuthConfig) || { type: 'No Auth' },
                         pre_request_script: normalizedReq.pre_request_script || '',
                         post_request_script: normalizedReq.post_request_script || '',
@@ -1273,6 +1288,7 @@ export const useDataStore = create<DataState>()(
                     headers: normalizedReq.headers || {},
                     body: normalizedReq.body as any,
                     body_type: normalizedReq.body_type,
+                    body_variants: (normalizedReq.body_variants as Record<string, unknown>) || {},
                     auth_config: (normalizedReq.auth_config as AuthConfig) || { type: 'No Auth' },
                     pre_request_script: normalizedReq.pre_request_script || '',
                     post_request_script: normalizedReq.post_request_script || '',

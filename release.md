@@ -1,5 +1,12 @@
 # Wapbolt Release Notes
 
+## [v2.5.18] — 2026-07-29
+
+### 🐛 Bug Fix
+
+- **Ganti body type (raw ↔ form-data ↔ urlencoded) menghapus isi tipe lain** — `handleBodyTypeChange` di editor request selalu me-reset `body` jadi kosong/array kosong setiap pindah tipe, jadi isi raw JSON hilang begitu pindah ke form-data (dan sebaliknya). Sekarang tiap tipe body punya slot tersendiri (`body_variants`) yang dipulihkan saat kamu balik ke tipe itu, dan ikut ter-*save* permanen ke database (kolom `body_variants` baru, migrasi `000032`) — mirip perilaku Postman yang menyimpan semua mode body sekaligus, bukan cuma yang lagi aktif.
+- **Error mentah/membingungkan saat backend belum/putus terhubung** — sebelumnya kegagalan koneksi ke backend (server mati, belum jalan, dsb.) muncul sebagai toast error mentah atau diam-diam melempar user ke halaman login tanpa penjelasan (termasuk saat rehydrate sesi di startup). Sekarang ada deteksi konektivitas terpusat (`client.ts`) yang menampilkan banner "Tidak dapat terhubung ke server backend" secara konsisten di layar manapun, dengan tombol coba lagi, dan hilang otomatis begitu backend kembali online.
+
 ## [v2.5.17] — 2026-07-08
 
 ### 🐛 Bug Fix

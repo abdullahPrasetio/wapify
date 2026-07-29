@@ -41,6 +41,20 @@ export const setAuthToken = (token: string | null): void => {
 
 export const getAuthToken = (): string | null => authToken
 
+// ─── Deteksi konektivitas ke backend Wapbolt ───────────────────────────────
+// status 0 = request gagal sebelum sampai ke server (server mati / tidak reachable),
+// dibedakan dari error HTTP biasa (4xx/5xx) yang berarti server hidup tapi menolak.
+let isServerOffline = false
+
+const reportConnectivity = (status: number, url: string): void => {
+  if (!url.startsWith(getBaseUrl())) return
+  const offline = status === 0
+  if (offline !== isServerOffline) {
+    isServerOffline = offline
+    window.dispatchEvent(new Event(offline ? 'wapbolt:offline' : 'wapbolt:online'))
+  }
+}
+
 /**
  * HTTP client yang mengirimkan request via Electron IPC ke Main Process.
  * Ini memastikan semua request BEBAS CORS karena dikirim dari Node.js.
@@ -63,15 +77,26 @@ async function ipcRequest<T>(config: RequestConfig): Promise<IpcResponse<T>> {
   if (!window.api) {
     if (config.url.startsWith(getBaseUrl())) {
       console.warn('Running in Browser Mode: Using standard fetch for Wapbolt API')
-      const res = await fetch(config.url, {
-        method: config.method,
-        headers,
-        body: config.body
-      })
-      const raw = await res.text()
-      let data: unknown
-      try { data = JSON.parse(raw) } catch { data = raw }
-      return { status: res.status, headers: {}, data, timing: 0 } as IpcResponse<T>
+      try {
+        const res = await fetch(config.url, {
+          method: config.method,
+          headers,
+          body: config.body
+        })
+        const raw = await res.text()
+        let data: unknown
+        try { data = JSON.parse(raw) } catch { data = raw }
+        reportConnectivity(res.status, config.url)
+        return { status: res.status, headers: {}, data, timing: 0 } as IpcResponse<T>
+      } catch (err) {
+        reportConnectivity(0, config.url)
+        return {
+          status: 0,
+          headers: {},
+          data: { error: err instanceof Error ? err.message : 'Network error' },
+          timing: 0
+        } as IpcResponse<T>
+      }
     } else {
       console.error('Wapbolt IPC is not available. Are you running in Chrome instead of Electron?')
       throw new Error('This app requires Electron to run.')
@@ -150,6 +175,8 @@ async function ipcRequest<T>(config: RequestConfig): Promise<IpcResponse<T>> {
       }
     }
   }
+
+  reportConnectivity(response.status, config.url)
 
   return response as IpcResponse<T>
 }

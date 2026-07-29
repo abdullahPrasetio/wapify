@@ -1,6 +1,6 @@
 {
   "name": "wapbolt-desktop",
-  "version": "2.5.17",
+  "version": "2.5.18",
   "description": "An Electron application with React and TypeScript",
   "main": "./out/main/index.js",
   "author": {

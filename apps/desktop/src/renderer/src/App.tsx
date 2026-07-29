@@ -4,7 +4,7 @@ import { AppLayout } from './components/layout/AppLayout'
 import { LoginPage } from './components/auth/LoginPage'
 import { Toaster, toast } from 'sonner'
 import { initWebSocketIntegration, wsClient } from './api/websocket'
-import { Key, AlertCircle, RefreshCw } from 'lucide-react'
+import { Key, AlertCircle, RefreshCw, WifiOff } from 'lucide-react'
 import { DonationModal } from './components/modals/DonationModal'
 import { apiClient } from './api/client'
 import { useAppStore } from './store/useAppStore'
@@ -44,6 +44,48 @@ function WsStatusBadge(): React.JSX.Element {
     >
       {label}
     </span>
+  )
+}
+
+function OfflineBanner(): React.JSX.Element | null {
+  const [offline, setOffline] = useState(false)
+  const [retrying, setRetrying] = useState(false)
+
+  useEffect(() => {
+    const onOffline = () => setOffline(true)
+    const onOnline = () => setOffline(false)
+    window.addEventListener('wapbolt:offline', onOffline)
+    window.addEventListener('wapbolt:online', onOnline)
+    return () => {
+      window.removeEventListener('wapbolt:offline', onOffline)
+      window.removeEventListener('wapbolt:online', onOnline)
+    }
+  }, [])
+
+  if (!offline) return null
+
+  const handleRetry = async (): Promise<void> => {
+    setRetrying(true)
+    try {
+      await apiClient.get('/')
+    } finally {
+      setRetrying(false)
+    }
+  }
+
+  return (
+    <div className="fixed top-0 inset-x-0 z-[300] bg-danger text-white text-xs font-bold px-4 py-2.5 flex items-center justify-center gap-3 shadow-lg animate-in slide-in-from-top duration-200">
+      <WifiOff size={14} />
+      <span>Tidak dapat terhubung ke server backend. Periksa koneksi atau pastikan server berjalan.</span>
+      <button
+        onClick={handleRetry}
+        disabled={retrying}
+        className="flex items-center gap-1 underline underline-offset-2 hover:opacity-80 disabled:opacity-60 cursor-pointer"
+      >
+        <RefreshCw size={12} className={retrying ? 'animate-spin' : ''} />
+        {retrying ? 'Mencoba...' : 'Coba lagi'}
+      </button>
+    </div>
   )
 }
 
@@ -155,6 +197,7 @@ function App(): React.JSX.Element {
   if (licenseError) {
     return (
       <div className="h-screen w-screen bg-background flex items-center justify-center p-6 relative overflow-hidden">
+        <OfflineBanner />
         {/* Background blobs for aesthetics */}
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary/10 rounded-full blur-[120px]" />
         <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-danger/5 rounded-full blur-[120px]" />
@@ -201,6 +244,7 @@ function App(): React.JSX.Element {
   if (isRehydrating && !isAuthenticated) {
     return (
       <div className="h-screen w-screen bg-background flex items-center justify-center">
+        <OfflineBanner />
         <div className="flex flex-col items-center gap-4">
           <div className="w-10 h-10 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
           <span className="text-muted text-sm font-medium animate-pulse">
@@ -215,6 +259,7 @@ function App(): React.JSX.Element {
     return (
       <>
         <WsStatusBadge />
+        <OfflineBanner />
         <Toaster position="bottom-right" theme={theme} richColors />
         <LoginPage />
       </>
@@ -224,6 +269,7 @@ function App(): React.JSX.Element {
   return (
     <>
       <WsStatusBadge />
+      <OfflineBanner />
       <Toaster position="bottom-right" theme={theme} richColors />
       <AppLayout />
       <DonationModal />

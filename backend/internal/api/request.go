@@ -152,6 +152,9 @@ func CreateRequestInFolder(c *fiber.Ctx) error {
 			request.Body = jsonb
 		}
 	}
+	if v, ok := data["body_variants"].(map[string]interface{}); ok {
+		request.BodyVariants = repository.JSONB(v)
+	}
 	if v, ok := data["auth_config"]; ok {
 		if jsonb, ok := toJSONB(v); ok {
 			request.AuthConfig = jsonb
@@ -228,6 +231,9 @@ func CreateRequestInCollection(c *fiber.Ctx) error {
 			request.Body = jsonb
 		}
 	}
+	if v, ok := data["body_variants"].(map[string]interface{}); ok {
+		request.BodyVariants = repository.JSONB(v)
+	}
 	if v, ok := data["auth_config"]; ok {
 		if jsonb, ok := toJSONB(v); ok {
 			request.AuthConfig = jsonb
@@ -303,6 +309,9 @@ func UpdateRequest(c *fiber.Ctx) error {
 	}
 	if bodyType, ok := updateData["body_type"].(string); ok {
 		request.BodyType = bodyType
+	}
+	if v, ok := updateData["body_variants"].(map[string]interface{}); ok {
+		request.BodyVariants = repository.JSONB(v)
 	}
 	if v, ok := updateData["auth_config"]; ok {
 		if jsonb, ok := toJSONB(v); ok {
@@ -383,6 +392,7 @@ func DuplicateRequest(c *fiber.Ctx) error {
 		Headers:           original.Headers,
 		Body:              original.Body,
 		BodyType:          original.BodyType,
+		BodyVariants:      original.BodyVariants,
 		AuthConfig:        original.AuthConfig,
 		CollectionID:      original.CollectionID,
 		FolderID:          original.FolderID,

@@ -153,6 +153,8 @@ export interface ApiRequest {
   headers: Record<string, string>
   body: unknown
   body_type: string
+  /** Body tersimpan per tipe (raw-json, form-data, x-www-form-urlencoded, dst) agar pindah tab body tidak kehilangan isi tipe lain */
+  body_variants?: Record<string, unknown>
   auth_config: Record<string, unknown>
   field_validations: FieldValidations
   collection_id: number
