@@ -1,0 +1,66 @@
+name: Build Wapbolt Local
+
+# Wapbolt Local dirilis terpisah dari app Cloud: tag `local-v*`.
+# v1 tanpa auto-update/publish (docs/local-app-design.md) — installer
+# diunggah sebagai artifact workflow, distribusi manual.
+
+on:
+  push:
+    tags:
+      - 'local-v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.12.0
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install Dependencies (workspace root)
+        run: npm ci --ignore-scripts
+
+      - name: Rebuild better-sqlite3 for Electron ABI
+        run: |
+          cd apps/desktop-local
+          npx @electron/rebuild --only better-sqlite3
+        shell: bash
+
+      # Vitest TIDAK dijalankan di sini: better-sqlite3 sudah di-rebuild utk
+      # ABI Electron (bukan Node), test unit sudah dicover workflow ci.yml.
+      - name: Typecheck & Build
+        run: |
+          cd apps/desktop-local
+          npm run build
+        env:
+          VITE_APP_VERSION: ${{ github.ref_name }}
+
+      - name: Package (no publish)
+        run: |
+          cd apps/desktop-local
+          npx electron-builder --${{ matrix.os == 'ubuntu-latest' && 'linux' || (matrix.os == 'windows-latest' && 'win' || 'mac') }} --publish never
+        shell: bash
+
+      - name: Upload Installer Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: wapbolt-local-${{ matrix.os }}
+          path: |
+            apps/desktop-local/dist/*.dmg
+            apps/desktop-local/dist/*.zip
+            apps/desktop-local/dist/*.exe
+            apps/desktop-local/dist/*.AppImage
+            apps/desktop-local/dist/*.deb
+          if-no-files-found: error
