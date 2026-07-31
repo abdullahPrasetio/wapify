@@ -9,9 +9,6 @@ import { DonationModal } from './components/modals/DonationModal'
 import { apiClient } from './api/client'
 import { useAppStore } from './store/useAppStore'
 
-// Initialize WebSocket sync logic
-initWebSocketIntegration()
-
 function WsStatusBadge(): React.JSX.Element {
   const { isAuthenticated } = useAuthStore()
   const [wsStatus, setWsStatus] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected')
@@ -96,6 +93,9 @@ function App(): React.JSX.Element {
 
   useEffect(() => {
     rehydrateAuth()
+    // Dipanggil di sini (bukan top-level modul) agar setAppMode() dari shell
+    // sudah berlaku; no-op di mode local, idempotent utk StrictMode.
+    initWebSocketIntegration()
   }, [])
 
   // Global Google OAuth deep link listener — must live here, not in LoginPage,

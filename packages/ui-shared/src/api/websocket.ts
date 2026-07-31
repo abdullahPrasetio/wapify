@@ -5,6 +5,7 @@ import { useDataStore } from '../store/useDataStore'
 import { useAppStore } from '../store/useAppStore'
 import { useNotificationStore } from '../store/useNotificationStore'
 import { getBaseUrl } from './client'
+import { getAppMode } from '../config/appMode'
 
 const getWsBaseUrl = () => {
   const baseUrl = getBaseUrl()
@@ -26,6 +27,8 @@ export class WebSocketClient {
   private _wasConnected = false
 
   public connect(teamId: number, userId: number, userName: string) {
+    // Mode local (§7): realtime false → tidak pernah connect, tanpa error console.
+    if (!getAppMode().realtime) return
     if (this.ws || this.isConnecting) return
 
     this.isConnecting = true
@@ -223,8 +226,18 @@ export class WebSocketClient {
 
 export const wsClient = new WebSocketClient()
 
-// Auto-connect hook
+// Auto-connect hook. Dipanggil dari effect mount App (bukan top-level modul)
+// supaya setAppMode() dari shell sudah berlaku; idempotent karena StrictMode
+// me-mount dua kali.
+let integrationInitialized = false
+
 export function initWebSocketIntegration() {
+  // Mode local (§7): jangan pasang subscription sama sekali — hilangkan
+  // noise log "Data store change detected" dan siklus reconnect.
+  if (!getAppMode().realtime) return
+  if (integrationInitialized) return
+  integrationInitialized = true
+
   console.log('[Wapbolt WS] Initializing WebSocket integration...')
 
   // Listen to store changes to connect/disconnect or join/leave requests
