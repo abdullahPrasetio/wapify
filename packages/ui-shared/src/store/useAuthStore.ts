@@ -1,7 +1,23 @@
 import { create } from 'zustand'
 import { subscribeWithSelector } from 'zustand/middleware'
 import { apiClient, setAuthToken, getBaseUrl } from '../api/client'
+import { getAppMode } from '../config/appMode'
 import type { User, LoginResponse } from '../types'
+
+// §8 docs/local-app-design.md: mode local tidak punya tabel users, "user"
+// hanya konstanta yang dikembalikan agar UI (avatar, nama di header, dst)
+// tetap punya sesuatu untuk ditampilkan.
+const LOCAL_USER: User = {
+  id: 1,
+  email: 'local@wapbolt',
+  name: 'Local User',
+  is_super_admin: true,
+  is_premium: true,
+  has_password: false,
+  premium_since: null,
+  created_at: new Date(0).toISOString(),
+  updated_at: new Date(0).toISOString()
+}
 
 interface AuthState {
   user: User | null
@@ -63,13 +79,20 @@ export const useAuthStore = create<AuthState>()(
 
   logout: async () => {
     setAuthToken(null)
-    if (window.api) {
+    if (window.api?.deleteToken) {
       await window.api.deleteToken()
     }
     set({ user: null, token: null, isAuthenticated: false, error: null })
   },
 
   rehydrateAuth: async () => {
+    // Mode local (§7/§8): tidak ada layar login sama sekali — auto-login
+    // sebagai local user, tidak pernah menyentuh network.
+    if (getAppMode().auth === 'none') {
+      set({ user: LOCAL_USER, token: null, isAuthenticated: true, isRehydrating: false })
+      return
+    }
+
     set({ isRehydrating: true })
     try {
       const refreshToken = window.api ? await window.api.getToken() : null
