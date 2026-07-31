@@ -4,6 +4,7 @@ import { Search, Settings, ChevronLeft, ChevronRight, ChevronDown, Check, Users,
 import { useAuthStore } from '../../store/useAuthStore'
 import { useAppStore } from '../../store/useAppStore'
 import { useDataStore } from '../../store/useDataStore'
+import { SyncControls } from './SyncControls'
 
 const IS_WINDOWS = navigator.userAgent.includes('Windows')
 
@@ -344,6 +345,8 @@ export const TopNavbar = (): React.JSX.Element => {
         className="flex items-center gap-2"
         style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
       >
+        {/* Hanya tampil di Wapbolt Local (AppMode.sync) — no-op di Cloud */}
+        <SyncControls />
         <AdminDropdown />
 
         <div

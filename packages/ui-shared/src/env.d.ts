@@ -60,6 +60,22 @@ interface WapboltAPI {
     filename: string
     content: string
   }) => Promise<any>
+  // ─── Khusus Wapbolt Local (mode 'local', docs/local-app-design.md §6/§8) ──
+  saveSyncSession?: (session: { serverUrl: string; user: unknown }) => Promise<void>
+  getSyncSession?: () => Promise<{ serverUrl: string; user: unknown } | null>
+  syncNow?: (serverUrl: string) => Promise<{
+    pulled: number
+    pushed: number
+    conflicts: number
+    errors: string[]
+  }>
+  syncStatus?: () => Promise<{
+    pendingChanges: number
+    pendingConflicts: number
+    lastFullSyncAt: string | null
+  }>
+  syncListConflicts?: () => Promise<unknown[]>
+  syncResolveConflict?: (id: number, resolution: 'local' | 'remote') => Promise<{ ok: boolean }>
 }
 
 declare global {

@@ -4,19 +4,23 @@ import { apiClient, setAuthToken, getBaseUrl } from '../api/client'
 import { getAppMode } from '../config/appMode'
 import type { User, LoginResponse } from '../types'
 
-// §8 docs/local-app-design.md: mode local tidak punya tabel users, "user"
-// hanya konstanta yang dikembalikan agar UI (avatar, nama di header, dst)
-// tetap punya sesuatu untuk ditampilkan.
-const LOCAL_USER: User = {
-  id: 1,
-  email: 'local@wapbolt',
-  name: 'Local User',
-  is_super_admin: true,
-  is_premium: true,
-  has_password: false,
-  premium_since: null,
-  created_at: new Date(0).toISOString(),
-  updated_at: new Date(0).toISOString()
+// §8 docs/local-app-design.md (revisi): mode local memakai login-sekali —
+// sesi (refresh token + identitas akun) disimpan main process, kerja harian
+// offline penuh. User object dibentuk dari sesi tersimpan; field yang tidak
+// ikut disimpan diisi default.
+function sessionToUser(sessionUser: Partial<User>): User {
+  const epoch = new Date(0).toISOString()
+  return {
+    id: sessionUser.id ?? 1,
+    email: sessionUser.email ?? 'local@wapbolt',
+    name: sessionUser.name ?? 'Local User',
+    is_super_admin: sessionUser.is_super_admin ?? false,
+    is_premium: sessionUser.is_premium ?? false,
+    has_password: true,
+    premium_since: sessionUser.premium_since ?? null,
+    created_at: sessionUser.created_at ?? epoch,
+    updated_at: sessionUser.updated_at ?? epoch
+  }
 }
 
 interface AuthState {
@@ -59,6 +63,24 @@ export const useAuthStore = create<AuthState>()(
         if (refresh_token && window.api) {
           await window.api.setToken(refresh_token)
         }
+
+        // Mode local (§8 revisi): login pertama → simpan sesi + initial pull
+        // seluruh data server ke SQLite, baru masuk workspace.
+        if (getAppMode().mode === 'local' && window.api?.saveSyncSession && window.api?.syncNow) {
+          await window.api.saveSyncSession({ serverUrl: getBaseUrl(), user })
+          try {
+            const summary = await window.api.syncNow(getBaseUrl())
+            if (summary.errors.length > 0) {
+              console.error('[Auth] Initial pull selesai dengan error:', summary.errors)
+            }
+          } catch (err) {
+            // Login tetap sukses — data bisa ditarik ulang via "Sync Now".
+            console.error('[Auth] Initial pull gagal:', err)
+          }
+          set({ user: sessionToUser(user), token, isAuthenticated: true, isLoading: false, error: null })
+          return
+        }
+
         set({ user, token, isAuthenticated: true, isLoading: false, error: null })
         // Fetch fresh user to get latest fields (e.g. is_premium)
         try {
@@ -86,10 +108,26 @@ export const useAuthStore = create<AuthState>()(
   },
 
   rehydrateAuth: async () => {
-    // Mode local (§7/§8): tidak ada layar login sama sekali — auto-login
-    // sebagai local user, tidak pernah menyentuh network.
-    if (getAppMode().auth === 'none') {
-      set({ user: LOCAL_USER, token: null, isAuthenticated: true, isRehydrating: false })
+    // Mode local (§8 revisi): sesi login-sekali persisten. Ada sesi → langsung
+    // masuk workspace TANPA network; tidak ada → layar login. Refresh token
+    // hanya dipakai SyncEngine, bukan operasional harian.
+    if (getAppMode().mode === 'local') {
+      set({ isRehydrating: true })
+      try {
+        const session = window.api?.getSyncSession ? await window.api.getSyncSession() : null
+        if (session) {
+          set({
+            user: sessionToUser(session.user as Partial<User>),
+            token: null,
+            isAuthenticated: true,
+            isRehydrating: false
+          })
+          return
+        }
+      } catch (err) {
+        console.error('[Auth] Local session check failed:', err)
+      }
+      set({ isRehydrating: false, isAuthenticated: false })
       return
     }
 

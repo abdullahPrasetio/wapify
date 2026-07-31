@@ -17,6 +17,9 @@
     "start": "electron-vite preview",
     "dev": "electron-vite dev",
     "build": "npm run typecheck && electron-vite build",
+    "build:mac": "electron-vite build && electron-builder --mac",
+    "build:win": "npm run build && electron-builder --win",
+    "build:linux": "electron-vite build && electron-builder --linux",
     "postinstall": "npx @electron/rebuild --only better-sqlite3"
   },
   "dependencies": {

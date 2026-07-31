@@ -69,10 +69,13 @@ export interface LocalResponse {
 
 // Request Wapbolt sendiri selalu berpola `/api/v1/...`. Request ke target API
 // arbitrary (tombol "Send") memakai URL bebas dan TIDAK ke sini — tetap
-// httpExecute (§2).
+// httpExecute (§2). Pengecualian §5.1: /api/v1/auth/* tidak pernah di-route
+// lokal — dipakai login-sekali/SyncEngine langsung ke server.
 export function isWapboltApiUrl(url: string): boolean {
   try {
-    return new URL(url).pathname.startsWith('/api/v1/')
+    const path = new URL(url).pathname
+    if (path.startsWith('/api/v1/auth/')) return false
+    return path.startsWith('/api/v1/')
   } catch {
     return false
   }

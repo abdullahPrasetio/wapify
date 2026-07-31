@@ -21,6 +21,19 @@ interface IpcResponse {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
+interface SyncSummary {
+  pulled: number
+  pushed: number
+  conflicts: number
+  errors: string[]
+}
+
+interface SyncStatus {
+  pendingChanges: number
+  pendingConflicts: number
+  lastFullSyncAt: string | null
+}
+
 const api = {
   wapboltRequest: (config: RequestConfig): Promise<IpcResponse> => {
     return ipcRenderer.invoke('wapbolt:request', config)
@@ -28,6 +41,21 @@ const api = {
   getAppVersion: (): Promise<string> => {
     return ipcRenderer.invoke('wapbolt:get-version')
   },
+  // Sesi login-sekali (docs §8 revisi) — kontrak setToken/getToken/deleteToken
+  // sama dengan apps/desktop (dipakai useAuthStore), storage-nya safeStorage.
+  setToken: (token: string): Promise<void> => ipcRenderer.invoke('wapbolt:set-token', token),
+  getToken: (): Promise<string | null> => ipcRenderer.invoke('wapbolt:get-token'),
+  deleteToken: (): Promise<void> => ipcRenderer.invoke('wapbolt:delete-token'),
+  saveSyncSession: (session: { serverUrl: string; user: unknown }): Promise<void> =>
+    ipcRenderer.invoke('wapbolt:save-session', session),
+  getSyncSession: (): Promise<{ serverUrl: string; user: unknown } | null> =>
+    ipcRenderer.invoke('wapbolt:get-session'),
+  // Sync manual (docs §6)
+  syncNow: (serverUrl: string): Promise<SyncSummary> => ipcRenderer.invoke('wapbolt:sync-now', serverUrl),
+  syncStatus: (): Promise<SyncStatus> => ipcRenderer.invoke('wapbolt:sync-status'),
+  syncListConflicts: (): Promise<unknown[]> => ipcRenderer.invoke('wapbolt:sync-list-conflicts'),
+  syncResolveConflict: (id: number, resolution: 'local' | 'remote'): Promise<{ ok: boolean }> =>
+    ipcRenderer.invoke('wapbolt:sync-resolve-conflict', id, resolution),
   reloadApp: (): void => {
     ipcRenderer.send('wapbolt:reload')
   },

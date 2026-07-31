@@ -503,6 +503,6 @@ Catatan implementasi: selama Fase 2–3 (LocalRouter belum lengkap, login flow b
 ## 11. Keputusan Terbuka (perlu dijawab sebelum fase terkait)
 
 1. **Fase 0**: ekstraksi `ui-shared` beneran, atau copy renderer dulu (cepat tapi drift)? → Rekomendasi kuat: ekstraksi beneran; copy hanya jika butuh PoC < 1 minggu.
-2. **Scope sync environments global** (yang `is_global=true`, tanpa team): ikut disync atau local-only? (server memperlakukannya lintas-team).
+2. **Scope sync environments global** (yang `is_global=true`, tanpa team): ikut disync atau local-only? (server memperlakukannya lintas-team). → *Interim v1 (implementasi Fase 5): local-only — SyncEngine hanya pull/push env non-global.*
 3. Apakah **history** suatu saat perlu disync (misal untuk analytics)? Skema `sync_meta` sudah menampung, tinggal tambah entity.
 4. Nama produk & appId final (`com.wapbolt.local`?) untuk side-by-side install.
