@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Tailwind v4 hanya scan cwd app secara otomatis; source package ini di luar cwd shell */
+@source "../";
+
 @theme {
   --color-background: var(--background);
   --color-surface: var(--surface);
