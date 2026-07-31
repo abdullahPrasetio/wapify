@@ -276,13 +276,14 @@ CREATE INDEX idx_sync_remote ON sync_meta(entity, remote_id);
 CREATE TABLE sync_conflicts (
   id           INTEGER PRIMARY KEY AUTOINCREMENT,
   entity       TEXT NOT NULL,
+  kind         TEXT NOT NULL DEFAULT 'content', -- 'content' | 'delete_edit' | 'name_collision' (§6.4)
   local_id     INTEGER NOT NULL,
-  remote_id    INTEGER NOT NULL,
+  remote_id    INTEGER,                 -- NULL utk name_collision (belum ter-map)
   local_snapshot  TEXT NOT NULL,        -- JSON row lokal saat konflik terdeteksi
   remote_snapshot TEXT NOT NULL,        -- JSON row server saat konflik terdeteksi
   detected_at  TEXT NOT NULL,
   resolved_at  TEXT,                    -- NULL = masih pending
-  resolution   TEXT                     -- 'local' | 'remote' | NULL
+  resolution   TEXT                     -- 'local' | 'remote' | 'merged' | 'renamed' | NULL
 );
 
 -- state sync global (key-value)
@@ -396,7 +397,27 @@ CREATE TABLE sync_state (
 - **Tidak memilih** (tutup dialog) → row tetap `dirty=1`, konflik tetap tercatat `resolved_at IS NULL`, **tidak ada overwrite ke arah mana pun**, dan akan muncul lagi di sync berikutnya. Badge indikator "K konflik pending" tampil di UI dekat tombol Sync.
 - Konflik delete-vs-edit diperlakukan sama: user memilih "hapus juga di lokal" vs "hidupkan lagi di server".
 
-### 6.4 Idempotensi & kegagalan parsial
+### 6.4 Identitas objek — ID lokal vs ID server
+
+**Local id dan remote id adalah dua ruang penomoran independen dan tidak pernah dibandingkan langsung.** SQLite autoincrement jalan sendiri, Postgres sequence jalan sendiri; angka yang kebetulan sama tidak berarti apa-apa.
+
+Identitas ("ini objek yang sama") **hanya** ditentukan oleh mapping `sync_meta (entity, local_id) → remote_id`:
+
+- Row server yang `remote_id`-nya **tidak ada** di mapping → objek **baru dari server** → INSERT lokal dengan local id baru + tulis mapping. Row lokal lain yang kebetulan punya angka id sama tidak tersentuh.
+- Row lokal `dirty` dengan `remote_id NULL` → objek **baru dari lokal** → POST, server memberi id sendiri, tulis mapping.
+- Renderer selalu melihat **local id**; remote id murni urusan internal SyncEngine.
+
+Konsekuensi: "cloud punya id 2, lokal punya id 2, isinya beda total" **bukan konflik** — itu dua objek berbeda yang setelah sync sama-sama hidup di kedua sisi (masing-masing dengan pasangan id barunya). Konflik (§6.3) hanya mungkin pada pasangan yang **sudah ter-map** dan kedua sisinya berubah sejak `base_hash`.
+
+**Tabrakan nama (name collision)** — kasus turunan yang bukan konflik id tapi tetap harus ditangani: lokal membuat collection/folder "Payments", server juga punya "Payments" di scope yang sama. Saat push, backend Go menolak karena validasi duplikat nama (`5568fe4`). Aturan v1:
+
+1. Push yang ditolak server dengan error duplikat nama **tidak menggagalkan sync** — dicatat sebagai *name collision* di `sync_conflicts` (jenis `name_collision`), row tetap `dirty`.
+2. Dialog menawarkan dua pilihan:
+   - **"Ini objek yang sama — gabungkan"** → tulis mapping local→remote ke row server yang namanya tabrakan; selanjutnya diperlakukan sebagai konflik konten biasa (§6.3) dan user memilih versi mana yang menang.
+   - **"Objek berbeda — ganti nama punyaku"** → user beri nama baru (default: `"Payments (local)"`), lalu push diulang.
+3. Tidak memilih → sama seperti konflik lain: pending, tanpa overwrite, muncul lagi di sync berikutnya.
+
+### 6.5 Idempotensi & kegagalan parsial
 
 - Sync boleh terputus kapan pun (server 503 — kasus nyata minggu ini): setiap row selesai diproses langsung commit meta-nya, jadi klik "Sync Now" berikutnya melanjutkan sisa, tidak mengulang yang sudah beres dan tidak menduplikasi (POST hanya utk `remote_id IS NULL`).
 - Semua operasi pull-upsert per entity dibungkus transaksi SQLite per-batch.
