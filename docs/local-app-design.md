@@ -350,7 +350,7 @@ CREATE TABLE sync_state (
 ## 6. SyncEngine — Manual "Sync Now"
 
 ### 6.1 Prasyarat
-- User membuka dialog **"Hubungkan ke Wapbolt Server"**: isi server URL + login (memakai `/api/v1/auth/login` existing). Token disimpan via `safeStorage` Electron, **hanya dipakai saat sync** — operasional harian tidak menyentuh network.
+- Kredensial sudah ada dari **login pertama** (lihat §8 — revisi 2026-07-31): user login sekali di awal memakai `/api/v1/auth/login` existing, refresh token disimpan via `safeStorage` Electron dan **hanya dipakai saat sync** — operasional harian tidak menyentuh network. Sesi persisten sampai user eksplisit logout.
 - Pemetaan team: saat koneksi pertama, user memilih team server mana yang dipetakan ke team lokal (atau buat team baru di server). Disimpan di `sync_state`.
 
 ### 6.2 Urutan sync (satu kali klik "Sync Now")
@@ -440,7 +440,7 @@ export interface AppMode {
 
 | Fitur | Cloud | Local |
 |---|---|---|
-| Login screen | wajib | tidak ada (auto local user) |
+| Login screen | wajib, setiap sesi butuh server | **sekali di awal** (revisi 2026-07-31): login → pull semua data → offline penuh; sesi persisten sampai logout eksplisit |
 | WebSocket presence/lock/PONG | aktif | **tidak pernah connect** (hilangkan error console) |
 | Comments/activities | server | lokal (comments) / stub kosong (activities) |
 | Confluence export | sesuai config server | disabled (`enabled: false`) |
@@ -454,11 +454,17 @@ UI komponen **tetap sama** — flag hanya menentukan mount/no-op, bukan layout b
 
 ## 8. First-Run Flow (Local)
 
+> **Revisi 2026-07-31** (keputusan produk, menggantikan draft "tanpa login sama sekali"): login **sekali** di awal wajib — begitu berhasil, semua data user ditarik dari server ke SQLite, lalu seluruh kerja harian offline. Sesi (refresh token di `safeStorage`) hidup terus sampai user eksplisit logout; app restart tidak pernah menampilkan login lagi selama sesi ada.
+
 1. App start → `db.ts` buka `<userData>/wapbolt-local.db`, jalankan migrasi pending.
-2. Jika tabel `teams` kosong → seed:
-   - `users`-equivalent tidak perlu tabel; user lokal = konstanta `{ id: 1, name: <os username>, email: 'local@wapbolt' }` yang dikembalikan endpoint profil.
-   - `teams`: `{ id: 1, name: 'My Workspace', created_by: 1 }`.
-3. Renderer boot → `fetchTeams()` jalan seperti biasa → dapat local team → langsung masuk workspace. **Tidak ada layar login.**
+2. Cek sesi tersimpan (`sync_state` + `safeStorage`):
+   - **Ada sesi** → langsung masuk workspace, data dari SQLite, tanpa network sama sekali.
+   - **Tidak ada sesi** (first run / setelah logout) → tampilkan layar login (server URL + kredensial, endpoint `/api/v1/auth/login` existing).
+3. Setelah login pertama sukses → **initial pull**: jalankan PULL §6.2 penuh (teams → collections → folders → requests → examples → environments) ke SQLite, simpan refresh token + identitas user di `safeStorage`/`sync_state`, lalu masuk workspace.
+4. Logout eksplisit → hapus token + `sync_state` sesi; data lokal **tetap ada** (tidak dihapus), tapi app kembali ke layar login.
+5. Seed "My Workspace" (`teams: { id: 1, name: 'My Workspace', created_by: 1 }`) tetap dilakukan saat DB kosong, sebagai wadah kerja sebelum/tanpa mapping team server.
+
+Catatan implementasi: selama Fase 2–3 (LocalRouter belum lengkap, login flow belum dibangun), app sementara memakai **auto-login local user** (bypass, `AppMode.auth='none'`) sebagai scaffolding development. Diganti dengan flow di atas pada Fase 5.
 
 ---
 
@@ -471,7 +477,7 @@ UI komponen **tetap sama** — flag hanya menentukan mount/no-op, bukan layout b
 | **2. LocalRouter core** | Handler teams/collections/folders/requests + list endpoints | CRUD & tree sidebar berfungsi penuh offline |
 | **3. LocalRouter lengkap** | envs, history, examples, versions, comments, search, duplicate/move, stubs | Seluruh fitur harian paritas dengan Cloud (kecuali realtime) |
 | **4. Feature flags** | mode local: no-WS, no-login, no-license | Console bersih dari error WS; boot langsung ke workspace |
-| **5. Sync engine** | connect dialog, push/pull, conflict dialog, badge pending | Round-trip lokal↔server terverifikasi; putus di tengah → resume aman |
+| **5. Sync engine** | login-sekali + initial pull (§8 revisi), sesi persisten, push/pull, conflict dialog, badge pending | Login → semua data tertarik → offline penuh; round-trip lokal↔server terverifikasi; putus di tengah → resume aman |
 | **6. Packaging & QA** | installer terpisah (nama/ikon/appId beda, userData beda) | Kedua app bisa terinstal berdampingan; QA regresi checklist |
 
 **Testing per fase**:
