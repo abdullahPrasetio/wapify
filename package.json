@@ -1,0 +1,13 @@
+{
+  "name": "wapbolt-monorepo",
+  "private": true,
+  "workspaces": [
+    "apps/desktop",
+    "packages/*"
+  ],
+  "scripts": {
+    "desktop:typecheck": "npm run typecheck --workspace=wapbolt-desktop",
+    "desktop:build": "npm run build --workspace=wapbolt-desktop",
+    "desktop:dev": "npm run dev --workspace=wapbolt-desktop"
+  }
+}
