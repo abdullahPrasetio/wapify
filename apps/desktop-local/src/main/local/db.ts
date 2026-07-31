@@ -1,10 +1,14 @@
 import Database from 'better-sqlite3'
 import initSql from './migrations/001_init.sql?raw'
+import commentsUpdatedAtSql from './migrations/002_comments_updated_at.sql?raw'
 
 // Migrasi bernomor per docs/local-app-design.md §3 (main/local/migrations/).
 // Ditulis sebagai daftar tetap, bukan glob dari filesystem, supaya urutan
 // penerapan eksplisit dan dapat direview per commit.
-const MIGRATIONS: Array<{ id: string; sql: string }> = [{ id: '001_init', sql: initSql }]
+const MIGRATIONS: Array<{ id: string; sql: string }> = [
+  { id: '001_init', sql: initSql },
+  { id: '002_comments_updated_at', sql: commentsUpdatedAtSql }
+]
 
 export function openDb(dbPath: string): Database.Database {
   const db = new Database(dbPath)

@@ -7,6 +7,8 @@ import { openDb } from '../db'
 import { seedIfEmpty } from '../seed'
 import { createLocalRouter, isWapboltApiUrl, LocalRouter } from '../router'
 
+type Row = Record<string, unknown>
+
 // Fase 2 (docs §9): CRUD teams/collections/folders/requests via LocalRouter.
 // Perilaku diverifikasi terhadap semantik handler Go (team.go / collection.go /
 // folder.go / request.go), bukan asumsi.
@@ -336,6 +338,168 @@ describe('stubs & fallthrough', () => {
   })
 
   it('unimplemented endpoints return explicit 501', () => {
-    expect(call('GET', '/api/v1/history').status).toBe(501)
+    expect(call('GET', '/api/v1/notifications').status).toBe(501)
+  })
+})
+
+// ─── Fase 3 ─────────────────────────────────────────────────────────────────
+
+describe('environments', () => {
+  it('lists team envs plus globals (Go: team_id = ? OR is_global)', () => {
+    call('POST', '/api/v1/teams/1/environments', { name: 'Dev', variables: { host: 'x' } })
+    call('POST', '/api/v1/environments/global', { name: 'Global', variables: {} })
+
+    const res = call('GET', '/api/v1/teams/1/environments')
+    expect(res.status).toBe(200)
+    const envs = res.data as Array<{ name: string; is_global: boolean; team_id: number | null }>
+    expect(envs.length).toBe(2)
+    expect(envs.find((e) => e.name === 'Global')).toMatchObject({ is_global: true, team_id: null })
+    expect(envs.find((e) => e.name === 'Dev')).toMatchObject({ is_global: false, team_id: 1 })
+  })
+
+  it('update follows Go semantics (name non-empty, variables non-nil)', () => {
+    const id = (call('POST', '/api/v1/teams/1/environments', { name: 'E', variables: { a: '1' } })
+      .data as { id: number }).id
+    const res = call('PUT', `/api/v1/environments/${id}`, { name: '', variables: { b: '2' } })
+    expect(res.data).toMatchObject({ name: 'E', variables: { b: '2' } })
+  })
+
+  it('delete hides env and returns Go message', () => {
+    const id = (call('POST', '/api/v1/teams/1/environments', { name: 'E' }).data as { id: number }).id
+    expect(call('DELETE', `/api/v1/environments/${id}`).data).toMatchObject({
+      message: 'Environment deleted successfully'
+    })
+    expect(call('GET', `/api/v1/environments/${id}`).status).toBe(404)
+  })
+})
+
+describe('history', () => {
+  it('requires team_id query param (400) and round-trips create/list/clear', () => {
+    expect(call('GET', '/api/v1/history').status).toBe(400)
+
+    const created = call('POST', '/api/v1/history', {
+      team_id: 1,
+      request_id: 1,
+      method: 'GET',
+      url: 'http://x',
+      status_code: 200,
+      response_time: 12
+    })
+    expect(created.status).toBe(201)
+    expect(created.data).toMatchObject({ team_id: 1, user_id: 1, status_code: 200 })
+    expect((created.data as { user: { name: string } }).user).toMatchObject({ name: 'Local User' })
+
+    const list = call('GET', '/api/v1/history?team_id=1')
+    expect((list.data as unknown[]).length).toBe(1)
+
+    expect(call('DELETE', '/api/v1/history?team_id=1').data).toMatchObject({ message: 'Team history cleared' })
+    expect((call('GET', '/api/v1/history?team_id=1').data as unknown[]).length).toBe(0)
+  })
+})
+
+describe('examples', () => {
+  let reqId: number
+
+  beforeEach(() => {
+    const colId = (call('POST', '/api/v1/teams/1/collections', { name: 'K' }).data as { id: number }).id
+    reqId = (
+      call('POST', `/api/v1/collections/${colId}/requests`, { name: 'R', method: 'GET', url: 'http://x' })
+        .data as { id: number }
+    ).id
+  })
+
+  it('creates example (JSONBAny body: array allowed) and appears in request preload', () => {
+    const created = call('POST', `/api/v1/requests/${reqId}/examples`, {
+      name: 'Ex',
+      request_method: 'POST',
+      request_url: 'http://x',
+      request_body: [1, 2, 3],
+      response_status: 201,
+      response_body: 'ok'
+    })
+    expect(created.status).toBe(201)
+    expect(created.data).toMatchObject({ name: 'Ex', request_body: [1, 2, 3], response_status: 201 })
+
+    const req = call('GET', `/api/v1/requests/${reqId}`)
+    expect((req.data as { examples: unknown[] }).examples.length).toBe(1)
+  })
+
+  it('update field-by-field, delete hides from preload', () => {
+    const id = (
+      call('POST', `/api/v1/requests/${reqId}/examples`, {
+        name: 'Ex',
+        request_method: 'GET',
+        request_url: 'http://x',
+        response_status: 200
+      }).data as { id: number }
+    ).id
+
+    const updated = call('PUT', `/api/v1/examples/${id}`, { name: '', response_status: 404 })
+    expect(updated.data).toMatchObject({ name: 'Ex', response_status: 404 })
+
+    expect(call('DELETE', `/api/v1/examples/${id}`).data).toMatchObject({
+      message: 'Example deleted successfully'
+    })
+    expect((call('GET', `/api/v1/requests/${reqId}`).data as { examples: unknown[] }).examples).toEqual([])
+  })
+})
+
+describe('versions & comments', () => {
+  let reqId: number
+
+  beforeEach(() => {
+    const colId = (call('POST', '/api/v1/teams/1/collections', { name: 'K' }).data as { id: number }).id
+    reqId = (
+      call('POST', `/api/v1/collections/${colId}/requests`, {
+        name: 'R',
+        method: 'GET',
+        url: 'http://v1',
+        headers: { h: '1' }
+      }).data as { id: number }
+    ).id
+  })
+
+  it('creates a version snapshot and lists it (created_by_user preload mirrored)', () => {
+    const created = call('POST', `/api/v1/requests/${reqId}/versions`, { name: 'v1' })
+    expect(created.status).toBe(201)
+    expect(created.data).toMatchObject({ name: 'v1', method: 'GET', url: 'http://v1', headers: { h: '1' } })
+
+    const list = call('GET', `/api/v1/requests/${reqId}/versions`)
+    expect((list.data as Array<{ created_by_user: { id: number } }>)[0].created_by_user.id).toBe(1)
+  })
+
+  it('rollback restores snapshot fields onto the request', () => {
+    const versionId = (call('POST', `/api/v1/requests/${reqId}/versions`).data as { id: number }).id
+    call('PUT', `/api/v1/requests/${reqId}`, { url: 'http://changed', method: 'DELETE' })
+
+    const rolled = call('POST', `/api/v1/requests/${reqId}/versions/${versionId}/rollback`)
+    expect(rolled.status).toBe(200)
+    expect(rolled.data).toMatchObject({ url: 'http://v1', method: 'GET' })
+  })
+
+  it('comment round-trip; delete returns 204 without body (Go SendStatus)', () => {
+    const created = call('POST', `/api/v1/requests/${reqId}/comments`, { content: 'halo' })
+    expect(created.status).toBe(201)
+    expect(created.data).toMatchObject({ content: 'halo', user: { name: 'Local User' } })
+    const id = (created.data as { id: number }).id
+
+    expect((call('GET', `/api/v1/requests/${reqId}/comments`).data as unknown[]).length).toBe(1)
+
+    const deleted = call('DELETE', `/api/v1/comments/${id}`)
+    expect(deleted.status).toBe(204)
+    expect((call('GET', `/api/v1/requests/${reqId}/comments`).data as unknown[]).length).toBe(0)
+  })
+})
+
+describe('search summary', () => {
+  it('returns minimal shapes with team_id from collections join', () => {
+    const colId = (call('POST', '/api/v1/teams/1/collections', { name: 'K' }).data as { id: number }).id
+    call('POST', `/api/v1/collections/${colId}/requests`, { name: 'R', method: 'GET', url: 'http://x' })
+
+    const res = call('GET', '/api/v1/search/summary')
+    expect(res.status).toBe(200)
+    const data = res.data as { requests: Row[]; collections: Row[] }
+    expect(data.collections).toMatchObject([{ id: colId, name: 'K', team_id: 1 }])
+    expect(data.requests).toMatchObject([{ name: 'R', method: 'GET', team_id: 1, collection_id: colId }])
   })
 })

@@ -46,7 +46,9 @@ function collectionExists(db: Database.Database, id: unknown): boolean {
 
 function examplesFor(db: Database.Database, requestId: unknown): Row[] {
   return db
-    .prepare('SELECT * FROM request_examples WHERE request_id = ? ORDER BY id')
+    .prepare(
+      `SELECT * FROM request_examples WHERE request_id = ? AND ${notTombstonedSql('example')} ORDER BY id`
+    )
     .all(requestId) as Row[]
 }
 
