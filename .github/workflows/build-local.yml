@@ -78,6 +78,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           name: Wapbolt Local ${{ github.ref_name }}
+          # Tag beta/rc otomatis ditandai prerelease
+          prerelease: ${{ contains(github.ref_name, '-beta') || contains(github.ref_name, '-rc') }}
           files: |
             apps/desktop-local/dist/*.dmg
             apps/desktop-local/dist/*.zip
