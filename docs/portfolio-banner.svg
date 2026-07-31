@@ -1,0 +1,230 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1680" height="980" viewBox="0 0 1680 980" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1f2b6b"/>
+      <stop offset="0.55" stop-color="#3556d6"/>
+      <stop offset="1" stop-color="#5b7bf0"/>
+    </linearGradient>
+    <linearGradient id="screen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#eef2ff"/>
+    </linearGradient>
+    <linearGradient id="logoG" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#5b7bf0"/>
+      <stop offset="1" stop-color="#22d3ee"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="12" stdDeviation="18" flood-color="#0b1437" flood-opacity="0.35"/>
+    </filter>
+    <clipPath id="win"><rect x="0" y="0" width="200" height="360" rx="14"/></clipPath>
+  </defs>
+
+  <!-- top dark strip -->
+  <rect x="0" y="0" width="1680" height="270" fill="#0b1020"/>
+
+  <!-- main blue panel -->
+  <rect x="0" y="270" width="1680" height="710" fill="url(#bg)"/>
+
+  <!-- decorative organic blobs -->
+  <circle cx="470" cy="300" r="78" fill="#ff7a18" opacity="0.85"/>
+  <circle cx="1230" cy="300" r="70" fill="#ff9b3f" opacity="0.8"/>
+  <circle cx="250" cy="640" r="160" fill="#22d3ee" opacity="0.10"/>
+  <circle cx="690" cy="690" r="130" fill="#ff7a18" opacity="0.18"/>
+  <circle cx="1050" cy="660" r="150" fill="#22d3ee" opacity="0.10"/>
+  <circle cx="1500" cy="700" r="180" fill="#ff7a18" opacity="0.16"/>
+  <circle cx="120" cy="360" r="22" fill="#ffffff" opacity="0.18"/>
+  <circle cx="930" cy="320" r="16" fill="#ffffff" opacity="0.22"/>
+  <circle cx="1380" cy="430" r="28" fill="none" stroke="#ffffff" stroke-width="5" opacity="0.25"/>
+
+  <!-- ===== LEFT BRAND BLOCK ===== -->
+  <g transform="translate(40,330)">
+    <text x="0" y="20" font-size="34" font-weight="800" fill="#ffffff">Wap<tspan fill="#22d3ee">bolt</tspan></text>
+    <text x="0" y="78" font-size="20" font-weight="700" fill="#ffffff">API Testing,</text>
+    <text x="0" y="104" font-size="20" font-weight="700" fill="#ffffff">Built for Teams</text>
+    <text x="0" y="150" font-size="14" fill="#cdd8ff">Desktop API client dengan</text>
+    <text x="0" y="170" font-size="14" fill="#cdd8ff">kolaborasi real-time,</text>
+    <text x="0" y="190" font-size="14" fill="#cdd8ff">mock server &amp; scripting.</text>
+    <!-- mini hero window -->
+    <g transform="translate(0,230)" filter="url(#shadow)">
+      <rect x="0" y="0" width="210" height="300" rx="16" fill="url(#screen)"/>
+      <rect x="0" y="0" width="210" height="34" rx="16" fill="#1f2b6b"/>
+      <rect x="0" y="20" width="210" height="14" fill="#1f2b6b"/>
+      <circle cx="16" cy="17" r="4" fill="#ff5f57"/><circle cx="30" cy="17" r="4" fill="#febc2e"/><circle cx="44" cy="17" r="4" fill="#28c840"/>
+      <rect x="14" y="50" width="46" height="18" rx="5" fill="#ff7a18"/><text x="20" y="63" font-size="11" font-weight="700" fill="#fff">POST</text>
+      <rect x="66" y="50" width="130" height="18" rx="5" fill="#e6ecff"/>
+      <rect x="14" y="82" width="182" height="120" rx="6" fill="#0b1020"/>
+      <text x="24" y="104" font-size="10" fill="#22d3ee" font-family="monospace">{</text>
+      <text x="34" y="120" font-size="10" fill="#a5b4ff" font-family="monospace">"user": "{{id}}",</text>
+      <text x="34" y="136" font-size="10" fill="#a5b4ff" font-family="monospace">"plan": "pro"</text>
+      <text x="24" y="152" font-size="10" fill="#22d3ee" font-family="monospace">}</text>
+      <rect x="14" y="214" width="60" height="16" rx="8" fill="#28c840"/><text x="22" y="226" font-size="9" font-weight="700" fill="#fff">200 OK</text>
+      <rect x="80" y="214" width="50" height="16" rx="8" fill="#e6ecff"/><text x="88" y="226" font-size="9" fill="#3556d6">142 ms</text>
+    </g>
+  </g>
+
+  <!-- ===== FEATURE COLUMNS ===== -->
+  <!-- helper window template repeated with different content -->
+
+  <!-- Col 1: Collaboration -->
+  <g transform="translate(300,330)">
+    <text x="0" y="16" font-size="16" font-weight="800" fill="#22d3ee">Real-time</text>
+    <text x="0" y="38" font-size="16" font-weight="800" fill="#ffffff">Collaboration</text>
+    <g transform="translate(0,70)" filter="url(#shadow)">
+      <rect width="200" height="360" rx="14" fill="url(#screen)"/>
+      <rect width="200" height="30" rx="14" fill="#1f2b6b"/><rect y="16" width="200" height="14" fill="#1f2b6b"/>
+      <circle cx="150" cy="15" r="9" fill="#5b7bf0" stroke="#fff" stroke-width="2"/>
+      <circle cx="166" cy="15" r="9" fill="#ff7a18" stroke="#fff" stroke-width="2"/>
+      <circle cx="182" cy="15" r="9" fill="#22d3ee" stroke="#fff" stroke-width="2"/>
+      <rect x="14" y="44" width="172" height="22" rx="6" fill="#fff4e6" stroke="#ff7a18"/>
+      <text x="22" y="59" font-size="10" fill="#c2540a">🔒 Locked by Siti</text>
+      <rect x="14" y="78" width="172" height="14" rx="4" fill="#e6ecff"/>
+      <rect x="14" y="100" width="120" height="14" rx="4" fill="#e6ecff"/>
+      <rect x="14" y="130" width="172" height="60" rx="6" fill="#f1f5ff"/>
+      <rect x="14" y="200" width="172" height="60" rx="6" fill="#f1f5ff"/>
+      <rect x="14" y="334" width="172" height="16" rx="8" fill="#dcfce7"/>
+      <text x="22" y="346" font-size="9" font-weight="700" fill="#16a34a">● Collaboration connected</text>
+    </g>
+  </g>
+
+  <!-- Col 2: Mock Server -->
+  <g transform="translate(530,330)">
+    <text x="0" y="16" font-size="16" font-weight="800" fill="#ffffff">Built-in</text>
+    <text x="0" y="38" font-size="16" font-weight="800" fill="#22d3ee">Mock Server</text>
+    <g transform="translate(0,70)" filter="url(#shadow)">
+      <rect width="200" height="360" rx="14" fill="url(#screen)"/>
+      <rect width="200" height="30" rx="14" fill="#1f2b6b"/><rect y="16" width="200" height="14" fill="#1f2b6b"/>
+      <text x="12" y="20" font-size="10" font-weight="700" fill="#fff">Mock Endpoints</text>
+      <g font-size="10" fill="#1f2b6b">
+        <rect x="14" y="46" width="172" height="34" rx="6" fill="#f1f5ff"/>
+        <rect x="22" y="55" width="34" height="14" rx="4" fill="#28c840"/><text x="27" y="65" font-size="8" fill="#fff" font-weight="700">GET</text>
+        <text x="62" y="65">/users</text><rect x="150" y="55" width="28" height="14" rx="7" fill="#dcfce7"/><text x="155" y="65" font-size="8" fill="#16a34a">200</text>
+        <rect x="14" y="88" width="172" height="34" rx="6" fill="#f1f5ff"/>
+        <rect x="22" y="97" width="34" height="14" rx="4" fill="#ff7a18"/><text x="25" y="107" font-size="8" fill="#fff" font-weight="700">POST</text>
+        <text x="62" y="107">/auth/login</text><rect x="150" y="97" width="28" height="14" rx="7" fill="#fee2e2"/><text x="153" y="107" font-size="8" fill="#dc2626">401</text>
+        <rect x="14" y="130" width="172" height="34" rx="6" fill="#f1f5ff"/>
+        <rect x="22" y="139" width="34" height="14" rx="4" fill="#28c840"/><text x="27" y="149" font-size="8" fill="#fff" font-weight="700">GET</text>
+        <text x="62" y="149">/products/:id</text><rect x="150" y="139" width="28" height="14" rx="7" fill="#fee2e2"/><text x="153" y="149" font-size="8" fill="#dc2626">500</text>
+      </g>
+      <rect x="14" y="178" width="172" height="20" rx="6" fill="#fff4e6"/><text x="22" y="192" font-size="9" fill="#c2540a">⚡ Chaos Mode: 50% error</text>
+      <rect x="14" y="210" width="172" height="130" rx="6" fill="#0b1020"/>
+      <text x="22" y="230" font-size="9" fill="#22d3ee" font-family="monospace">12:04 GET /users 200</text>
+      <text x="22" y="248" font-size="9" fill="#a5b4ff" font-family="monospace">12:04 POST /login 401</text>
+      <text x="22" y="266" font-size="9" fill="#a5b4ff" font-family="monospace">12:05 GET /products 500</text>
+    </g>
+  </g>
+
+  <!-- Col 3: Scripting -->
+  <g transform="translate(760,330)">
+    <text x="0" y="16" font-size="16" font-weight="800" fill="#22d3ee">Pre / Post</text>
+    <text x="0" y="38" font-size="16" font-weight="800" fill="#ffffff">Script Engine</text>
+    <g transform="translate(0,70)" filter="url(#shadow)">
+      <rect width="200" height="360" rx="14" fill="url(#screen)"/>
+      <rect width="200" height="30" rx="14" fill="#1f2b6b"/><rect y="16" width="200" height="14" fill="#1f2b6b"/>
+      <text x="12" y="20" font-size="10" font-weight="700" fill="#fff">Pre-request Script</text>
+      <rect x="14" y="44" width="172" height="190" rx="6" fill="#0b1020"/>
+      <g font-family="monospace" font-size="9">
+        <text x="22" y="62" fill="#c792ea">const</text><text x="58" y="62" fill="#a5b4ff"> t = Date.now();</text>
+        <text x="22" y="80" fill="#22d3ee">wap</text><text x="44" y="80" fill="#a5b4ff">.env.set('ts', t);</text>
+        <text x="22" y="98" fill="#22d3ee">wap</text><text x="44" y="98" fill="#a5b4ff">.env.set('id', uuid());</text>
+        <text x="22" y="124" fill="#c792ea">// Postman compatible</text>
+        <text x="22" y="142" fill="#22d3ee">pm</text><text x="40" y="142" fill="#a5b4ff">.environment.set(</text>
+        <text x="30" y="158" fill="#ffcb6b">  'token', jwt);</text>
+        <text x="22" y="184" fill="#22d3ee">wap</text><text x="44" y="184" fill="#a5b4ff">.test('ok', () =&gt; {</text>
+        <text x="30" y="200" fill="#a5b4ff"> status === 200 });</text>
+      </g>
+      <rect x="14" y="246" width="172" height="94" rx="6" fill="#f1f5ff"/>
+      <text x="22" y="264" font-size="9" font-weight="700" fill="#1f2b6b">Console</text>
+      <text x="22" y="282" font-size="9" fill="#16a34a" font-family="monospace">› ts set: 171...</text>
+      <text x="22" y="298" font-size="9" fill="#16a34a" font-family="monospace">› ✓ test passed</text>
+    </g>
+  </g>
+
+  <!-- Col 4: Collection Runner -->
+  <g transform="translate(990,330)">
+    <text x="0" y="16" font-size="16" font-weight="800" fill="#ffffff">Collection</text>
+    <text x="0" y="38" font-size="16" font-weight="800" fill="#22d3ee">Runner &amp; CLI</text>
+    <g transform="translate(0,70)" filter="url(#shadow)">
+      <rect width="200" height="360" rx="14" fill="url(#screen)"/>
+      <rect width="200" height="30" rx="14" fill="#1f2b6b"/><rect y="16" width="200" height="14" fill="#1f2b6b"/>
+      <text x="12" y="20" font-size="10" font-weight="700" fill="#fff">Runner — Sprint 59</text>
+      <rect x="14" y="46" width="172" height="12" rx="6" fill="#e6ecff"/>
+      <rect x="14" y="46" width="150" height="12" rx="6" fill="#28c840"/>
+      <g font-size="9" fill="#1f2b6b">
+        <rect x="14" y="68" width="172" height="22" rx="5" fill="#f1f5ff"/><rect x="20" y="73" width="32" height="12" rx="6" fill="#dcfce7"/><text x="24" y="82" fill="#16a34a" font-weight="700">PASS</text><text x="60" y="82">POST /auth/login</text><text x="150" y="82" fill="#64748b">88ms</text>
+        <rect x="14" y="94" width="172" height="22" rx="5" fill="#f1f5ff"/><rect x="20" y="99" width="32" height="12" rx="6" fill="#dcfce7"/><text x="24" y="108" fill="#16a34a" font-weight="700">PASS</text><text x="60" y="108">GET /users</text><text x="150" y="108" fill="#64748b">42ms</text>
+        <rect x="14" y="120" width="172" height="22" rx="5" fill="#f1f5ff"/><rect x="20" y="125" width="32" height="12" rx="6" fill="#fee2e2"/><text x="25" y="134" fill="#dc2626" font-weight="700">FAIL</text><text x="60" y="134">GET /products/:id</text><text x="150" y="134" fill="#64748b">510ms</text>
+        <rect x="14" y="146" width="172" height="22" rx="5" fill="#f1f5ff"/><rect x="20" y="151" width="32" height="12" rx="6" fill="#dcfce7"/><text x="24" y="160" fill="#16a34a" font-weight="700">PASS</text><text x="60" y="160">DELETE /cart</text><text x="150" y="160" fill="#64748b">61ms</text>
+      </g>
+      <rect x="14" y="180" width="172" height="40" rx="6" fill="#0b1020"/>
+      <text x="22" y="197" font-size="9" fill="#22d3ee" font-family="monospace">12 passed · 2 failed</text>
+      <text x="22" y="212" font-size="9" fill="#a5b4ff" font-family="monospace">$ wapbolt run col.json</text>
+      <rect x="14" y="232" width="172" height="108" rx="6" fill="#f1f5ff"/>
+      <text x="22" y="252" font-size="9" font-weight="700" fill="#1f2b6b">CI/CD Ready</text>
+      <text x="22" y="270" font-size="9" fill="#475569">› Export JSON report</text>
+      <text x="22" y="288" font-size="9" fill="#475569">› Headless runner</text>
+      <text x="22" y="306" font-size="9" fill="#475569">› Exit code on fail</text>
+    </g>
+  </g>
+
+  <!-- Col 5: Export / Import -->
+  <g transform="translate(1220,330)">
+    <text x="0" y="16" font-size="16" font-weight="800" fill="#22d3ee">Export &amp; Import</text>
+    <text x="0" y="38" font-size="16" font-weight="800" fill="#ffffff">cURL · Postman · 9 Langs</text>
+    <g transform="translate(0,70)" filter="url(#shadow)">
+      <rect width="200" height="360" rx="14" fill="url(#screen)"/>
+      <rect width="200" height="30" rx="14" fill="#1f2b6b"/><rect y="16" width="200" height="14" fill="#1f2b6b"/>
+      <text x="12" y="20" font-size="10" font-weight="700" fill="#fff">Export to Code</text>
+      <g font-size="9" font-weight="700" fill="#3556d6">
+        <rect x="14" y="46" width="54" height="20" rx="6" fill="#e6ecff"/><text x="22" y="60">cURL</text>
+        <rect x="73" y="46" width="54" height="20" rx="6" fill="#3556d6"/><text x="81" y="60" fill="#fff">Go</text>
+        <rect x="132" y="46" width="54" height="20" rx="6" fill="#e6ecff"/><text x="140" y="60">Python</text>
+        <rect x="14" y="70" width="54" height="20" rx="6" fill="#e6ecff"/><text x="20" y="84">JS</text>
+        <rect x="73" y="70" width="54" height="20" rx="6" fill="#e6ecff"/><text x="81" y="84">PHP</text>
+        <rect x="132" y="70" width="54" height="20" rx="6" fill="#e6ecff"/><text x="138" y="84">Swift</text>
+      </g>
+      <rect x="14" y="100" width="172" height="130" rx="6" fill="#0b1020"/>
+      <g font-family="monospace" font-size="8.5">
+        <text x="22" y="118" fill="#c792ea">client</text><text x="56" y="118" fill="#a5b4ff"> := &amp;http.Client{}</text>
+        <text x="22" y="134" fill="#a5b4ff">req, _ := http.NewRequest(</text>
+        <text x="30" y="150" fill="#ffcb6b">"POST", url, body)</text>
+        <text x="22" y="170" fill="#a5b4ff">req.Header.Set(</text>
+        <text x="30" y="186" fill="#ffcb6b">"Authorization", tok)</text>
+        <text x="22" y="206" fill="#22d3ee">resp</text><text x="48" y="206" fill="#a5b4ff">, _ := client.Do(req)</text>
+      </g>
+      <rect x="14" y="244" width="172" height="22" rx="6" fill="#dcfce7"/><text x="22" y="259" font-size="9" fill="#16a34a">↧ Import Postman v2.1</text>
+      <rect x="14" y="272" width="172" height="22" rx="6" fill="#fff4e6"/><text x="22" y="287" font-size="9" fill="#c2540a">↧ Paste cURL → auto-fill</text>
+      <rect x="14" y="300" width="172" height="40" rx="6" fill="#f1f5ff"/>
+      <text x="22" y="320" font-size="9" fill="#475569">{{base_url}} resolved →</text>
+      <text x="22" y="334" font-size="9" fill="#16a34a">api.wapbolt.io</text>
+    </g>
+  </g>
+
+  <!-- ===== RIGHT BRAND / STACK ===== -->
+  <g transform="translate(1450,330)">
+    <text x="0" y="20" font-size="30" font-weight="800" fill="#ffffff">Wap<tspan fill="#22d3ee">bolt</tspan></text>
+    <text x="0" y="52" font-size="13" fill="#cdd8ff">Bangun, uji, kolaborasi</text>
+    <text x="0" y="70" font-size="13" fill="#cdd8ff">— dalam satu aplikasi.</text>
+    <g font-size="11" fill="#ffffff">
+      <rect x="0" y="92" width="180" height="22" rx="11" fill="#ffffff" opacity="0.12"/><text x="12" y="107">⚡ Electron + React</text>
+      <rect x="0" y="120" width="180" height="22" rx="11" fill="#ffffff" opacity="0.12"/><text x="12" y="135">🐹 Go · Fiber · GORM</text>
+      <rect x="0" y="148" width="180" height="22" rx="11" fill="#ffffff" opacity="0.12"/><text x="12" y="163">🔌 WebSocket realtime</text>
+      <rect x="0" y="176" width="180" height="22" rx="11" fill="#ffffff" opacity="0.12"/><text x="12" y="191">☁️ Cloudflare Tunnel</text>
+      <rect x="0" y="204" width="180" height="22" rx="11" fill="#ffffff" opacity="0.12"/><text x="12" y="219">🔐 Ed25519 License</text>
+    </g>
+    <g transform="translate(0,250)">
+      <circle cx="60" cy="60" r="58" fill="#22d3ee" opacity="0.16"/>
+      <circle cx="60" cy="42" r="22" fill="#ffd9a8"/>
+      <rect x="34" y="64" width="52" height="56" rx="18" fill="#ff7a18"/>
+      <rect x="46" y="78" width="28" height="30" rx="6" fill="#0b1020"/>
+      <rect x="50" y="83" width="20" height="4" rx="2" fill="#22d3ee"/>
+      <rect x="50" y="91" width="14" height="4" rx="2" fill="#a5b4ff"/>
+      <rect x="50" y="99" width="18" height="4" rx="2" fill="#a5b4ff"/>
+    </g>
+  </g>
+
+  <!-- top strip caption -->
+  <text x="40" y="80" font-size="40" font-weight="800" fill="#ffffff">Wap<tspan fill="#22d3ee">bolt</tspan> <tspan font-size="22" font-weight="400" fill="#cdd8ff">— All-in-One API Workspace</tspan></text>
+  <text x="40" y="120" font-size="16" fill="#8ea0d8">Desktop API Client · Real-time Collaboration · Mock Server · Scripting · Collection Runner</text>
+  <text x="40" y="170" font-size="13" fill="#5b6aa0">Electron · React · Zustand · Tailwind · Monaco · Go · Fiber · GORM · PostgreSQL · WebSocket</text>
+  <text x="1640" y="120" text-anchor="end" font-size="14" fill="#8ea0d8">Built &amp; led by Waluyo Ade Prasetio — Squad Lead</text>
+</svg>
