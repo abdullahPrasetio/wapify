@@ -1,0 +1,44 @@
+# Wapbolt Local — appId/nama/executable BEDA dari apps/desktop (§11.4) supaya
+# kedua app bisa terinstal berdampingan dengan userData terpisah.
+appId: io.wapbolt.local
+productName: Wapbolt Local
+directories:
+  buildResources: build
+  output: dist
+files:
+  - '!**/.vscode/*'
+  - '!src/*'
+  - '!electron.vite.config.{js,ts,mjs,cjs}'
+  - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
+  - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
+  - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json,vitest.config.ts}'
+asar: true
+asarUnpack:
+  - resources/**
+  # better-sqlite3 native addon tidak bisa di-load dari dalam asar
+  - '**/node_modules/better-sqlite3/**'
+compression: maximum
+mac:
+  identity: null
+  target:
+    - dmg
+    - zip
+  icon: build/icon.icns
+win:
+  target: nsis
+  icon: build/icon.ico
+  executableName: wapbolt-desktop-local
+linux:
+  target:
+    - AppImage
+    - deb
+  icon: build/icon.png
+  category: Utility
+dmg:
+  artifactName: ${name}-${version}.${ext}
+nsis:
+  artifactName: ${name}-${version}-setup.${ext}
+  shortcutName: ${productName}
+  createDesktopShortcut: always
+# Tidak ada auto-update/publish utk Local (v1) — distribusi manual.
+npmRebuild: false
