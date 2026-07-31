@@ -20,6 +20,64 @@ func TestSetupCollectionRoutes(t *testing.T) {
 	SetupCollectionRoutes(app)
 }
 
+func TestPostmanParamsToFields(t *testing.T) {
+	fields := postmanParamsToFields([]PostmanFormParam{
+		{Key: "grant_type", Value: "client_credentials", Type: "text"},
+		{Key: "disabled_field", Value: "x", Type: "text", Disabled: true},
+		{Key: "upload", Value: "", Type: "file"},
+	})
+
+	assert.Equal(t, []map[string]interface{}{
+		{"key": "grant_type", "value": "client_credentials", "enabled": true, "type": "text"},
+		{"key": "disabled_field", "value": "x", "enabled": false, "type": "text"},
+		{"key": "upload", "value": "", "enabled": true, "type": "file"},
+	}, fields)
+}
+
+func TestResolvePostmanBody(t *testing.T) {
+	t.Run("nil body defaults to raw-json", func(t *testing.T) {
+		body, bodyType := resolvePostmanBody(nil)
+		assert.Nil(t, body)
+		assert.Equal(t, "raw-json", bodyType)
+	})
+
+	t.Run("raw mode parses JSON", func(t *testing.T) {
+		body, bodyType := resolvePostmanBody(&PostmanBody{Mode: "raw", Raw: `{"a":1}`})
+		assert.Equal(t, map[string]interface{}{"a": float64(1)}, body)
+		assert.Equal(t, "raw-json", bodyType)
+	})
+
+	t.Run("urlencoded mode maps to KeyValueEditor rows", func(t *testing.T) {
+		body, bodyType := resolvePostmanBody(&PostmanBody{
+			Mode: "urlencoded",
+			URLEncoded: []PostmanFormParam{
+				{Key: "username", Value: "temancode", Type: "text"},
+			},
+		})
+		assert.Equal(t, "x-www-form-urlencoded", bodyType)
+		assert.Equal(t, map[string]interface{}{
+			"array": []map[string]interface{}{
+				{"key": "username", "value": "temancode", "enabled": true, "type": "text"},
+			},
+		}, body)
+	})
+
+	t.Run("formdata mode maps to KeyValueEditor rows", func(t *testing.T) {
+		body, bodyType := resolvePostmanBody(&PostmanBody{
+			Mode: "formdata",
+			FormData: []PostmanFormParam{
+				{Key: "avatar", Type: "file"},
+			},
+		})
+		assert.Equal(t, "form-data", bodyType)
+		assert.Equal(t, map[string]interface{}{
+			"array": []map[string]interface{}{
+				{"key": "avatar", "value": "", "enabled": true, "type": "file"},
+			},
+		}, body)
+	})
+}
+
 func TestListCollections(t *testing.T) {
 	mock, cleanup := repository.SetupTestDB()
 	defer cleanup()
@@ -442,10 +500,7 @@ func TestProcessPostmanItems_Additional(t *testing.T) {
 					Name: "R",
 					Request: &PostmanReq{
 						Method: "POST",
-						Body: &struct {
-							Mode string `json:"mode"`
-							Raw  string `json:"raw"`
-						}{Mode: "raw", Raw: "not json"},
+						Body:   &PostmanBody{Mode: "raw", Raw: "not json"},
 					},
 				},
 			}

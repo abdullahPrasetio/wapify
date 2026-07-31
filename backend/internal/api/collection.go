@@ -41,13 +41,66 @@ type PostmanReq struct {
 		Key   string `json:"key"`
 		Value string `json:"value"`
 	} `json:"header"`
-	Body *struct {
-		Mode string `json:"mode"`
-		Raw  string `json:"raw"`
-	} `json:"body"`
+	Body             *PostmanBody           `json:"body"`
 	Description      string                 `json:"description,omitempty"`
 	FieldValidations map[string]interface{} `json:"field_validations,omitempty"`
 	AuthConfig       map[string]interface{} `json:"auth_config,omitempty"`
+}
+
+// PostmanBody mirrors Postman v2.1's request.body object across the modes we support.
+type PostmanBody struct {
+	Mode       string             `json:"mode"`
+	Raw        string             `json:"raw"`
+	URLEncoded []PostmanFormParam `json:"urlencoded"`
+	FormData   []PostmanFormParam `json:"formdata"`
+}
+
+// PostmanFormParam mirrors an entry of Postman's body.urlencoded / body.formdata arrays.
+type PostmanFormParam struct {
+	Key      string `json:"key"`
+	Value    string `json:"value"`
+	Type     string `json:"type"`
+	Disabled bool   `json:"disabled"`
+}
+
+// postmanParamsToFields converts Postman form params into the {key,value,enabled,type}
+// row shape KeyValueEditor expects for form-data / x-www-form-urlencoded bodies.
+func postmanParamsToFields(params []PostmanFormParam) []map[string]interface{} {
+	fields := make([]map[string]interface{}, 0, len(params))
+	for _, p := range params {
+		fieldType := "text"
+		if p.Type == "file" {
+			fieldType = "file"
+		}
+		fields = append(fields, map[string]interface{}{
+			"key":     p.Key,
+			"value":   p.Value,
+			"enabled": !p.Disabled,
+			"type":    fieldType,
+		})
+	}
+	return fields
+}
+
+// resolvePostmanBody turns a Postman body block into the (body, body_type) pair
+// stored on repository.Request, covering the modes actually used by exports:
+// raw (json/xml/html/text), urlencoded, and formdata.
+func resolvePostmanBody(b *PostmanBody) (map[string]interface{}, string) {
+	if b == nil {
+		return nil, "raw-json"
+	}
+	switch b.Mode {
+	case "raw":
+		var body map[string]interface{}
+		json.Unmarshal([]byte(b.Raw), &body)
+		return body, "raw-json"
+	case "urlencoded":
+		return map[string]interface{}{"array": postmanParamsToFields(b.URLEncoded)}, "x-www-form-urlencoded"
+	case "formdata":
+		return map[string]interface{}{"array": postmanParamsToFields(b.FormData)}, "form-data"
+	default:
+		return nil, "raw-json"
+	}
 }
 
 type PostmanResponse struct {
@@ -311,10 +364,7 @@ func ImportOpenAPI(c *fiber.Ctx) error {
 			}
 
 			// Build body from requestBody
-			var body *struct {
-				Mode string `json:"mode"`
-				Raw  string `json:"raw"`
-			}
+			var body *PostmanBody
 			if op.RequestBody != nil {
 				if mt, ok := op.RequestBody.Content["application/json"]; ok {
 					var example interface{}
@@ -327,10 +377,7 @@ func ImportOpenAPI(c *fiber.Ctx) error {
 					}
 					if example != nil {
 						b, _ := json.MarshalIndent(example, "", "  ")
-						body = &struct {
-							Mode string `json:"mode"`
-							Raw  string `json:"raw"`
-						}{Mode: "raw", Raw: string(b)}
+						body = &PostmanBody{Mode: "raw", Raw: string(b)}
 					}
 				}
 			}
@@ -566,10 +613,7 @@ func processPostmanItems(tx *gorm.DB, items []PostmanItem, collectionID uint, fo
 				headers[h.Key] = h.Value
 			}
 
-			var body map[string]interface{}
-			if item.Request.Body != nil && item.Request.Body.Mode == "raw" {
-				json.Unmarshal([]byte(item.Request.Body.Raw), &body)
-			}
+			body, bodyType := resolvePostmanBody(item.Request.Body)
 
 			// Handle URL (can be string or object)
 			urlStr := ""
@@ -594,6 +638,7 @@ func processPostmanItems(tx *gorm.DB, items []PostmanItem, collectionID uint, fo
 				URL:              urlStr,
 				Headers:          headers,
 				Body:             body,
+				BodyType:         bodyType,
 				Description:      item.Request.Description,
 				FieldValidations: item.Request.FieldValidations,
 				CreatedByID:      &userID,
