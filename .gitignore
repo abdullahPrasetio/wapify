@@ -6,3 +6,6 @@ php-wapbolt/
 
 # TestSprite
 testsprite_tests/
+
+# TypeScript incremental build artifacts
+*.tsbuildinfo

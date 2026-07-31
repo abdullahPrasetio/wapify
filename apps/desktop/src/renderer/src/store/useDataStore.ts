@@ -504,7 +504,7 @@ export const useDataStore = create<DataState>()(
             const response = await apiClient.get<RequestVersion[]>(
               `/api/v1/requests/${requestId}/versions`
             )
-            if (response.status === 200) {
+            if (response.status === 200 && Array.isArray(response.data)) {
               set((state) => ({
                 requestVersions: {
                   ...state.requestVersions,
@@ -520,7 +520,7 @@ export const useDataStore = create<DataState>()(
         fetchRequestComments: async (requestId) => {
           try {
             const response = await apiClient.get<Comment[]>(`/api/v1/requests/${requestId}/comments`)
-            if (response.status === 200) {
+            if (response.status === 200 && Array.isArray(response.data)) {
               set((state) => ({
                 requestComments: { ...state.requestComments, [requestId]: response.data as Comment[] }
               }))
@@ -578,7 +578,7 @@ export const useDataStore = create<DataState>()(
           set({ teamsLoading: true })
           try {
             const response = await apiClient.get<Team[]>('/api/v1/teams')
-            if (response.status === 200) {
+            if (response.status === 200 && Array.isArray(response.data)) {
               const teams = response.data as Team[]
               set({ teams, teamsLoading: false })
 
@@ -624,7 +624,7 @@ export const useDataStore = create<DataState>()(
           set({ collectionsLoading: true })
           try {
             const response = await apiClient.get<Collection[]>(`/api/v1/teams/${teamId}/collections`)
-            if (response.status === 200) {
+            if (response.status === 200 && Array.isArray(response.data)) {
               set({ collections: response.data as Collection[], collectionsLoading: false })
               return response.data as Collection[]
             } else {
@@ -644,10 +644,10 @@ export const useDataStore = create<DataState>()(
               apiClient.get<ApiRequest[]>(`/api/v1/collections/${collectionId}/requests`)
             ])
 
-            const folders = foldersRes.status === 200
+            const folders = foldersRes.status === 200 && Array.isArray(foldersRes.data)
               ? (foldersRes.data as Folder[]).sort((a, b) => (a.order_index - b.order_index) || (a.id - b.id))
               : []
-            const allRequestsRaw = requestsRes.status === 200
+            const allRequestsRaw = requestsRes.status === 200 && Array.isArray(requestsRes.data)
               ? (requestsRes.data as ApiRequest[]).sort((a, b) => (a.order_index - b.order_index) || (a.id - b.id))
               : []
             const allRequests = allRequestsRaw.map(normalizeRequest)
@@ -1358,7 +1358,7 @@ export const useDataStore = create<DataState>()(
             const response = await apiClient.get<Environment[]>(
               `/api/v1/teams/${teamId}/environments`
             )
-            if (response.status === 200) {
+            if (response.status === 200 && Array.isArray(response.data)) {
               const envs = response.data as Environment[]
               const currentActiveId = get().activeEnvironmentId
               const stillExists = currentActiveId === null || envs.some((e) => e.id === currentActiveId)
@@ -1470,7 +1470,8 @@ export const useDataStore = create<DataState>()(
               `/api/v1/history?team_id=${activeTeamId}`
             )
             if (response.status === 200) {
-              set({ history: response.data as RequestHistory[], historyLoading: false })
+              const data = response.data
+              set({ history: Array.isArray(data) ? data : [], historyLoading: false })
             } else {
               set({ historyLoading: false })
             }

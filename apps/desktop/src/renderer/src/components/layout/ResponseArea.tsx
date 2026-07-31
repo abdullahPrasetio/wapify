@@ -132,7 +132,7 @@ export const ResponseArea = (): React.JSX.Element => {
   const activeRequest = typeof activeTabId === 'number' ? requests.find((r) => r.id === activeTabId) : null
   const examples = activeRequest?.examples ?? []
 
-  const requestHistory = typeof activeTabId === 'number'
+  const requestHistory = typeof activeTabId === 'number' && Array.isArray(history)
     ? history.filter((h) => h.request_id === activeTabId).slice(-30).reverse()
     : []
 
