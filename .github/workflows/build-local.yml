@@ -1,14 +1,19 @@
 name: Build Wapbolt Local
 
 # Wapbolt Local dirilis terpisah dari app Cloud: tag `local-v*`.
-# v1 tanpa auto-update/publish (docs/local-app-design.md) — installer
-# diunggah sebagai artifact workflow, distribusi manual.
+# Installer diunggah ke GitHub Release di REPO INI (bukan
+# wapbolt-desktop-releases — repo itu dikonsumsi electron-updater app Cloud;
+# release local-v* yang jadi "latest" di sana akan merusak auto-update Cloud).
+# v1 tetap tanpa auto-update di dalam app (docs/local-app-design.md).
 
 on:
   push:
     tags:
       - 'local-v*'
   workflow_dispatch:
+
+permissions:
+  contents: write # buat GitHub Release + upload asset
 
 jobs:
   build:
@@ -53,6 +58,7 @@ jobs:
           npx electron-builder --${{ matrix.os == 'ubuntu-latest' && 'linux' || (matrix.os == 'windows-latest' && 'win' || 'mac') }} --publish never
         shell: bash
 
+      # Artifact workflow: selalu diunggah (termasuk run manual) utk QA.
       - name: Upload Installer Artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -64,3 +70,17 @@ jobs:
             apps/desktop-local/dist/*.AppImage
             apps/desktop-local/dist/*.deb
           if-no-files-found: error
+
+      # GitHub Release: hanya saat push tag local-v* (bukan run manual).
+      # Ketiga job matrix menambahkan asetnya ke release tag yang sama.
+      - name: Attach to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/local-v')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Wapbolt Local ${{ github.ref_name }}
+          files: |
+            apps/desktop-local/dist/*.dmg
+            apps/desktop-local/dist/*.zip
+            apps/desktop-local/dist/*.exe
+            apps/desktop-local/dist/*.AppImage
+            apps/desktop-local/dist/*.deb
