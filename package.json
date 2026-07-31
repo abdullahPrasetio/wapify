@@ -3,11 +3,16 @@
   "private": true,
   "workspaces": [
     "apps/desktop",
+    "apps/desktop-local",
     "packages/*"
   ],
   "scripts": {
     "desktop:typecheck": "npm run typecheck --workspace=wapbolt-desktop",
     "desktop:build": "npm run build --workspace=wapbolt-desktop",
-    "desktop:dev": "npm run dev --workspace=wapbolt-desktop"
+    "desktop:dev": "npm run dev --workspace=wapbolt-desktop",
+    "desktop-local:typecheck": "npm run typecheck --workspace=wapbolt-desktop-local",
+    "desktop-local:build": "npm run build --workspace=wapbolt-desktop-local",
+    "desktop-local:dev": "npm run dev --workspace=wapbolt-desktop-local",
+    "desktop-local:test": "npm run test --workspace=wapbolt-desktop-local"
   }
 }
