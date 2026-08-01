@@ -88,6 +88,13 @@ beforeEach(() => {
   dbPath = path.join(os.tmpdir(), `wapbolt-sync-test-${Date.now()}-${Math.random()}.db`)
   db = openDb(dbPath)
   seedIfEmpty(db)
+  // Seed "My Workspace" (team 1) sekarang dirty=1 sejak seed.ts (§8.3 —
+  // diperlakukan sama dgn team buatan user, supaya terdeteksi consent
+  // dialog). Skenario di file ini fokus ke pull/push collection/request,
+  // jadi disimulasikan sudah melalui consent "simpan lokal saja" (§8.3) —
+  // sama seperti describe block khusus di bawah yang justru menguji
+  // perilaku dirty-seed-team itu sendiri.
+  db.prepare("UPDATE sync_meta SET excluded_from_sync = 1 WHERE entity = 'team' AND local_id = 1").run()
   router = createLocalRouter(db)
   serverCalls = []
   serverRoutes = {
@@ -171,8 +178,11 @@ describe('pull', () => {
     expect(dalamFolder.folder_id).toBe(anak.id)
     expect((dalamFolder.examples as Row[]).length).toBe(1)
 
-    // Pull tidak menandai dirty
-    const dirty = db.prepare('SELECT COUNT(*) n FROM sync_meta WHERE dirty = 1').get() as { n: number }
+    // Pull tidak menandai dirty (satu-satunya dirty=1 yang ada adalah seed
+    // team 1 sejak awal, bukan hasil pull — lihat beforeEach)
+    const dirty = db
+      .prepare("SELECT COUNT(*) n FROM sync_meta WHERE dirty = 1 AND NOT (entity = 'team' AND local_id = 1)")
+      .get() as { n: number }
     expect(dirty.n).toBe(0)
   })
 
