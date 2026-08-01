@@ -503,7 +503,11 @@ Catatan implementasi: seed "My Workspace" saat ini dibuat langsung via SQL di `s
 | **4. Feature flags** | mode local: no-WS, no-login, no-license | Console bersih dari error WS; boot langsung ke workspace |
 | **5. Sync engine** | login opsional (§8 revisi 2026-08-01), sesi persisten, push/pull, conflict dialog, badge pending, consent dialog push data pra-login (§8.3) | Login → semua data tertarik → offline penuh; round-trip lokal↔server terverifikasi; putus di tengah → resume aman |
 
-**Status Fase 5 per 2026-08-01**: inti sync (pull/push/conflict/idempotent resume) **selesai & teruji** (9 test skenario matrix). Yang **belum**: layar login opsional + tombol "Lewati" (saat ini login masih wajib di boot), dialog consent §8.3, pemetaan team manual (§6.1), penanganan `name_collision` sungguhan (§6.4 — saat ini cuma tercatat generik di `summary.errors`), auto-create `request_versions` saat update request (§5.2), kolom `extraction_rules`/`schema_assertions` belum tersambung ke handler manapun, auto-backup `.db` (§10), dan contract-test harness diff-vs-Go (§9) — LocalRouter diverifikasi manual baca kode Go + vitest, bukan harness otomatis.
+**Status Fase 5 per 2026-08-01 (update kedua)**: inti sync (pull/push/conflict/idempotent resume) **selesai & teruji** (9 test). **Login opsional + dialog consent §8.1-8.4 juga selesai & teruji** (7 test tambahan + smoke test boot nyata: tombol "Lewati" → workspace offline → badge "Sync Now" menunjukkan 1 pending dari seed team). **Auto-backup `.db` (§10) selesai** (wal_checkpoint + copy bernomor, keep 5, skip first-run).
+
+Dua item dua ini dikoreksi (bukan gap Local, melainkan sudah beres di tempat lain / berbasis asumsi salah): **auto-create `request_versions`** ternyata sudah dipanggil eksplisit oleh frontend (`useDataStore.ts` baris ~994) setiap save, LocalRouter sudah menanganinya sejak Fase 3 — tidak perlu kode tambahan. **`extraction_rules`/`schema_assertions`**: field ini **tidak ada** di backend Go sama sekali (Cloud sendiri diam-diam membuangnya) — bukan tanggung jawab Local untuk menyamai sesuatu yang tidak ada di server.
+
+Yang **masih belum** dan sengaja diturunkan scope-nya (lihat commit `04b1676` untuk alasan): **pemetaan team ke team existing di server** (§6.1) — hanya "buat team baru" yang dibangun; "gabung ke team existing" butuh restrukturisasi urutan pull (mapping sebelum pull, bukan sesudah) supaya tidak menghasilkan dua local team dengan `remote_id` yang sama. **`name_collision` dialog gabung/ganti-nama** (§6.4) — backend Go saat ini **tidak pernah** menolak nama duplikat (dicek langsung di kode), jadi error yang mau ditangani dialog ini tidak bisa dipicu melawan server sungguhan; push yang gagal tetap terlihat (toast + `summary.errors`), cuma tanpa dialog resolusi khusus. **Contract-test harness diff-vs-Go** (§9) — LocalRouter diverifikasi manual baca kode Go + vitest (51 test total di `apps/desktop-local`), bukan harness diff otomatis.
 | **6. Packaging & QA** | installer terpisah (nama/ikon/appId beda, userData beda) | Kedua app bisa terinstal berdampingan; QA regresi checklist |
 
 **Testing per fase**:
@@ -521,7 +525,7 @@ Catatan implementasi: seed "My Workspace" saat ini dibuat langsung via SQL di `s
 | Bugfix ganda (Go & TS) ke depan | drift perilaku | Simpan daftar "logic paritas" di doc ini; setiap bugfix backend yang menyentuh daftar §5.2 wajib ada task kembar untuk LocalRouter |
 | Mapping FK lokal↔remote salah saat push | data nyasar antar collection | Semua translate id lewat satu fungsi `mapId(entity, localId)`; push sekuensial urut dependensi; tanpa remote_id parent → skip child + laporkan |
 | Konflik menumpuk karena user tak pernah resolve | sync macet sebagian | Badge pending selalu terlihat; pre-flight menawarkan resolve; konflik tidak memblokir row lain |
-| SQLite corrupt / file terhapus | kehilangan data lokal | Backup otomatis file .db (copy berversi, keep 5) setiap kali app start sebelum migrasi & sebelum sync |
+| SQLite corrupt / file terhapus | kehilangan data lokal | ✅ **Selesai** — Backup otomatis file .db (copy berversi, keep 5) sebelum migrasi (`db.ts:openDb`) & sebelum sync/wipe (`ipc.ts`), lihat commit `401c56a` |
 | better-sqlite3 native module vs electron ABI | build gagal | `electron-rebuild` di postinstall; pin versi; CI build matrix mac/win/linux |
 
 ---
