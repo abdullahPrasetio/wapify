@@ -1,4 +1,4 @@
-import { ChevronDown, Play, Users, Loader2, Save, Keyboard, Crown } from 'lucide-react'
+import { ChevronDown, Play, Users, Save, Keyboard, Crown, Square } from 'lucide-react'
 import { useAuthStore } from '../../store/useAuthStore'
 import { useDataStore } from '../../store/useDataStore'
 import { EnvironmentModal } from '../modals/EnvironmentModal'
@@ -13,6 +13,7 @@ export const Header = (): React.JSX.Element => {
     activeEnvironmentId,
     setActiveEnvironment,
     executeActiveRequest,
+    cancelActiveRequest,
     saveActiveRequest
   } = useDataStore()
 
@@ -104,21 +105,26 @@ export const Header = (): React.JSX.Element => {
           )}
         </div>
 
-        {/* Send Button */}
-        <button
-          onClick={handleSend}
-          disabled={isSending || !activeTabRequest}
-          className="bg-primary hover:bg-primary-hover text-white px-4 py-1.5 rounded text-sm font-semibold flex items-center gap-2 transition-colors shadow-sm shadow-primary/20 disabled:opacity-50 disabled:cursor-not-allowed w-24 justify-center"
-        >
-          {isSending ? (
-            <Loader2 size={14} className="animate-spin" />
-          ) : (
-            <>
-              <Play size={13} fill="currentColor" />
-              Send
-            </>
-          )}
-        </button>
+        {/* Send / Cancel Button */}
+        {isSending ? (
+          <button
+            onClick={cancelActiveRequest}
+            className="bg-danger hover:bg-danger/90 text-white px-4 py-1.5 rounded text-sm font-semibold flex items-center gap-2 transition-colors shadow-sm shadow-danger/20 w-24 justify-center"
+            title="Cancel Request"
+          >
+            <Square size={12} fill="currentColor" />
+            Cancel
+          </button>
+        ) : (
+          <button
+            onClick={handleSend}
+            disabled={!activeTabRequest}
+            className="bg-primary hover:bg-primary-hover text-white px-4 py-1.5 rounded text-sm font-semibold flex items-center gap-2 transition-colors shadow-sm shadow-primary/20 disabled:opacity-50 disabled:cursor-not-allowed w-24 justify-center"
+          >
+            <Play size={13} fill="currentColor" />
+            Send
+          </button>
+        )}
       </div>
     </div>
   )

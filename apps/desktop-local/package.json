@@ -1,6 +1,6 @@
 {
   "name": "wapbolt-desktop-local",
-  "version": "1.0.0-beta.5",
+  "version": "1.0.0-beta.6",
   "description": "Wapbolt Local — offline-first Electron client backed by SQLite, manual sync to Wapbolt server",
   "main": "./out/main/index.js",
   "author": {

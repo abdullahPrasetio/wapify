@@ -6,6 +6,7 @@ interface RequestConfig {
   url: string
   headers?: Record<string, string>
   body?: any
+  requestId?: string
 }
 
 interface IpcResponse {
@@ -13,10 +14,12 @@ interface IpcResponse {
   headers: Record<string, string[]>
   data: unknown
   timing: number
+  cancelled?: boolean
 }
 
 interface WapboltAPI {
   wapboltRequest: (config: RequestConfig) => Promise<IpcResponse>
+  cancelRequest: (requestId: string) => void
   setToken: (token: string) => Promise<void>
   getToken: () => Promise<string | null>
   deleteToken: () => Promise<void>

@@ -11,6 +11,7 @@ interface RequestConfig {
   headers?: Record<string, string>
   body?: any
   body_type?: string
+  requestId?: string
 }
 
 interface IpcResponse {
@@ -18,6 +19,7 @@ interface IpcResponse {
   headers: Record<string, string[]>
   data: unknown
   timing: number
+  cancelled?: boolean
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -47,6 +49,9 @@ interface LoginPullResult {
 const api = {
   wapboltRequest: (config: RequestConfig): Promise<IpcResponse> => {
     return ipcRenderer.invoke('wapbolt:request', config)
+  },
+  cancelRequest: (requestId: string): void => {
+    ipcRenderer.send('wapbolt:request-cancel', requestId)
   },
   getAppVersion: (): Promise<string> => {
     return ipcRenderer.invoke('wapbolt:get-version')

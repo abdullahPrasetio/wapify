@@ -30,6 +30,7 @@ interface RequestConfig {
   body?: any
   body_type?: string
   skipAuth?: boolean
+  requestId?: string
 }
 
 // Token disimpan di memory (bukan localStorage) — lebih aman
@@ -222,6 +223,15 @@ export const apiClient = {
     url: string,
     headers?: Record<string, string>,
     body?: any,
-    body_type?: string
-  ) => ipcRequest<T>({ method, url, headers, body, body_type, skipAuth: true })
+    body_type?: string,
+    requestId?: string
+  ) => ipcRequest<T>({ method, url, headers, body, body_type, skipAuth: true, requestId }),
+
+  /**
+   * Membatalkan request yang sedang berjalan di main process, dicocokkan
+   * lewat requestId yang dikirim bersama executeRequest.
+   */
+  cancelRequest: (requestId: string): void => {
+    window.api?.cancelRequest?.(requestId)
+  }
 }

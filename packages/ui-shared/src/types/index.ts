@@ -4,6 +4,7 @@ export interface IpcResponse<T = unknown> {
   headers: Record<string, string[]>
   data: T
   timing: number
+  cancelled?: boolean
 }
 
 // ─── Auth Types ───────────────────────────────────────────────────────────────

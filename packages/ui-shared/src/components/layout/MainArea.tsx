@@ -1614,6 +1614,7 @@ export const MainArea = (): React.JSX.Element => {
     activeTabId,
     setWorkingRequest,
     executeActiveRequest,
+    cancelActiveRequest,
     saveActiveRequest,
     activeEnvironmentId,
     environments,
@@ -1963,17 +1964,23 @@ export const MainArea = (): React.JSX.Element => {
 
               {(workingRequest.request_type ?? 'http') === 'http' && (
                 <div className="flex shadow-sm rounded overflow-hidden">
-                  <button
-                    onClick={executeActiveRequest}
-                    disabled={activeTabRequest.isSending}
-                    className="bg-primary hover:bg-primary-hover text-white px-6 py-2 text-sm font-bold transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer rounded"
-                  >
-                    {activeTabRequest.isSending ? (
+                  {activeTabRequest.isSending ? (
+                    <button
+                      onClick={cancelActiveRequest}
+                      className="bg-danger hover:bg-danger/90 text-white px-6 py-2 text-sm font-bold transition-all flex items-center gap-2 cursor-pointer rounded"
+                      title="Cancel Request"
+                    >
                       <RefreshCw size={14} className="animate-spin" />
-                    ) : (
+                      <span>Cancel</span>
+                    </button>
+                  ) : (
+                    <button
+                      onClick={executeActiveRequest}
+                      className="bg-primary hover:bg-primary-hover text-white px-6 py-2 text-sm font-bold transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer rounded"
+                    >
                       <span>Send</span>
-                    )}
-                  </button>
+                    </button>
+                  )}
                 </div>
               )}
             </div>

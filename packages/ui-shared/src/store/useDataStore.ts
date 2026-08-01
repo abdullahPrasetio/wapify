@@ -188,6 +188,7 @@ export interface RequestTab {
   workingRequest: WorkingRequest
   lastResponse: IpcResponse | null
   isSending: boolean
+  pendingRequestId: string | null
   isDirty: boolean
   testResults: { name: string; status: 'passed' | 'failed'; error?: string }[]
 }
@@ -331,6 +332,7 @@ interface DataState {
 
   // Execution Actions
   executeActiveRequest: () => Promise<void>
+  cancelActiveRequest: () => void
   clearResponse: () => void
   updateActiveEnvironmentVariable: (key: string, value: string) => Promise<void>
   deleteCollection: (id: number) => Promise<void>
@@ -715,6 +717,7 @@ export const useDataStore = create<DataState>()(
             },
             lastResponse: null,
             isSending: false,
+            pendingRequestId: null,
             isDirty: false,
             testResults: []
           }
@@ -752,6 +755,7 @@ export const useDataStore = create<DataState>()(
               schema_assertions: normalizedDraft.schema_assertions || []
             }, lastResponse: null,
             isSending: false,
+            pendingRequestId: null,
             isDirty: true,
             testResults: []
           }
@@ -803,6 +807,7 @@ export const useDataStore = create<DataState>()(
               timing: 0
             },
             isSending: false,
+            pendingRequestId: null,
             isDirty: false,
             testResults: []
           }
@@ -1298,6 +1303,7 @@ export const useDataStore = create<DataState>()(
                   },
                   lastResponse: null,
                   isSending: false,
+                  pendingRequestId: null,
                   isDirty: false,
                   testResults: []
                 }
@@ -1970,9 +1976,12 @@ export const useDataStore = create<DataState>()(
           }
 
           // Set sending state for this tab
+          const requestId = Math.random().toString(36).slice(2)
           set({
             tabs: tabs.map((t) =>
-              t.requestId === activeTabId ? { ...t, isSending: true, lastResponse: null } : t
+              t.requestId === activeTabId
+                ? { ...t, isSending: true, lastResponse: null, pendingRequestId: requestId }
+                : t
             )
           })
 
@@ -1982,8 +1991,20 @@ export const useDataStore = create<DataState>()(
               substitutedUrl,
               substitutedHeaders,
               finalBody,
-              finalBodyType
+              finalBodyType,
+              requestId
             )
+
+            if (response.cancelled) {
+              set((state) => ({
+                tabs: state.tabs.map((t) =>
+                  t.requestId === activeTabId
+                    ? { ...t, isSending: false, pendingRequestId: null, lastResponse: null }
+                    : t
+                )
+              }))
+              return
+            }
 
             // Log network activity to console
             addLog('network', `${finalMethod} ${substitutedUrl}`, {
@@ -2225,7 +2246,9 @@ export const useDataStore = create<DataState>()(
             // Update tab with response
             set((state) => ({
               tabs: state.tabs.map((t) =>
-                t.requestId === activeTabId ? { ...t, isSending: false, lastResponse: response } : t
+                t.requestId === activeTabId
+                  ? { ...t, isSending: false, pendingRequestId: null, lastResponse: response }
+                  : t
               )
             }))
 
@@ -2275,6 +2298,7 @@ export const useDataStore = create<DataState>()(
                   ? {
                     ...t,
                     isSending: false,
+                    pendingRequestId: null,
                     lastResponse: {
                       status: 0,
                       headers: {},
@@ -2288,6 +2312,13 @@ export const useDataStore = create<DataState>()(
 
             toast.error('Network Error: ' + message)
           }
+        },
+
+        cancelActiveRequest: () => {
+          const { tabs, activeTabId } = get()
+          const activeTab = tabs.find((t) => t.requestId === activeTabId)
+          if (!activeTab?.pendingRequestId) return
+          apiClient.cancelRequest(activeTab.pendingRequestId)
         },
 
         fetchActivities: async (teamId: number) => {
