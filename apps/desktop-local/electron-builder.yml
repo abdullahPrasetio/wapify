@@ -40,5 +40,11 @@ nsis:
   artifactName: ${name}-${version}-setup.${ext}
   shortcutName: ${productName}
   createDesktopShortcut: always
-# Tidak ada auto-update/publish utk Local (v1) — distribusi manual.
+publish:
+  provider: github
+  owner: abdullahPrasetio
+  repo: wapbolt-lite-release
+  # Tidak set releaseType — electron-builder otomatis menandai release
+  # sebagai prerelease kalau versi package.json punya prerelease tag semver
+  # (mis. "1.0.0-beta.3"), sama seperti perilaku sebelumnya.
 npmRebuild: false
