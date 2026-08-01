@@ -339,6 +339,7 @@ CREATE TABLE sync_state (
    - Grouping request root vs folder (renderer mengandalkan `folder_id: null`).
    - Validasi **nested folder** (larangan cycle, batas kedalaman) — bugfix terbaru `a002b22`/`5568fe4`.
    - Deteksi **duplikat nama** collection/folder/request — bugfix `5568fe4`.
+   - **Koreksi 2026-08-01**: dicek ulang di `backend/internal/api/folder.go`/`collection.go` — validasi cycle/duplikat-nama di atas **tidak ditemukan** di kode Go saat ini (hanya ada cek dasar "tidak boleh pindah folder ke dirinya sendiri"). LocalRouter yang sudah dibangun (Fase 2) mengikuti Go apa adanya (tanpa validasi tsb) — sudah sinkron, bukan gap. Kalau bugfix ini pernah ada dan ke-revert, atau memang belum pernah diimplementasikan Go-nya, perlu diklarifikasi sebelum "diporting".
    - Auto-create `request_versions` saat update request (perilaku "Create a version automatically for history" yang di renderer sudah diasumsikan ada).
    - Aturan bentuk body saat simpan (unwrap array/raw — bugfix `4ee79c2`).
 3. **Selalu balikan array untuk endpoint list**, walau kosong (`200 []`) — jangan pernah `null`/object (akar bug blank-screen yang baru diperbaiki).
@@ -440,7 +441,7 @@ export interface AppMode {
 
 | Fitur | Cloud | Local |
 |---|---|---|
-| Login screen | wajib, setiap sesi butuh server | **sekali di awal** (revisi 2026-07-31): login → pull semua data → offline penuh; sesi persisten sampai logout eksplisit |
+| Login screen | wajib, setiap sesi butuh server | **opsional** (revisi 2026-08-01, §8): "Masuk" atau "Lewati/Kerja Offline"; login kapan pun → pull otomatis, push data lama minta consent (§8.3); sesi persisten sampai logout eksplisit |
 | WebSocket presence/lock/PONG | aktif | **tidak pernah connect** (hilangkan error console) |
 | Comments/activities | server | lokal (comments) / stub kosong (activities) |
 | Confluence export | sesuai config server | disabled (`enabled: false`) |
@@ -454,17 +455,40 @@ UI komponen **tetap sama** — flag hanya menentukan mount/no-op, bukan layout b
 
 ## 8. First-Run Flow (Local)
 
-> **Revisi 2026-07-31** (keputusan produk, menggantikan draft "tanpa login sama sekali"): login **sekali** di awal wajib — begitu berhasil, semua data user ditarik dari server ke SQLite, lalu seluruh kerja harian offline. Sesi (refresh token di `safeStorage`) hidup terus sampai user eksplisit logout; app restart tidak pernah menampilkan login lagi selama sesi ada.
+> **Revisi 2026-08-01** (menggantikan revisi 2026-07-31 "login wajib sekali"): login jadi **opsional**. Layar awal menawarkan **"Masuk"** atau **"Lewati / Kerja Offline"**. Kedua jalur menuju workspace yang sama; login (kapan pun, di awal atau belakangan) selalu memicu pull otomatis, tapi **push data lokal-lama meminta persetujuan eksplisit** (§8.3) — bukan otomatis, supaya tidak ada data lokal yang "diam-diam" terkirim ke akun server.
+
+### 8.1 Alur boot
 
 1. App start → `db.ts` buka `<userData>/wapbolt-local.db`, jalankan migrasi pending.
 2. Cek sesi tersimpan (`sync_state` + `safeStorage`):
    - **Ada sesi** → langsung masuk workspace, data dari SQLite, tanpa network sama sekali.
-   - **Tidak ada sesi** (first run / setelah logout) → tampilkan layar login (server URL + kredensial, endpoint `/api/v1/auth/login` existing).
-3. Setelah login pertama sukses → **initial pull**: jalankan PULL §6.2 penuh (teams → collections → folders → requests → examples → environments) ke SQLite, simpan refresh token + identitas user di `safeStorage`/`sync_state`, lalu masuk workspace.
-4. Logout eksplisit → hapus token + `sync_state` sesi; data lokal **tetap ada** (tidak dihapus), tapi app kembali ke layar login.
-5. Seed "My Workspace" (`teams: { id: 1, name: 'My Workspace', created_by: 1 }`) tetap dilakukan saat DB kosong, sebagai wadah kerja sebelum/tanpa mapping team server.
+   - **Tidak ada sesi** (first run / setelah logout / setelah pilih "Lewati") → tampilkan layar login dengan dua aksi: **"Masuk"** (server URL + kredensial) atau **"Lewati / Kerja Offline"** (langsung masuk workspace sebagai local user, tanpa network).
+3. Seed "My Workspace" (`teams: { id: 1, name: 'My Workspace', created_by: 1 }`) tetap dilakukan saat DB kosong — wadah kerja default, terlepas dari status login.
 
-Catatan implementasi: selama Fase 2–3 (LocalRouter belum lengkap, login flow belum dibangun), app sementara memakai **auto-login local user** (bypass, `AppMode.auth='none'`) sebagai scaffolding development. Diganti dengan flow di atas pada Fase 5.
+### 8.2 Login (pertama kali atau belakangan, setelah sempat "Lewati")
+
+Sama persis kedua kasusnya — tidak ada cabang kode berbeda:
+
+1. Autentikasi ke server (`/api/v1/auth/login`), simpan refresh token (`safeStorage`) + identitas akun (`sync_state`).
+2. **PULL otomatis** (§6.2 langkah 2) — selalu jalan tanpa tanya, karena PULL cuma menambah data baru dari server, tidak pernah menghapus/menimpa kerja lokal yang belum ter-map.
+3. **Cek data lokal pra-login yang belum pernah ter-sync** (row `dirty=1` dengan `remote_id NULL`, biasanya isi "My Workspace" kalau user sempat kerja lewat "Lewati"). Kalau ada → tampilkan dialog consent (§8.3) sebelum PUSH. Kalau tidak ada → lanjut PUSH seperti biasa (tidak ada yang perlu ditanya).
+4. Masuk workspace.
+
+### 8.3 Dialog consent push data pra-login
+
+Muncul hanya kalau §8.2 langkah 3 menemukan data dirty tak ter-map. Isi: ringkasan singkat ("Anda punya N collection, M request yang dibuat sebelum masuk akun ini").
+
+- **"Ya, kirim ke server"** → tandai team pra-login (biasanya "My Workspace") sebagai `dirty=1` di `sync_meta` kalau belum (lihat catatan implementasi di bawah), lanjut PUSH normal (§6.2 langkah 3) — akan muncul sebagai **team baru** di server (tidak ada auto-merge by nama, konsisten §6.4).
+- **"Tidak, biarkan lokal saja"** → skip PUSH untuk baris-baris itu, **tidak ditanya lagi** di sesi ini. Baris tetap `dirty=1` selamanya (tidak pernah otomatis ter-push oleh "Sync Now" manual ke depannya juga) sampai user mengubahnya sendiri lewat UI belum-dibangun (di luar scope v1; catatan risiko).
+
+Catatan implementasi: seed "My Workspace" saat ini dibuat langsung via SQL di `seed.ts`, **tidak** lewat `LocalRouter` — jadi tidak otomatis dapat baris `sync_meta`/`dirty` seperti team buatan user biasa. Ini harus diperbaiki saat membangun §8.3: baik dengan menandai dirty di awal (lalu dialog jadi opt-out) atau menandai dirty tepat saat user pilih "Ya" di dialog (opt-in, lebih sesuai §6.3 "tidak ada yang terjadi tanpa keputusan eksplisit").
+
+### 8.4 Logout
+
+- **Tidak pernah menyentuh data domain atau `sync_meta`** (mapping id lokal↔remote tetap utuh, supaya login lagi ke akun yang sama tidak duplikasi). Hanya menghapus token + identitas akun (`sync_state`).
+- Setelah logout, app kembali ke layar §8.1 langkah 2 (pilihan Masuk / Lewati) — **bukan** dipaksa login lagi, karena akses data lokal tidak pernah bergantung status sesi.
+- **Menghapus data lokal BUKAN bagian dari alur logout.** Itu aksi terpisah di Settings ("Hapus semua data lokal"), dengan konfirmasi lebih berat, dan **wajib memperingatkan eksplisit** kalau ada baris `dirty=1 AND remote_id IS NULL` (data yang cuma ada di lokal, akan hilang permanen tanpa cadangan) sebelum mengizinkan.
+- Risiko yang sudah diketahui dan diterima (bukan bug baru): login ke akun/server **berbeda** setelah sempat kerja lokal bisa membuat data lokal ter-push ke akun yang salah kalau user asal klik "Ya" di dialog §8.3 tanpa sadar akunnya beda. Konsisten dengan non-tujuan "multi-user di satu instance lokal" (§1) — tidak ditangani khusus di v1.
 
 ---
 
@@ -477,7 +501,9 @@ Catatan implementasi: selama Fase 2–3 (LocalRouter belum lengkap, login flow b
 | **2. LocalRouter core** | Handler teams/collections/folders/requests + list endpoints | CRUD & tree sidebar berfungsi penuh offline |
 | **3. LocalRouter lengkap** | envs, history, examples, versions, comments, search, duplicate/move, stubs | Seluruh fitur harian paritas dengan Cloud (kecuali realtime) |
 | **4. Feature flags** | mode local: no-WS, no-login, no-license | Console bersih dari error WS; boot langsung ke workspace |
-| **5. Sync engine** | login-sekali + initial pull (§8 revisi), sesi persisten, push/pull, conflict dialog, badge pending | Login → semua data tertarik → offline penuh; round-trip lokal↔server terverifikasi; putus di tengah → resume aman |
+| **5. Sync engine** | login opsional (§8 revisi 2026-08-01), sesi persisten, push/pull, conflict dialog, badge pending, consent dialog push data pra-login (§8.3) | Login → semua data tertarik → offline penuh; round-trip lokal↔server terverifikasi; putus di tengah → resume aman |
+
+**Status Fase 5 per 2026-08-01**: inti sync (pull/push/conflict/idempotent resume) **selesai & teruji** (9 test skenario matrix). Yang **belum**: layar login opsional + tombol "Lewati" (saat ini login masih wajib di boot), dialog consent §8.3, pemetaan team manual (§6.1), penanganan `name_collision` sungguhan (§6.4 — saat ini cuma tercatat generik di `summary.errors`), auto-create `request_versions` saat update request (§5.2), kolom `extraction_rules`/`schema_assertions` belum tersambung ke handler manapun, auto-backup `.db` (§10), dan contract-test harness diff-vs-Go (§9) — LocalRouter diverifikasi manual baca kode Go + vitest, bukan harness otomatis.
 | **6. Packaging & QA** | installer terpisah (nama/ikon/appId beda, userData beda) | Kedua app bisa terinstal berdampingan; QA regresi checklist |
 
 **Testing per fase**:
@@ -505,4 +531,4 @@ Catatan implementasi: selama Fase 2–3 (LocalRouter belum lengkap, login flow b
 1. **Fase 0**: ekstraksi `ui-shared` beneran, atau copy renderer dulu (cepat tapi drift)? → Rekomendasi kuat: ekstraksi beneran; copy hanya jika butuh PoC < 1 minggu.
 2. **Scope sync environments global** (yang `is_global=true`, tanpa team): ikut disync atau local-only? (server memperlakukannya lintas-team). → *Interim v1 (implementasi Fase 5): local-only — SyncEngine hanya pull/push env non-global.*
 3. Apakah **history** suatu saat perlu disync (misal untuk analytics)? Skema `sync_meta` sudah menampung, tinggal tambah entity.
-4. Nama produk & appId final (`com.wapbolt.local`?) untuk side-by-side install.
+4. ~~Nama produk & appId final~~ → **Selesai**: `io.wapbolt.local` / "Wapbolt Local" (lihat `apps/desktop-local/electron-builder.yml`), terbukti terinstal berdampingan dgn Cloud via CI (Fase 6).
