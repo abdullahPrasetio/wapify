@@ -43,7 +43,7 @@ nsis:
 publish:
   provider: github
   owner: abdullahPrasetio
-  repo: wapbolt-lite-release
+  repo: wapbolt-lite-releases
   # Tidak set releaseType — electron-builder otomatis menandai release
   # sebagai prerelease kalau versi package.json punya prerelease tag semver
   # (mis. "1.0.0-beta.3"), sama seperti perilaku sebelumnya.

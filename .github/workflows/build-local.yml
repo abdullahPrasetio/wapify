@@ -2,7 +2,7 @@ name: Build Wapbolt Local
 
 # Wapbolt Local dirilis terpisah dari app Cloud: tag `local-v*`.
 # Installer diunggah ke GitHub Release di repo TERPISAH
-# (abdullahPrasetio/wapbolt-lite-release, lihat electron-builder.yml) —
+# (abdullahPrasetio/wapbolt-lite-releases, lihat electron-builder.yml) —
 # BUKAN wapbolt-desktop-releases (dikonsumsi electron-updater app Cloud;
 # release local-v* di sana bisa merusak auto-update Cloud) dan BUKAN repo
 # sumber ini juga (biar histori rilis Local tidak campur dgn kode/PR).
@@ -60,7 +60,7 @@ jobs:
         shell: bash
         env:
           # RELEASE_TOKEN: PAT lintas-repo yang sama dipakai build.yml (Cloud) —
-          # harus punya akses ke abdullahPrasetio/wapbolt-lite-release juga.
+          # harus punya akses ke abdullahPrasetio/wapbolt-lite-releases juga.
           GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
 
       # Artifact workflow: selalu diunggah (termasuk run manual) utk QA cepat
