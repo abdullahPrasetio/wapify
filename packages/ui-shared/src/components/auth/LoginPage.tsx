@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react'
-import { Loader2, AlertCircle, Settings, Zap, ShieldCheck } from 'lucide-react'
+import { Loader2, AlertCircle, Settings, Zap, ShieldCheck, WifiOff } from 'lucide-react'
 import { useAuthStore } from '../../store/useAuthStore'
 import { ServerSettingsModal } from '../modals/ServerSettingsModal'
 import type { LoginResponse } from '../../types'
 import { setAuthToken } from '../../api/client'
+import { getAppMode } from '../../config/appMode'
 
 export const LoginPage = (): React.JSX.Element => {
-  const { login, loginWithGoogle, isLoading, error, clearError } = useAuthStore()
+  const { login, loginWithGoogle, continueOffline, isLoading, error, clearError } = useAuthStore()
+  const isLocalMode = getAppMode().mode === 'local'
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showSettings, setShowSettings] = useState(false)
@@ -264,6 +266,28 @@ export const LoginPage = (): React.JSX.Element => {
                 )}
                 Continue with Google
               </button>
+            </>
+          )}
+
+          {/* §8.1: login opsional di Wapbolt Local — kerja offline tanpa akun */}
+          {isLocalMode && (
+            <>
+              <div className="flex items-center gap-3 my-5">
+                <div className="flex-1 h-px bg-border" />
+                <span className="text-xs text-muted">atau</span>
+                <div className="flex-1 h-px bg-border" />
+              </div>
+              <button
+                type="button"
+                onClick={continueOffline}
+                className="w-full flex items-center justify-center gap-2 bg-background border border-border hover:border-primary/50 text-muted hover:text-text font-medium py-2.5 rounded-lg text-sm transition-colors cursor-pointer"
+              >
+                <WifiOff size={14} />
+                Lewati / Kerja Offline
+              </button>
+              <p className="text-center text-[11px] text-muted mt-2 leading-relaxed">
+                Data tersimpan di perangkat ini saja. Bisa masuk akun kapan saja lewat Settings untuk sinkronisasi.
+              </p>
             </>
           )}
         </div>

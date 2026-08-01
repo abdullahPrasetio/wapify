@@ -23,6 +23,25 @@ function sessionToUser(sessionUser: Partial<User>): User {
   }
 }
 
+// §8.1 revisi 2026-08-01: login opsional — "Lewati / Kerja Offline" masuk
+// tanpa sesi/network sama sekali, konstanta murni (bukan dari server).
+const OFFLINE_LOCAL_USER: User = {
+  id: 1,
+  email: 'local@wapbolt',
+  name: 'Local User',
+  is_super_admin: true,
+  is_premium: true,
+  has_password: false,
+  premium_since: null,
+  created_at: new Date(0).toISOString(),
+  updated_at: new Date(0).toISOString()
+}
+
+export interface PendingSyncConsentItem {
+  entity: string
+  count: number
+}
+
 interface AuthState {
   user: User | null
   token: string | null
@@ -30,10 +49,16 @@ interface AuthState {
   isLoading: boolean
   isRehydrating: boolean
   error: string | null
+  // §8.3: non-null saat ada data pra-login (dirty, remote_id NULL) menunggu
+  // keputusan user push-atau-tidak. App.tsx menampilkan dialog consent
+  // sebagai overlay selama field ini terisi.
+  pendingSyncConsent: PendingSyncConsentItem[] | null
 
   login: (email: string, password: string) => Promise<void>
   loginWithGoogle: () => Promise<void>
   handleGoogleCallback: (token: string, refreshToken: string) => Promise<void>
+  continueOffline: () => void
+  resolveSyncConsent: (decision: 'push' | 'exclude') => Promise<void>
   logout: () => Promise<void>
   rehydrateAuth: () => Promise<void>
   refreshUser: () => Promise<void>
@@ -48,6 +73,7 @@ export const useAuthStore = create<AuthState>()(
   isLoading: false,
   isRehydrating: true,
   error: null,
+  pendingSyncConsent: null,
 
   login: async (email: string, password: string) => {
     set({ isLoading: true, error: null })
@@ -64,20 +90,30 @@ export const useAuthStore = create<AuthState>()(
           await window.api.setToken(refresh_token)
         }
 
-        // Mode local (§8 revisi): login pertama → simpan sesi + initial pull
-        // seluruh data server ke SQLite, baru masuk workspace.
-        if (getAppMode().mode === 'local' && window.api?.saveSyncSession && window.api?.syncNow) {
+        // Mode local (§8.2 revisi): login — pertama kali ATAU belakangan
+        // setelah sempat "Lewati" — selalu sama: simpan sesi, PULL otomatis,
+        // lalu kalau ada data pra-login yang belum tersync, minta consent
+        // (§8.3) sebelum PUSH. Auto-fetch (pull) tidak pernah ditanya;
+        // yang ditanya cuma arah push.
+        if (getAppMode().mode === 'local' && window.api?.saveSyncSession && window.api?.syncLoginPull) {
           await window.api.saveSyncSession({ serverUrl: getBaseUrl(), user })
           try {
-            const summary = await window.api.syncNow(getBaseUrl())
-            if (summary.errors.length > 0) {
-              console.error('[Auth] Initial pull selesai dengan error:', summary.errors)
+            const { pullSummary, pending } = await window.api.syncLoginPull(getBaseUrl())
+            if (pullSummary.errors.length > 0) {
+              console.error('[Auth] Initial pull selesai dengan error:', pullSummary.errors)
             }
+            set({
+              user: sessionToUser(user),
+              token,
+              isAuthenticated: true,
+              isLoading: false,
+              error: null,
+              pendingSyncConsent: pending.length > 0 ? pending : null
+            })
           } catch (err) {
-            // Login tetap sukses — data bisa ditarik ulang via "Sync Now".
             console.error('[Auth] Initial pull gagal:', err)
+            set({ user: sessionToUser(user), token, isAuthenticated: true, isLoading: false, error: null })
           }
-          set({ user: sessionToUser(user), token, isAuthenticated: true, isLoading: false, error: null })
           return
         }
 
@@ -99,12 +135,44 @@ export const useAuthStore = create<AuthState>()(
     }
   },
 
+  // §8.1: pilihan "Lewati / Kerja Offline" di layar login — tidak menyimpan
+  // sesi (window.api.saveSyncSession TIDAK dipanggil), murni state renderer.
+  // Boot berikutnya tanpa sesi tersimpan akan menampilkan pilihan ini lagi.
+  continueOffline: () => {
+    set({
+      user: OFFLINE_LOCAL_USER,
+      token: null,
+      isAuthenticated: true,
+      isRehydrating: false,
+      isLoading: false,
+      error: null
+    })
+  },
+
+  // §8.3: user memutuskan nasib data pra-login setelah dialog consent tampil.
+  resolveSyncConsent: async (decision: 'push' | 'exclude') => {
+    if (!window.api?.syncLoginFinish) {
+      set({ pendingSyncConsent: null })
+      return
+    }
+    try {
+      const result = await window.api.syncLoginFinish(getBaseUrl(), decision)
+      if (result.errors.length > 0) {
+        console.error('[Auth] Push data pra-login selesai dengan error:', result.errors)
+      }
+    } catch (err) {
+      console.error('[Auth] Gagal menyelesaikan consent push:', err)
+    } finally {
+      set({ pendingSyncConsent: null })
+    }
+  },
+
   logout: async () => {
     setAuthToken(null)
     if (window.api?.deleteToken) {
       await window.api.deleteToken()
     }
-    set({ user: null, token: null, isAuthenticated: false, error: null })
+    set({ user: null, token: null, isAuthenticated: false, error: null, pendingSyncConsent: null })
   },
 
   rehydrateAuth: async () => {

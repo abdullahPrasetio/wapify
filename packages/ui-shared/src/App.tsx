@@ -6,6 +6,7 @@ import { Toaster, toast } from 'sonner'
 import { initWebSocketIntegration, wsClient } from './api/websocket'
 import { Key, AlertCircle, RefreshCw, WifiOff } from 'lucide-react'
 import { DonationModal } from './components/modals/DonationModal'
+import { SyncConsentDialog } from './components/auth/SyncConsentDialog'
 import { apiClient } from './api/client'
 import { useAppStore } from './store/useAppStore'
 
@@ -273,6 +274,7 @@ function App(): React.JSX.Element {
       <Toaster position="bottom-right" theme={theme} richColors />
       <AppLayout />
       <DonationModal />
+      <SyncConsentDialog />
     </>
   )
 }

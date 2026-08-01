@@ -76,6 +76,18 @@ interface WapboltAPI {
   }>
   syncListConflicts?: () => Promise<unknown[]>
   syncResolveConflict?: (id: number, resolution: 'local' | 'remote') => Promise<{ ok: boolean }>
+  // Login opsional + consent push data pra-login (§8.2-8.3)
+  syncLoginPull?: (serverUrl: string) => Promise<{
+    pullSummary: { pulled: number; pushed: number; conflicts: number; errors: string[] }
+    pending: Array<{ entity: string; count: number }>
+  }>
+  syncLoginFinish?: (
+    serverUrl: string,
+    decision: 'push' | 'exclude'
+  ) => Promise<{ pulled: number; pushed: number; conflicts: number; errors: string[] }>
+  // Hapus data lokal (§8.4) — terpisah dari logout
+  localDataPendingSummary?: () => Promise<Array<{ entity: string; count: number }>>
+  wipeLocalData?: () => Promise<void>
 }
 
 declare global {

@@ -56,6 +56,8 @@ import { PromptModal } from '../modals/PromptModal'
 import { EnvironmentModal } from '../modals/EnvironmentModal'
 import { ServerSettingsModal } from '../modals/ServerSettingsModal'
 import { ChangePasswordModal } from "../modals/ChangePasswordModal"
+import { WipeLocalDataModal } from '../modals/WipeLocalDataModal'
+import { getAppMode } from '../../config/appMode'
 import { StandaloneMockPanel } from "./StandaloneMockPanel"
 import { ConfluenceSettingsModal } from '../modals/ConfluenceSettingsModal'
 import { UserConfluenceSettingsModal } from '../modals/UserConfluenceSettingsModal'
@@ -797,6 +799,8 @@ export const Sidebar = (): React.JSX.Element => {
   const [showServerSettings, setShowServerSettings] = useState(false)
   const [showUserConfluence, setShowUserConfluence] = useState(false)
   const [showChangePassword, setShowChangePassword] = useState(false)
+  const [showWipeLocalData, setShowWipeLocalData] = useState(false)
+  const isLocalMode = getAppMode().mode === 'local'
   const [showStandaloneMock, setShowStandaloneMock] = useState(false)
   const [showConfluenceSettings, setShowConfluenceSettings] = useState(false)
   const [appVersion, setAppVersion] = useState<string>('')
@@ -1342,13 +1346,24 @@ export const Sidebar = (): React.JSX.Element => {
                     </DropdownMenu.Item>
                     
                     <DropdownMenu.Separator className="h-px bg-border my-1" />
-                    
+
+                    {/* §8.4: aksi terpisah dari Logout, hanya Wapbolt Local */}
+                    {isLocalMode && (
+                      <DropdownMenu.Item
+                        onClick={() => setShowWipeLocalData(true)}
+                        className="flex items-center px-2 py-1.5 text-xs text-danger hover:bg-danger/10 hover:text-danger rounded cursor-pointer outline-none data-[highlighted]:bg-danger/10"
+                      >
+                        <Trash2 size={14} className="mr-2" />
+                        Hapus Data Lokal
+                      </DropdownMenu.Item>
+                    )}
+
                     <DropdownMenu.Item
                       onClick={logout}
                       className="flex items-center px-2 py-1.5 text-xs text-danger hover:bg-danger/10 hover:text-danger rounded cursor-pointer outline-none data-[highlighted]:bg-danger/10"
                     >
                       <LogOut size={14} className="mr-2" />
-                      Logout
+                      {isLocalMode ? 'Keluar / Ganti Akun' : 'Logout'}
                     </DropdownMenu.Item>
                   </DropdownMenu.Content>
                 </DropdownMenu.Portal>
@@ -1377,6 +1392,7 @@ export const Sidebar = (): React.JSX.Element => {
         />
 
         {showServerSettings && <ServerSettingsModal onClose={() => setShowServerSettings(false)} />}
+        {showWipeLocalData && <WipeLocalDataModal onClose={() => setShowWipeLocalData(false)} />}
         {showConfluenceSettings && <ConfluenceSettingsModal onClose={() => setShowConfluenceSettings(false)} />}
         {showUserConfluence && <UserConfluenceSettingsModal onClose={() => setShowUserConfluence(false)} />}
         {showChangePassword && <ChangePasswordModal isOpen={showChangePassword} onClose={() => setShowChangePassword(false)} />}
