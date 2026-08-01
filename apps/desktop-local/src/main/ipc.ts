@@ -4,6 +4,7 @@ import axios from 'axios'
 import https from 'https'
 import log from 'electron-log'
 import { createLocalRouter, isWapboltApiUrl } from './local/router'
+import { backupDb } from './local/db'
 import {
   saveRefreshToken,
   getRefreshToken,
@@ -13,7 +14,15 @@ import {
   getLastFullSyncAt,
   SyncSession
 } from './local/sync/session'
-import { createSyncEngine, listConflicts, resolveConflict, HttpFn } from './local/sync/engine'
+import {
+  createSyncEngine,
+  listConflicts,
+  resolveConflict,
+  getPendingLocalOnlySummary,
+  excludePendingLocalOnly,
+  HttpFn
+} from './local/sync/engine'
+import { wipeLocalData } from './local/wipe'
 
 // ─── IPC: LocalRouter vs HTTP passthrough (§2) ──────────────────────────────
 // Request ke `/api/v1/...` (Wapbolt sendiri) di-route ke LocalRouter (SQLite).
@@ -137,6 +146,7 @@ export function registerIpcHandlers(db: Database.Database): void {
   // ─── Sync (§6) ────────────────────────────────────────────────────────────
   ipcMain.handle('wapbolt:sync-now', async (_e, serverUrl: string) => {
     try {
+      backupDb(db, db.name) // §10: snapshot sebelum sync menyentuh data
       const httpOrErr = await buildSyncHttp(db, serverUrl)
       if (typeof httpOrErr !== 'function') {
         return { pulled: 0, pushed: 0, conflicts: 0, errors: [httpOrErr.error] }
@@ -172,6 +182,60 @@ export function registerIpcHandlers(db: Database.Database): void {
   ipcMain.handle('wapbolt:sync-resolve-conflict', (_e, id: number, resolution: 'local' | 'remote') =>
     resolveConflict(db, id, resolution)
   )
+
+  // ─── Login opsional + consent push data pra-login (§8.2-8.3) ───────────────
+  // Dipanggil renderer tepat setelah /api/v1/auth/login sukses (login pertama
+  // ATAU belakangan setelah sempat "Lewati"). PULL selalu jalan; PUSH data
+  // pra-login menunggu keputusan user lewat sync-login-finish.
+  ipcMain.handle('wapbolt:sync-login-pull', async (_e, serverUrl: string) => {
+    try {
+      backupDb(db, db.name) // §10: snapshot sebelum initial pull menyentuh data
+      const httpOrErr = await buildSyncHttp(db, serverUrl)
+      if (typeof httpOrErr !== 'function') {
+        return { pullSummary: { pulled: 0, pushed: 0, conflicts: 0, errors: [httpOrErr.error] }, pending: [] }
+      }
+      const engine = createSyncEngine(db, httpOrErr)
+      await engine.pull()
+      const pending = getPendingLocalOnlySummary(db)
+      log.info(`[sync] login-pull selesai, pending pra-login: ${JSON.stringify(pending)}`)
+      return { pullSummary: { pulled: 0, pushed: 0, conflicts: 0, errors: [] }, pending }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Pull gagal'
+      log.error(`[sync] login-pull error: ${message}`)
+      return { pullSummary: { pulled: 0, pushed: 0, conflicts: 0, errors: [message] }, pending: [] }
+    }
+  })
+
+  ipcMain.handle(
+    'wapbolt:sync-login-finish',
+    async (_e, serverUrl: string, decision: 'push' | 'exclude') => {
+      if (decision === 'exclude') {
+        excludePendingLocalOnly(db)
+        return { pushed: 0, errors: [] }
+      }
+      try {
+        const httpOrErr = await buildSyncHttp(db, serverUrl)
+        if (typeof httpOrErr !== 'function') {
+          return { pushed: 0, errors: [httpOrErr.error] }
+        }
+        const engine = createSyncEngine(db, httpOrErr)
+        await engine.push()
+        return { pushed: 0, errors: [] }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Push gagal'
+        log.error(`[sync] login-finish push error: ${message}`)
+        return { pushed: 0, errors: [message] }
+      }
+    }
+  )
+
+  // ─── Hapus data lokal (§8.4) — aksi terpisah, bukan bagian dari logout ─────
+  ipcMain.handle('wapbolt:local-data-pending-summary', () => getPendingLocalOnlySummary(db))
+  ipcMain.handle('wapbolt:wipe-local-data', () => {
+    backupDb(db, db.name) // §10: salinan terakhir sebelum aksi destruktif
+    wipeLocalData(db)
+    log.info('[wipe] semua data lokal dihapus, di-seed ulang ke state first-run')
+  })
 
   ipcMain.handle('wapbolt:get-version', () => {
     return app.getVersion()

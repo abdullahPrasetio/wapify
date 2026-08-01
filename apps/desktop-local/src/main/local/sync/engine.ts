@@ -690,7 +690,9 @@ export function createSyncEngine(db: Database.Database, http: HttpFn) {
     updateReq: (local: Row, remoteId: number) => Array<{ method: string; path: string; body: Row }>
   ): Promise<void> {
     const dirtyRows = db
-      .prepare('SELECT * FROM sync_meta WHERE entity = ? AND dirty = 1 AND deleted_at IS NULL')
+      .prepare(
+        'SELECT * FROM sync_meta WHERE entity = ? AND dirty = 1 AND deleted_at IS NULL AND excluded_from_sync = 0'
+      )
       .all(entity) as MetaRow[]
 
     for (const meta of dirtyRows) {
@@ -920,6 +922,36 @@ export function createSyncEngine(db: Database.Database, http: HttpFn) {
 }
 
 export type SyncEngine = ReturnType<typeof createSyncEngine>
+
+// ─── Consent push data pra-login (§8.2-8.3) — dipanggil dari IPC ────────────
+
+export interface PendingLocalOnlySummary {
+  entity: string
+  count: number
+}
+
+// Baris yang dirty, belum pernah dipush (remote_id NULL), dan belum
+// di-exclude — biasanya isi "My Workspace" atau team/collection/request lain
+// yang dibuat user sebelum/tanpa login (§8.1 "Lewati").
+export function getPendingLocalOnlySummary(db: Database.Database): PendingLocalOnlySummary[] {
+  return db
+    .prepare(
+      `SELECT entity, COUNT(*) as count FROM sync_meta
+       WHERE dirty = 1 AND remote_id IS NULL AND excluded_from_sync = 0 AND deleted_at IS NULL
+       GROUP BY entity`
+    )
+    .all() as PendingLocalOnlySummary[]
+}
+
+// User pilih "Tidak, simpan lokal saja" (§8.3) — baris-baris ini tidak akan
+// pernah otomatis ter-push lagi (oleh initial pull-push maupun "Sync Now"
+// manual), sampai user mengubahnya sendiri lewat UI (di luar scope v1).
+export function excludePendingLocalOnly(db: Database.Database): void {
+  db.prepare(
+    `UPDATE sync_meta SET excluded_from_sync = 1
+     WHERE dirty = 1 AND remote_id IS NULL AND excluded_from_sync = 0 AND deleted_at IS NULL`
+  ).run()
+}
 
 // ─── Resolusi konflik (§6.3) — dipanggil dari IPC ────────────────────────────
 

@@ -13,4 +13,10 @@ export function seedIfEmpty(db: Database.Database): void {
     `INSERT INTO teams (id, name, description, created_by, created_at)
      VALUES (1, ?, '', 1, ?)`
   ).run('My Workspace', new Date().toISOString())
+
+  // §8.3: diperlakukan identik dengan team buatan user via LocalRouter (yang
+  // otomatis dapat sync_meta dirty=1 saat createTeam) — supaya konsisten
+  // dideteksi sebagai "data pra-login belum tersync" begitu user login,
+  // bukan invisible ke sync bookkeeping selamanya.
+  db.prepare('INSERT INTO sync_meta (entity, local_id, dirty) VALUES (?, ?, 1)').run('team', 1)
 }

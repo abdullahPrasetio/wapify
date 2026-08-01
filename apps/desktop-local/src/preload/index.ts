@@ -34,6 +34,16 @@ interface SyncStatus {
   lastFullSyncAt: string | null
 }
 
+interface PendingLocalOnlySummary {
+  entity: string
+  count: number
+}
+
+interface LoginPullResult {
+  pullSummary: SyncSummary
+  pending: PendingLocalOnlySummary[]
+}
+
 const api = {
   wapboltRequest: (config: RequestConfig): Promise<IpcResponse> => {
     return ipcRenderer.invoke('wapbolt:request', config)
@@ -56,6 +66,15 @@ const api = {
   syncListConflicts: (): Promise<unknown[]> => ipcRenderer.invoke('wapbolt:sync-list-conflicts'),
   syncResolveConflict: (id: number, resolution: 'local' | 'remote'): Promise<{ ok: boolean }> =>
     ipcRenderer.invoke('wapbolt:sync-resolve-conflict', id, resolution),
+  // Login opsional + consent push data pra-login (§8.2-8.3)
+  syncLoginPull: (serverUrl: string): Promise<LoginPullResult> =>
+    ipcRenderer.invoke('wapbolt:sync-login-pull', serverUrl),
+  syncLoginFinish: (serverUrl: string, decision: 'push' | 'exclude'): Promise<SyncSummary> =>
+    ipcRenderer.invoke('wapbolt:sync-login-finish', serverUrl, decision),
+  // Hapus data lokal (§8.4) — terpisah dari logout
+  localDataPendingSummary: (): Promise<PendingLocalOnlySummary[]> =>
+    ipcRenderer.invoke('wapbolt:local-data-pending-summary'),
+  wipeLocalData: (): Promise<void> => ipcRenderer.invoke('wapbolt:wipe-local-data'),
   reloadApp: (): void => {
     ipcRenderer.send('wapbolt:reload')
   },
