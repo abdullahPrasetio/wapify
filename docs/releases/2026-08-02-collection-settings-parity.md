@@ -52,3 +52,11 @@ Dua putaran revisi UI di atas fondasi yang sama (tidak ada perubahan skema tamba
 - **Tab "Runs" ala Postman belum ada** di `CollectionTabContent.tsx` (hanya Overview/Authorization/Scripts/Variables) — histori run collection saat ini cuma lewat `CollectionRunnerPanel` modal terpisah, belum jadi sub-tab.
 - **Migrasi Postgres staging & production masih belum dijalankan** (lihat checklist di atas) — binary backend baru (yang membaca/menulis `auth_config`/`variables`/scripts) akan error di environment itu sampai migrasi jalan.
 - **Confluence Sync di Wapbolt Local belum diverifikasi ulang** — trigger UI-nya (`wapbolt:open-confluence-settings`) sama persis di Cloud maupun Local, tapi belum dicek apakah backend/handler Confluence-nya memang punya jalur kerja penuh di Local atau cuma UI shell.
+
+## Bugfix: import Postman JSON gagal di Wapbolt Local
+
+`importCollection` (`useDataStore.ts`) selalu POST ke `/api/v1/teams/:id/import`. Di Local, request ini di-route ke `LocalRouter` (`apps/desktop-local/src/main/local/router.ts`) — tapi route itu **tidak pernah didaftarkan**, jadi selalu jatuh ke fallback 501 ("belum diimplementasikan") dan muncul sebagai toast generik "Failed to import collection". Ini bukan regresi dari perubahan-perubahan di atas, melainkan gap lama (fitur import memang belum pernah di-port ke Local — backend Go-nya sudah ada di `collection.go:507` `ImportPostman`).
+
+Diperbaiki dengan port `ImportPostman`/`processPostmanItems`/`resolvePostmanBody` dari Go ke TypeScript: `apps/desktop-local/src/main/local/handlers/import.ts` (baru) + route `POST /api/v1/teams/:id/import` didaftarkan di `router.ts`. Mendukung mode `new` dan `overwrite` (dengan `confirm_name` safety check yang sama seperti Go), folder bersarang, header, body raw-JSON/urlencoded/form-data, `auth_config` per-request, dan saved response examples. Diverifikasi lewat 3 test baru di `router.test.ts` (create, reject overwrite ke collection yang belum ada, overwrite berhasil + confirm_name mismatch ditolak) — total 55/55 test lokal lulus.
+
+**Belum ikut di-port** (di luar scope perbaikan ini, masih 501 di Local): import **OpenAPI** dan **Insomnia** — keduanya punya gap yang persis sama (`/import-openapi`, `/import-insomnia` juga tidak terdaftar di `router.ts`).

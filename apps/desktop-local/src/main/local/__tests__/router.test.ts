@@ -538,3 +538,100 @@ describe('search summary', () => {
     expect(data.requests).toMatchObject([{ name: 'R', method: 'GET', team_id: 1, collection_id: colId }])
   })
 })
+
+describe('import postman', () => {
+  const postmanCollection = {
+    info: { name: 'Imported Collection', description: 'from postman' },
+    item: [
+      {
+        name: 'Auth',
+        item: [
+          {
+            name: 'Login',
+            request: {
+              method: 'POST',
+              url: { raw: 'http://api.test/login' },
+              header: [{ key: 'X-Test', value: '1' }],
+              body: { mode: 'raw', raw: '{"user":"a"}' },
+              auth_config: { type: 'Bearer', token: 'xyz' }
+            },
+            response: [{ name: 'OK', code: 200, header: [], body: '{"ok":true}' }]
+          }
+        ]
+      },
+      {
+        name: 'Root Request',
+        request: {
+          method: 'GET',
+          url: 'http://api.test/root',
+          header: []
+        }
+      }
+    ]
+  }
+
+  it('creates collection + nested folder/request/example (mode=new)', () => {
+    const res = call('POST', '/api/v1/teams/1/import', postmanCollection)
+    expect(res.status).toBe(201)
+    const { collection_id: colId } = res.data as { collection_id: number }
+    expect(colId).toBeTypeOf('number')
+
+    const detail = call('GET', `/api/v1/collections/${colId}`)
+    expect(detail.data).toMatchObject({
+      collection: { name: 'Imported Collection', description: 'from postman' },
+      folders: [{ name: 'Auth' }],
+      requests: [{ name: 'Root Request', method: 'GET', url: 'http://api.test/root' }]
+    })
+    const folderId = (detail.data as { folders: Array<{ id: number }> }).folders[0].id
+
+    const nested = call('GET', `/api/v1/folders/${folderId}/requests`)
+    expect(nested.data).toMatchObject([
+      {
+        name: 'Login',
+        method: 'POST',
+        url: 'http://api.test/login',
+        headers: { 'X-Test': '1' },
+        body: { user: 'a' },
+        auth_config: { type: 'Bearer', token: 'xyz' },
+        examples: [{ name: 'OK', response_status: 200, response_body: '{"ok":true}' }]
+      }
+    ])
+  })
+
+  it('rejects overwrite of a non-existent collection name (400)', () => {
+    const res = call('POST', '/api/v1/teams/1/import?mode=overwrite&confirm_name=Imported%20Collection', postmanCollection)
+    expect(res.status).toBe(400)
+    expect((res.data as { error: string }).error).toContain('not found for overwrite')
+  })
+
+  it('overwrite replaces contents but keeps the collection id, rejecting mismatched confirm_name', () => {
+    const first = call('POST', '/api/v1/teams/1/import', postmanCollection)
+    const colId = (first.data as { collection_id: number }).collection_id
+
+    const mismatch = call(
+      'POST',
+      '/api/v1/teams/1/import?mode=overwrite&confirm_name=wrong-name',
+      postmanCollection
+    )
+    expect(mismatch.status).toBe(400)
+    expect((mismatch.data as { error: string }).error).toContain('mismatch')
+
+    const changed = {
+      ...postmanCollection,
+      item: [{ name: 'Only Request', request: { method: 'GET', url: 'http://api.test/only' } }]
+    }
+    const overwritten = call(
+      'POST',
+      '/api/v1/teams/1/import?mode=overwrite&confirm_name=Imported%20Collection',
+      changed
+    )
+    expect(overwritten.status).toBe(201)
+    expect((overwritten.data as { collection_id: number }).collection_id).toBe(colId)
+
+    const detail = call('GET', `/api/v1/collections/${colId}`)
+    expect(detail.data).toMatchObject({
+      folders: [],
+      requests: [{ name: 'Only Request', url: 'http://api.test/only' }]
+    })
+  })
+})

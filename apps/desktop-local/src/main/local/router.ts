@@ -45,6 +45,7 @@ import {
   deleteComment
 } from './handlers/collaboration'
 import { getSearchSummary } from './handlers/search'
+import { importPostman } from './handlers/import'
 
 // LocalRouter — docs/local-app-design.md §5. Response shape identik dengan
 // IpcResponse dari HTTP (Go backend) supaya useDataStore tidak bisa membedakan.
@@ -115,6 +116,11 @@ const routes: Array<{ method: string; pattern: RegExp; handler: RouteHandler }> 
     method: 'DELETE',
     pattern: /^\/api\/v1\/collections\/(\d+)$/,
     handler: (db, [id]) => deleteCollection(db, id)
+  },
+  {
+    method: 'POST',
+    pattern: /^\/api\/v1\/teams\/(\d+)\/import$/,
+    handler: (db, [teamId], b, q) => importPostman(db, teamId, b, q)
   },
 
   // Folders (folder.go)
