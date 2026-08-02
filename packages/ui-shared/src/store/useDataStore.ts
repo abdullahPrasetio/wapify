@@ -27,6 +27,179 @@ const ajv = new Ajv({ allErrors: true })
 const PROTO_POLLUTION_RE = /(__proto__|constructor|prototype)/i
 const isSafeJsonPath = (path: string): boolean => !PROTO_POLLUTION_RE.test(path)
 
+// ─── Pre/Post-request script sandbox (pm/wap) ──────────────────────────────
+// Postman collections imported from real Postman commonly use a handful of
+// globals/patterns our `pm` shim didn't cover, which made imported scripts
+// throw partway through instead of running: `require('moment'|'lodash')`,
+// `CryptoJS.enc.Base64/Utf8` (typically used to build a Basic-Auth header by
+// hand), the legacy `responseBody` global, `pm.response.code`/`.responseTime`,
+// and chai matchers beyond `.to.equal` (`.eql`, `.be.above/below`,
+// `.have.property`, and the getter-style `.not.null`/`.not.undefined`).
+// This is still a minimal shim, not a full chai/crypto-js port — see
+// docs/releases/2026-08-02-collection-settings-parity.md for the exact scope.
+
+// Only the Base64(Utf8(...)) idiom is supported (no MD5/SHA/HMAC) — that
+// covers the common "hand-roll a Basic Auth header" pattern, not general
+// cryptography.
+const CryptoJSShim = {
+  enc: {
+    Utf8: {
+      parse: (s: string) => String(s),
+      stringify: (s: string) => String(s)
+    },
+    Base64: {
+      stringify: (s: string) => {
+        try {
+          return btoa(unescape(encodeURIComponent(String(s))))
+        } catch {
+          return btoa(String(s))
+        }
+      },
+      parse: (s: string) => {
+        try {
+          return decodeURIComponent(escape(atob(String(s))))
+        } catch {
+          return atob(String(s))
+        }
+      }
+    }
+  }
+}
+
+function wapboltScriptRequire(moduleName: string): unknown {
+  switch (moduleName) {
+    case 'moment':
+      return moment
+    case 'lodash':
+      return _
+    case 'crypto-js':
+      return CryptoJSShim
+    default:
+      throw new Error(
+        `require('${moduleName}') is not supported in Wapbolt scripts. Supported: 'moment', 'lodash', 'crypto-js'.`
+      )
+  }
+}
+
+// Small chai-like matcher set — covers what Postman-exported test scripts
+// actually use, not the full chai API.
+function createScriptExpect(val: unknown): Record<string, unknown> {
+  const notNullCheck = (): void => {
+    if (val === null || val === undefined) throw new Error('Expected value to not be null/undefined')
+  }
+  return {
+    to: {
+      equal: (expected: unknown) => {
+        if (val !== expected) throw new Error(`Expected ${JSON.stringify(expected)} but got ${JSON.stringify(val)}`)
+      },
+      eql: (expected: unknown) => {
+        if (!_.isEqual(val, expected)) {
+          throw new Error(`Expected ${JSON.stringify(expected)} but got ${JSON.stringify(val)}`)
+        }
+      },
+      be: {
+        a: (type: string) => {
+          if (typeof val !== type) throw new Error(`Expected type ${type} but got ${typeof val}`)
+        },
+        above: (n: number) => {
+          if (!(Number(val) > n)) throw new Error(`Expected ${val} to be above ${n}`)
+        },
+        below: (n: number) => {
+          if (!(Number(val) < n)) throw new Error(`Expected ${val} to be below ${n}`)
+        },
+        null: () => {
+          if (val !== null && val !== undefined) throw new Error('Expected value to be null')
+        }
+      },
+      include: (substring: unknown) => {
+        if (typeof val === 'string' && typeof substring === 'string' && !val.includes(substring)) {
+          throw new Error(`Expected "${val}" to include "${substring}"`)
+        } else if (Array.isArray(val) && !val.includes(substring)) {
+          throw new Error(`Expected array to include ${JSON.stringify(substring)}`)
+        }
+      },
+      have: {
+        property: (name: string) => {
+          if (!val || typeof val !== 'object' || !(name in (val as object))) {
+            throw new Error(`Expected object to have property "${name}"`)
+          }
+        }
+      }
+    },
+    not: {
+      to: {
+        be: {
+          null: notNullCheck
+        }
+      },
+      // Chai's getter-style assertions (`pm.expect(x).not.null`, no call) —
+      // real Postman scripts use both the call and getter forms.
+      get null() {
+        notNullCheck()
+        return true
+      },
+      get undefined() {
+        notNullCheck()
+        return true
+      }
+    }
+  }
+}
+
+// response.data may already be parsed JSON (object) — `responseBody` in real
+// Postman is always the raw text, so re-stringify when needed.
+function pmResponseBodyText(data: unknown): string {
+  return typeof data === 'string' ? data : JSON.stringify(data)
+}
+
+function createPmResponseContext(response: {
+  status: number
+  data: unknown
+  headers?: Record<string, unknown>
+  timing?: number
+}): Record<string, unknown> {
+  const bodyText = pmResponseBodyText(response.data)
+  return {
+    status: response.status,
+    code: response.status,
+    data: response.data,
+    responseTime: typeof response.timing === 'number' ? response.timing : 0,
+    headers: {
+      get: (key: string) => {
+        const h = (response.headers || {})[key.toLowerCase()]
+        return Array.isArray(h) ? h[0] : h
+      }
+    },
+    json: () => response.data,
+    text: () => bodyText,
+    to: {
+      have: {
+        status: (code: number) => {
+          if (response.status !== code) throw new Error(`Expected status ${code} but got ${response.status}`)
+        }
+      }
+    }
+  }
+}
+
+// `moment`/`_` are intentionally NOT bound as bare parameters (only reachable
+// via `require('moment'|'lodash')`) — real Postman scripts routinely do
+// `const moment = require('moment')`, and a `const`/`let` can't redeclare an
+// identifier that's already a function parameter (SyntaxError), so binding
+// `moment` as a bare global would break every such script at parse time.
+// `responseBody` is bound as a real parameter (not a `wap.responseBody`
+// property) for the same reason — scripts reference it as a bare identifier.
+async function runPmScript(
+  script: string,
+  wap: Record<string, unknown>,
+  consoleImpl: Console,
+  responseBodyText?: string
+): Promise<void> {
+  const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor
+  const fn = new AsyncFunction('wap', 'pm', 'console', 'require', 'CryptoJS', 'responseBody', script)
+  await fn(wap, wap, consoleImpl, wapboltScriptRequire, CryptoJSShim, responseBodyText)
+}
+
 /**
  * Ensures a request object has the correct data structure for UI.
  */
@@ -2037,17 +2210,9 @@ export const useDataStore = create<DataState>()(
                   console.error(...args)
                   scriptLog('error', ...args)
                 }
-              }
+              } as unknown as Console
 
-              // Context with libraries
-              const context = { wap, pm: wap, moment, _, console: mockConsole }
-
-              // Use AsyncFunction to support await in scripts
-              const AsyncFunction = Object.getPrototypeOf(async function () { }).constructor
-              const runScript = async (script: string): Promise<void> => {
-                const fn = new AsyncFunction('wap', 'pm', 'moment', '_', 'console', script)
-                await fn(context.wap, context.pm, context.moment, context._, context.console)
-              }
+              const runScript = (script: string): Promise<void> => runPmScript(script, wap, mockConsole)
 
               // Collection script runs first, before the request's own — sama urutan Postman.
               if (collection?.pre_request_script) await runScript(collection.pre_request_script)
@@ -2285,52 +2450,8 @@ export const useDataStore = create<DataState>()(
                     vars[key] = strVal
                     updateActiveEnvironmentVariable(key, strVal)
                   },
-                  response: {
-                    status: response.status,
-                    data: response.data,
-                    headers: {
-                      get: (key: string) => {
-                        const h = response.headers[key.toLowerCase()]
-                        return Array.isArray(h) ? h[0] : h
-                      }
-                    },
-                    json: () => response.data,
-                    to: {
-                      have: {
-                        status: (code: number) => {
-                          if (response.status !== code)
-                            throw new Error(`Expected status ${code} but got ${response.status}`)
-                        }
-                      }
-                    }
-                  },
-                  expect: (val: unknown) => ({
-                    to: {
-                      equal: (expected: unknown) => {
-                        if (val !== expected) throw new Error(`Expected ${expected} but got ${val}`)
-                      },
-                      be: {
-                        a: (type: string) => {
-                          if (typeof val !== type)
-                            throw new Error(`Expected type ${type} but got ${typeof val}`)
-                        }
-                      },
-                      include: (substring: string) => {
-                        if (typeof val === 'string' && !val.includes(substring))
-                          throw new Error(`Expected "${val}" to include "${substring}"`)
-                      }
-                    },
-                    not: {
-                      to: {
-                        be: {
-                          null: () => {
-                            if (val === null || val === undefined)
-                              throw new Error(`Expected value to not be null`)
-                          }
-                        }
-                      }
-                    }
-                  }),
+                  response: createPmResponseContext(response),
+                  expect: createScriptExpect,
                   test: (name: string, fn: () => void) => {
                     try {
                       fn()
@@ -2359,13 +2480,11 @@ export const useDataStore = create<DataState>()(
                     console.error(...args)
                     scriptLog('error', ...args)
                   }
-                }
+                } as unknown as Console
 
-                const AsyncFunction = Object.getPrototypeOf(async function () { }).constructor
-                const runScript = async (script: string): Promise<void> => {
-                  const fn = new AsyncFunction('wap', 'pm', 'moment', '_', 'console', script)
-                  await fn(wap, wap, moment, _, mockConsole)
-                }
+                // `responseBody` is a legacy Postman v1 global some scripts still use.
+                const runScript = (script: string): Promise<void> =>
+                  runPmScript(script, wap, mockConsole, pmResponseBodyText(response.data))
 
                 // Request's own test runs first, collection test after — sama urutan Postman.
                 if (workingRequest.post_request_script) await runScript(workingRequest.post_request_script)
@@ -2694,12 +2813,7 @@ export const useDataStore = create<DataState>()(
                     updateActiveEnvironmentVariable(key, strVal)
                   }
                 }
-                const context = { wap, pm: wap, moment, _, console }
-                const AsyncFunction = Object.getPrototypeOf(async function () { }).constructor
-                const runScript = async (script: string): Promise<void> => {
-                  const fn = new AsyncFunction('wap', 'pm', 'moment', '_', 'console', script)
-                  await fn(context.wap, context.pm, context.moment, context._, context.console)
-                }
+                const runScript = (script: string): Promise<void> => runPmScript(script, wap, console)
                 if (collection?.pre_request_script) await runScript(collection.pre_request_script)
                 if (workingRequest.pre_request_script) await runScript(workingRequest.pre_request_script)
               } catch (err) {
@@ -2769,18 +2883,8 @@ export const useDataStore = create<DataState>()(
               if (collection?.post_request_script || workingRequest.post_request_script) {
                 try {
                   const wap = {
-                    response: {
-                      status: response.status,
-                      data: response.data,
-                      json: () => response.data,
-                      to: { have: { status: (code: number) => { if (response.status !== code) throw new Error(`Expected status ${code} but got ${response.status}`) } } }
-                    },
-                    expect: (val: unknown) => ({
-                      to: {
-                        equal: (exp: unknown) => { if (val !== exp) throw new Error(`Expected ${exp} but got ${val}`) },
-                        include: (sub: string) => { if (typeof val === 'string' && !val.includes(sub)) throw new Error(`Expected include "${sub}"`) }
-                      }
-                    }),
+                    response: { ...createPmResponseContext(response), responseTime: response.timing ?? time },
+                    expect: createScriptExpect,
                     test: (name: string, fn: () => void) => {
                       try { fn(); testResults.push({ name, status: 'passed' }) }
                       catch (err: any) { testResults.push({ name, status: 'failed', error: err.message || String(err) }) }
@@ -2813,11 +2917,8 @@ export const useDataStore = create<DataState>()(
                       updateActiveEnvironmentVariable(key, strVal)
                     }
                   }
-                  const AsyncFunction = Object.getPrototypeOf(async function () { }).constructor
-                  const runScript = async (script: string): Promise<void> => {
-                    const fn = new AsyncFunction('wap', 'pm', 'moment', '_', 'console', script)
-                    await fn(wap, wap, moment, _, console)
-                  }
+                  const runScript = (script: string): Promise<void> =>
+                    runPmScript(script, wap, console, pmResponseBodyText(response.data))
                   // Request's own test first, collection test after — sama urutan Postman.
                   if (workingRequest.post_request_script) await runScript(workingRequest.post_request_script)
                   if (collection?.post_request_script) await runScript(collection.post_request_script)

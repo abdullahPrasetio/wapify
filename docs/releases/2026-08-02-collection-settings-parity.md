@@ -72,3 +72,27 @@ Sebelum putaran ini, `ImportPostman`/`processPostmanItems` (Go) cuma paham field
 Diverifikasi dengan file Postman asli milik user (`api-partner-release-new-lite`, 209KB, collection-level `oauth2` + 5 request bearer/basic + 19 variable) lewat skrip Python terpisah untuk memastikan bentuk data nyata cocok dengan asumsi parser, plus test baru di `collection_test.go` (Go, 6/6) dan `router.test.ts` (Local, 36/36).
 
 **Keputusan yang diambil user** (bukan asumsi saya): OAuth 2.0 sengaja **tidak** dibangun penuh di putaran ini (butuh tipe auth baru + form + logic ambil/refresh token, scope terpisah dari sekadar "import") — cukup di-skip + notice, supaya migrasi Postman→Wapbolt untuk 3 dari 4 tipe auth (dan Variables + Scripts) langsung berfungsi, sisanya diberi tahu eksplisit untuk dikonfigurasi manual.
+
+## Fitur lanjutan: sandbox script `pm`/`wap` diperluas untuk kompatibilitas Postman
+
+Setelah script ter-import (putaran di atas), ternyata banyak yang **tidak jalan** — sandbox eksekusi Wapbolt (`useDataStore.ts`, dipakai baik di single-request send maupun Collection Runner) cuma implementasi minimal, dicek langsung terhadap script asli milik user:
+
+- `require('moment')` — `require` tidak ada di sandbox lama → `ReferenceError`.
+- `CryptoJS.enc.Base64.stringify(CryptoJS.enc.Utf8.parse(...))` (pola umum bikin header Basic Auth manual) — `CryptoJS` tidak pernah di-inject → `ReferenceError`.
+- `responseBody` (global gaya Postman v1) — tidak ada di sandbox lama → `ReferenceError`.
+- `pm.response.code`, `pm.response.responseTime` — sandbox lama cuma punya `.status`, bukan alias-alias ini → `undefined`.
+- Chai matcher: `.to.eql`, `.to.be.above/below`, `.to.have.property`, dan bentuk getter `.not.null` (tanpa dipanggil sebagai fungsi) — sandbox lama cuma punya `.to.equal`/`.be.a`/`.include`/`.not.to.be.null()`.
+
+Ditambahkan di `useDataStore.ts` (dipakai di 4 tempat: pre/post-request script baik untuk single-request send maupun Collection Runner):
+- `CryptoJSShim` — **bukan** port penuh crypto-js, cuma `enc.Utf8`/`enc.Base64` (encode/decode base64 dari string) yang menutupi pola "hand-roll Basic Auth header" yang umum di script Postman. Tidak ada MD5/SHA/HMAC.
+- `wapboltScriptRequire('moment'|'lodash'|'crypto-js')` — shim `require()` minimal untuk 3 modul itu saja; modul lain melempar error jelas ("not supported"), bukan diam-diam gagal.
+- `createScriptExpect` — chai-like matcher yang lebih lengkap (`.eql`, `.be.above/below`, `.have.property`, `.not.null`/`.not.undefined` getter-style).
+- `pm.response.code` (alias `.status`), `pm.response.responseTime`, `pm.response.text()`, dan `responseBody` (global, isi teks response — di-`JSON.stringify` kalau `response.data` sudah ter-parse jadi object).
+
+**Bug yang ketemu & diperbaiki selagi verifikasi** (bukan cuma nambah fitur — dua ini bikin fitur di atas nyaris tidak berguna kalau tidak ketangkap):
+1. `responseBody` sempat ditaruh sebagai properti `wap.responseBody`, padahal script memakainya sebagai identifier bebas (`responseBody`, bukan `pm.responseBody`) — jadi tidak pernah benar-benar masuk scope. Diperbaiki dengan mem-bind `responseBody` sebagai parameter asli ke `AsyncFunction`, bukan properti objek.
+2. `moment`/`_` (lodash) awalnya di-bind sebagai bare parameter ke `AsyncFunction` — ini bikin **setiap** script yang menulis `const moment = require('moment')` (pola standar Postman) langsung gagal dengan `SyntaxError: Identifier 'moment' has already been declared`, karena `const`/`let` tidak boleh mendeklarasikan ulang nama yang sudah jadi parameter fungsi. Diperbaiki dengan **tidak** lagi mem-bind `moment`/`_` sebagai bare global — keduanya cuma bisa diakses lewat `require('moment')`/`require('lodash')`, sama seperti Postman asli (yang juga tidak expose `moment` sebagai bare global).
+
+Diverifikasi lewat skrip Node standalone (re-implementasi helper, dijalankan di luar Electron/React) terhadap 4 script asli dari file user (`oauth` pre+test, `Fraud Prevention` pre, `esign` test) — semua jalan tanpa error dan `collectionVariables`/`pm.test` hasilnya benar. Skrip verifikasi dihapus setelah lulus (bukan bagian dari test suite permanen — lihat catatan di bawah).
+
+**Belum ada test permanen untuk sandbox ini** — `packages/ui-shared` tidak punya infrastruktur vitest sama sekali (beda dari `apps/desktop-local` yang punya 56 test). Verifikasi di atas hanya sekali jalan manual, bukan regression-proof. Kalau ada perubahan lanjutan ke `runPmScript`/`createScriptExpect`/dst, perlu dites ulang manual atau (lebih baik) set up vitest untuk `packages/ui-shared` dulu.
