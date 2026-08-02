@@ -118,3 +118,13 @@ User laporan field "Token" (Bearer Auth) masih plain text tanpa highlight — di
 Ditambahkan dua prop baru ke `VariableOverlayInput`: `masked?: boolean` dan `revealed?: boolean`. Saat `masked && !revealed`, karakter literal di luar `{{...}}` diganti bullet (`•`) sepanjang teks aslinya — tapi span `{{variable_name}}` tetap ditampilkan apa adanya dengan warna highlight normal (nama variable bukan rahasia; nilai hasil resolve-nya yang rahasia). `revealed` dikontrol oleh tombol mata (Eye/EyeOff) yang sudah ada di tiap field, jadi UX show/hide-nya identik seperti sebelumnya.
 
 Dipasang di 4 tempat: Bearer Token & Basic Auth Password, baik di `MainArea.tsx` (request-level) maupun `CollectionTabContent.tsx` (collection-level) — menggantikan `<input type="password">` polos yang sebelumnya dipakai di situ.
+
+## Bugfix: `pm.collectionVariables.set()` dua kali berturut-turut kehilangan salah satu nilai (race condition)
+
+User laporan: script test `oauth` (`pm.collectionVariables.set("access_token", ...)` lalu `pm.collectionVariables.set("refresh_token", ...)` di baris berikutnya, tanpa `await`) masuk ke block-nya tanpa error, tapi variable tetap tidak ke-set.
+
+Penyebab: `updateCollectionVariable` membaca `collection.variables` dari Zustand state, gabung key baru, lalu `PUT` seluruh objek ke server/LocalRouter — tapi ini **tidak di-serialize**. Dua panggilan `set()` berturut-turut (seperti di script user) sama-sama memicu `updateCollectionVariable` yang berjalan konkuren; keduanya membaca snapshot `collection.variables` yang **sama-sama basi** (belum ada yang selesai nulis), lalu PUT terpisah — siapa pun yang responsnya datang belakangan menimpa state dengan objek `variables` yang cuma punya key dari panggilannya sendiri, sehingga key dari panggilan lain hilang. Diverifikasi lewat simulasi Node standalone (5x run, random network latency): tanpa perbaikan, salah satu dari `access_token`/`refresh_token` konsisten hilang di setiap run; dengan perbaikan, keduanya selalu tersimpan.
+
+Diperbaiki dengan antrean (`queueByKey`) per `collectionId`/`environmentId` — panggilan `set()` berikutnya untuk collection/environment yang sama menunggu round-trip (baca-gabung-PUT-simpan state) panggilan sebelumnya selesai dulu, baru baca snapshot terbaru. Diterapkan ke `updateCollectionVariable` (bug utama) dan `updateActiveEnvironmentVariable` (potensi race yang sama, diperbaiki sekalian meski mitigasinya sudah sedikit lebih baik karena update state lokal duluan sebelum network call).
+
+Sekalian ditambahkan `console.warn` di `pm.collectionVariables.set` kalau `collection` gagal di-resolve untuk tab request yang aktif (sebelumnya diam-diam no-op) — supaya kelas bug ini kelihatan lewat DevTools Console, bukan cuma "kok gak ke-set" tanpa jejak.

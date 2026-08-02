@@ -626,6 +626,23 @@ const injectAuth = (
   return newHeaders
 }
 
+// updateCollectionVariable/updateActiveEnvironmentVariable each read-merge-write
+// the full variables map. Scripts often call these more than once back-to-back
+// (e.g. set access_token then refresh_token) without awaiting — two concurrent
+// calls for the same collection/environment would both read the same stale
+// snapshot and race to PUT it back, silently dropping whichever call's key
+// lost the race. Queue calls per collection/environment id so each one only
+// starts after the previous one's full round-trip has landed.
+const collectionVariableQueues = new Map<number, Promise<unknown>>()
+const environmentVariableQueues = new Map<number, Promise<unknown>>()
+
+function queueByKey<K>(queues: Map<K, Promise<unknown>>, key: K, task: () => Promise<void>): Promise<void> {
+  const prior = queues.get(key) ?? Promise.resolve()
+  const next = prior.then(task, task)
+  queues.set(key, next)
+  return next
+}
+
 export const useDataStore = create<DataState>()(
   subscribeWithSelector(
     persist(
@@ -1340,33 +1357,34 @@ export const useDataStore = create<DataState>()(
           }
         },
 
-        updateCollectionVariable: async (collectionId, key, value) => {
-          const collection = get().collections.find((c) => c.id === collectionId)
-          if (!collection) return
-          const variables = { ...(collection.variables || {}), [key]: value }
-          // Update is "always overwrite" for settings fields (mirrors the settings
-          // modal submitting full state) — send the collection's current auth_config
-          // and scripts back unchanged so this variable-only write doesn't wipe them.
-          try {
-            const response = await apiClient.put(`/api/v1/collections/${collectionId}`, {
-              name: collection.name,
-              description: collection.description,
-              confluence_page_id: collection.confluence_page_id || '',
-              auth_config: collection.auth_config || { type: 'No Auth' },
-              pre_request_script: collection.pre_request_script || '',
-              post_request_script: collection.post_request_script || '',
-              variables
-            })
-            if (response.status === 200) {
-              const updated = response.data as Collection
-              set((state) => ({
-                collections: state.collections.map(c => c.id === collectionId ? updated : c)
-              }))
+        updateCollectionVariable: (collectionId, key, value) =>
+          queueByKey(collectionVariableQueues, collectionId, async () => {
+            const collection = get().collections.find((c) => c.id === collectionId)
+            if (!collection) return
+            const variables = { ...(collection.variables || {}), [key]: value }
+            // Update is "always overwrite" for settings fields (mirrors the settings
+            // modal submitting full state) — send the collection's current auth_config
+            // and scripts back unchanged so this variable-only write doesn't wipe them.
+            try {
+              const response = await apiClient.put(`/api/v1/collections/${collectionId}`, {
+                name: collection.name,
+                description: collection.description,
+                confluence_page_id: collection.confluence_page_id || '',
+                auth_config: collection.auth_config || { type: 'No Auth' },
+                pre_request_script: collection.pre_request_script || '',
+                post_request_script: collection.post_request_script || '',
+                variables
+              })
+              if (response.status === 200) {
+                const updated = response.data as Collection
+                set((state) => ({
+                  collections: state.collections.map(c => c.id === collectionId ? updated : c)
+                }))
+              }
+            } catch (err) {
+              console.error(`[Wapbolt] Failed to persist collection variable "${key}":`, err)
             }
-          } catch {
-            /* silent — mirrors updateActiveEnvironmentVariable's best-effort persistence */
-          }
-        },
+          }),
 
         importCollection: async (jsonContent: string, mode: 'new' | 'overwrite' = 'new', confirmName?: string) => {
           const { activeTeamId } = get()
@@ -1815,22 +1833,26 @@ export const useDataStore = create<DataState>()(
           }
         },
 
-        updateActiveEnvironmentVariable: async (key: string, value: string) => {
-          const { activeEnvironmentId, environments, updateEnvironment } = get()
-          const activeEnv = environments.find((e) => e.id === activeEnvironmentId)
-          if (!activeEnv) return
+        updateActiveEnvironmentVariable: (key: string, value: string) => {
+          const { activeEnvironmentId } = get()
+          if (activeEnvironmentId === null) return Promise.resolve()
+          return queueByKey(environmentVariableQueues, activeEnvironmentId, async () => {
+            const { environments, updateEnvironment } = get()
+            const activeEnv = environments.find((e) => e.id === activeEnvironmentId)
+            if (!activeEnv) return
 
-          const newVars = { ...activeEnv.variables, [key]: value }
+            const newVars = { ...activeEnv.variables, [key]: value }
 
-          // Update state lokal secara instan agar panggilan berikutnya mendapat data terbaru
-          set((state) => ({
-            environments: state.environments.map((e) =>
-              e.id === activeEnvironmentId ? { ...e, variables: newVars } : e
-            )
-          }))
+            // Update state lokal secara instan agar panggilan berikutnya mendapat data terbaru
+            set((state) => ({
+              environments: state.environments.map((e) =>
+                e.id === activeEnvironmentId ? { ...e, variables: newVars } : e
+              )
+            }))
 
-          // Kirim ke DB di background
-          await updateEnvironment(activeEnv.id, activeEnv.name, newVars)
+            // Kirim ke DB di background
+            await updateEnvironment(activeEnv.id, activeEnv.name, newVars)
+          })
         },
 
         deleteCollection: async (id: number) => {
@@ -2167,7 +2189,11 @@ export const useDataStore = create<DataState>()(
                     const strVal = String(val)
                     collectionVars[key] = strVal
                     vars[key] = strVal
-                    if (collection) updateCollectionVariable(collection.id, key, strVal)
+                    if (collection) {
+                      updateCollectionVariable(collection.id, key, strVal)
+                    } else {
+                      console.warn(`[Wapbolt] pm.collectionVariables.set("${key}", ...) could not persist — no parent collection resolved for this request tab. The value only applies to this run.`)
+                    }
                   },
                   get: (key: string) => collectionVars[key]
                 },
@@ -2434,7 +2460,11 @@ export const useDataStore = create<DataState>()(
                       const strVal = String(val)
                       collectionVars[key] = strVal
                       vars[key] = strVal
-                      if (collection) updateCollectionVariable(collection.id, key, strVal)
+                      if (collection) {
+                        updateCollectionVariable(collection.id, key, strVal)
+                      } else {
+                        console.warn(`[Wapbolt] pm.collectionVariables.set("${key}", ...) could not persist — no parent collection resolved for this request tab. The value only applies to this run.`)
+                      }
                     },
                     get: (key: string) => collectionVars[key]
                   },
@@ -2802,7 +2832,11 @@ export const useDataStore = create<DataState>()(
                       const strVal = String(val)
                       collectionVars[key] = strVal
                       vars[key] = strVal
-                      if (collection) updateCollectionVariable(collection.id, key, strVal)
+                      if (collection) {
+                        updateCollectionVariable(collection.id, key, strVal)
+                      } else {
+                        console.warn(`[Wapbolt] pm.collectionVariables.set("${key}", ...) could not persist — no parent collection resolved for this request tab. The value only applies to this run.`)
+                      }
                     },
                     get: (key: string) => collectionVars[key]
                   },
@@ -2902,7 +2936,11 @@ export const useDataStore = create<DataState>()(
                         const strVal = String(val)
                         collectionVars[key] = strVal
                         vars[key] = strVal
-                        if (collection) updateCollectionVariable(collection.id, key, strVal)
+                        if (collection) {
+                          updateCollectionVariable(collection.id, key, strVal)
+                        } else {
+                          console.warn(`[Wapbolt] pm.collectionVariables.set("${key}", ...) could not persist — no parent collection resolved for this request tab. The value only applies to this run.`)
+                        }
                       },
                       get: (key: string) => collectionVars[key]
                     },
