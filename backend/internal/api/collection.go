@@ -46,8 +46,9 @@ type PostmanReq struct {
 	Method string      `json:"method"`
 	URL    interface{} `json:"url"` // can be string or object
 	Header []struct {
-		Key   string `json:"key"`
-		Value string `json:"value"`
+		Key      string `json:"key"`
+		Value    string `json:"value"`
+		Disabled bool   `json:"disabled"`
 	} `json:"header"`
 	Body             *PostmanBody           `json:"body"`
 	Description      string                 `json:"description,omitempty"`
@@ -445,8 +446,9 @@ func ImportOpenAPI(c *fiber.Ctx) error {
 
 			// Build headers from parameters where in=header
 			headers := []struct {
-				Key   string `json:"key"`
-				Value string `json:"value"`
+				Key      string `json:"key"`
+				Value    string `json:"value"`
+				Disabled bool   `json:"disabled"`
 			}{}
 			for _, p := range op.Parameters {
 				if p.In == "header" {
@@ -455,8 +457,9 @@ func ImportOpenAPI(c *fiber.Ctx) error {
 						val = p.Schema.Example
 					}
 					headers = append(headers, struct {
-						Key   string `json:"key"`
-						Value string `json:"value"`
+						Key      string `json:"key"`
+						Value    string `json:"value"`
+						Disabled bool   `json:"disabled"`
 					}{Key: p.Name, Value: val})
 				}
 			}
@@ -742,6 +745,9 @@ func processPostmanItems(tx *gorm.DB, items []PostmanItem, collectionID uint, fo
 			// It's a request
 			headers := repository.JSONB{}
 			for _, h := range item.Request.Header {
+				if h.Disabled {
+					continue
+				}
 				headers[h.Key] = h.Value
 			}
 

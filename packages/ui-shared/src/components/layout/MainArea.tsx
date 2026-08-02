@@ -251,9 +251,10 @@ interface RequestFormProps {
   url: string
   isLocked: boolean
   onUpdate: (update: { method?: string; url?: string }) => void
+  collectionId?: number
 }
 
-const RequestForm = ({ method, url, isLocked, onUpdate }: RequestFormProps): React.JSX.Element => {
+const RequestForm = ({ method, url, isLocked, onUpdate, collectionId }: RequestFormProps): React.JSX.Element => {
   return (
     <div className="flex-1 flex relative items-center">
       <div className="relative flex items-center shrink-0">
@@ -280,6 +281,7 @@ const RequestForm = ({ method, url, isLocked, onUpdate }: RequestFormProps): Rea
           multiline={true}
           placeholder="https://api.example.com/v1/resource"
           className="bg-transparent border-none px-4 py-2.5"
+          collectionId={collectionId}
         />
       </div>
     </div>
@@ -563,6 +565,7 @@ const EditorArea = ({
                 disabled={isLocked}
                 allowFileType={workingRequest.body_type === 'form-data'}
                 onChange={(data) => onUpdate({ body: data })}
+                collectionId={parentCollection?.id}
               />
             </div>
           )}
@@ -762,6 +765,7 @@ const EditorArea = ({
               initialData={workingRequest.headers || {}}
               disabled={isLocked}
               onChange={(data): void => onUpdate({ headers: data as Record<string, string> })}
+              collectionId={parentCollection?.id}
             />
           </div>
         )}
@@ -1104,6 +1108,7 @@ const EditorArea = ({
                         disabled={isLocked}
                         onChange={(e): void => handleAuthChange({ username: e.target.value })}
                         placeholder="Username"
+                        collectionId={parentCollection?.id}
                       />
                     </div>
                   </div>
@@ -1144,6 +1149,7 @@ const EditorArea = ({
                         disabled={isLocked}
                         onChange={(e): void => handleAuthChange({ key: e.target.value })}
                         placeholder="X-API-Key"
+                        collectionId={parentCollection?.id}
                       />
                     </div>
                   </div>
@@ -1155,6 +1161,7 @@ const EditorArea = ({
                         value={auth.value || ''}
                         disabled={isLocked}
                         onChange={(e): void => handleAuthChange({ value: e.target.value })}
+                        collectionId={parentCollection?.id}
                         placeholder="Value"
                       />
                     </div>
@@ -1982,6 +1989,7 @@ export const MainArea = (): React.JSX.Element => {
                         setWorkingRequest(update)
                       }
                     }}
+                    collectionId={parentCollection?.id}
                   />
                 )}
                 {(workingRequest.request_type === 'ws' || workingRequest.request_type === 'sse') && (

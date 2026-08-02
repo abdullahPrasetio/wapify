@@ -6,6 +6,11 @@ import { toast } from 'sonner'
 interface VariableOverlayInputProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
   onUpdateValue?: (value: string) => void
   multiline?: boolean
+  // When set, the highlight/autocomplete also resolves against this
+  // collection's variables (not just the active Environment) — matches the
+  // precedence `replaceVariables` already uses at execution time: Environment
+  // wins on key conflict.
+  collectionId?: number
 }
 
 export const VariableOverlayInput: React.FC<VariableOverlayInputProps> = ({
@@ -14,6 +19,7 @@ export const VariableOverlayInput: React.FC<VariableOverlayInputProps> = ({
   className,
   onUpdateValue,
   multiline = true,
+  collectionId,
   ...props
 }) => {
   const [isOpen, setIsOpen] = useState(false)
@@ -30,9 +36,13 @@ export const VariableOverlayInput: React.FC<VariableOverlayInputProps> = ({
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const { environments, activeEnvironmentId, updateEnvironment } = useDataStore()
+  const { environments, activeEnvironmentId, updateEnvironment, collections } = useDataStore()
   const activeEnv = environments.find((e) => e.id === activeEnvironmentId) ?? null
   const envVars = activeEnv?.variables ?? {}
+  const collectionVars = collections.find((c) => c.id === collectionId)?.variables ?? {}
+  // Read-only merge for highlight/autocomplete — same precedence as
+  // `replaceVariables` at execution time (Environment overrides Collection).
+  const allVars = { ...collectionVars, ...envVars }
 
   const text = String(value || '')
 
@@ -78,7 +88,7 @@ export const VariableOverlayInput: React.FC<VariableOverlayInputProps> = ({
   }
 
   const getFilteredVars = (prefix: string) =>
-    Object.keys(envVars).filter((k) =>
+    Object.keys(allVars).filter((k) =>
       k.toLowerCase().startsWith(prefix.toLowerCase())
     )
 
@@ -151,7 +161,7 @@ export const VariableOverlayInput: React.FC<VariableOverlayInputProps> = ({
     e.preventDefault()
     e.stopPropagation()
     setActiveVar(varName)
-    const existingValue = envVars[varName] || envVars[varName.toLowerCase()] || ''
+    const existingValue = envVars[varName] || envVars[varName.toLowerCase()] || allVars[varName] || allVars[varName.toLowerCase()] || ''
     setNewValue(String(existingValue))
     setIsOpen(true)
   }
@@ -178,7 +188,7 @@ export const VariableOverlayInput: React.FC<VariableOverlayInputProps> = ({
       res.push(<span key={`t-${idx}`}>{plainText}</span>)
 
       const varName = match[1].trim()
-      const isSet = envVars[varName] !== undefined || envVars[varName.toLowerCase()] !== undefined
+      const isSet = allVars[varName] !== undefined || allVars[varName.toLowerCase()] !== undefined
 
       res.push(
         <span
@@ -293,7 +303,7 @@ export const VariableOverlayInput: React.FC<VariableOverlayInputProps> = ({
       {autocomplete && filteredVars.length > 0 && (
         <div className="absolute left-0 top-full mt-1 z-1001 w-56 rounded-lg bg-surface border border-border shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-100">
           <div className="px-2 py-1 border-b border-border text-[9px] text-muted uppercase tracking-widest font-bold">
-            Environment Variables
+            {collectionId !== undefined ? 'Environment + Collection Variables' : 'Environment Variables'}
           </div>
           {filteredVars.slice(0, 8).map((varName, i) => (
             <button
@@ -310,7 +320,7 @@ export const VariableOverlayInput: React.FC<VariableOverlayInputProps> = ({
             >
               <span className="font-semibold">{`{{${varName}}}`}</span>
               <span className="text-[10px] text-muted truncate max-w-20">
-                {String(envVars[varName] || '').slice(0, 20) || '—'}
+                {String(allVars[varName] || '').slice(0, 20) || '—'}
               </span>
             </button>
           ))}
@@ -330,7 +340,7 @@ export const VariableOverlayInput: React.FC<VariableOverlayInputProps> = ({
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded ${
-                envVars[activeVar] ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'
+                allVars[activeVar] !== undefined ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'
               }`}>
                 {`{{${activeVar}}}`}
               </span>
@@ -342,7 +352,9 @@ export const VariableOverlayInput: React.FC<VariableOverlayInputProps> = ({
 
           {!activeEnv ? (
             <p className="text-[10px] text-amber-400 bg-amber-400/5 p-2 rounded border border-amber-400/20">
-              No active environment. Please select or create an environment first.
+              {collectionVars[activeVar] !== undefined
+                ? `Currently resolved from the collection ("${collectionVars[activeVar]}"). Select or create an environment to override it here.`
+                : 'No active environment. Please select or create an environment first.'}
             </p>
           ) : (
             <div className="space-y-3">
@@ -356,7 +368,10 @@ export const VariableOverlayInput: React.FC<VariableOverlayInputProps> = ({
                   value={newValue}
                   onChange={(e) => setNewValue(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleSaveVar()}
-                  placeholder={envVars[activeVar] || "Enter value..."}
+                  placeholder={
+                    envVars[activeVar] ||
+                    (collectionVars[activeVar] ? `(collection) ${collectionVars[activeVar]}` : 'Enter value...')
+                  }
                   className="w-full bg-background border border-border rounded-lg px-3 py-2 text-xs text-text focus:outline-none focus:border-primary/40"
                 />
               </div>

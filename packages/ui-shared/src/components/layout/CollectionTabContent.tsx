@@ -245,6 +245,7 @@ export const CollectionTabContent: React.FC<CollectionTabContentProps> = ({ tab 
                         value={auth.username || ''}
                         onChange={(e) => handleAuthChange({ username: e.target.value })}
                         placeholder="Username"
+                        collectionId={tab.collectionId}
                       />
                     </div>
                   </div>
@@ -281,6 +282,7 @@ export const CollectionTabContent: React.FC<CollectionTabContentProps> = ({ tab 
                           value={auth.key || ''}
                           onChange={(e) => handleAuthChange({ key: e.target.value })}
                           placeholder="X-API-Key"
+                          collectionId={tab.collectionId}
                         />
                       </div>
                     </div>
@@ -292,6 +294,7 @@ export const CollectionTabContent: React.FC<CollectionTabContentProps> = ({ tab 
                           value={auth.value || ''}
                           onChange={(e) => handleAuthChange({ value: e.target.value })}
                           placeholder="Value"
+                          collectionId={tab.collectionId}
                         />
                       </div>
                     </div>
@@ -372,6 +375,7 @@ export const CollectionTabContent: React.FC<CollectionTabContentProps> = ({ tab 
           <KeyValueEditor
             initialData={data.variables}
             onChange={(vars) => update({ variables: vars as Record<string, string> })}
+            collectionId={tab.collectionId}
           />
         </div>
       </div>

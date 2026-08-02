@@ -18,6 +18,7 @@ interface KeyValueEditorProps {
   secretKeys?: Set<string>
   onSecretToggle?: (key: string) => void
   allowFileType?: boolean
+  collectionId?: number
 }
 
 const formatFileSize = (bytes: number): string => {
@@ -56,7 +57,8 @@ export const KeyValueEditor = ({
   onChange,
   secretKeys,
   onSecretToggle,
-  allowFileType = false
+  allowFileType = false,
+  collectionId
 }: KeyValueEditorProps): React.JSX.Element => {
   const [rows, setRows] = useState<KeyValueRow[]>(() => mapDataToRows(initialData))
   const isInternalChange = useRef(false)
@@ -201,6 +203,7 @@ export const KeyValueEditor = ({
                     onChange={(e) => handleRowChange(row.id, 'key', e.target.value)}
                     placeholder="Key"
                     className={`bg-transparent border-none px-4 py-2.5 ${isLastEmpty ? 'opacity-50' : ''}`}
+                    collectionId={collectionId}
                   />
                 </td>
 
@@ -249,6 +252,7 @@ export const KeyValueEditor = ({
                       onChange={(e) => handleRowChange(row.id, 'value', e.target.value)}
                       placeholder="Value"
                       className={`bg-transparent border-none px-4 py-2.5 ${isLastEmpty ? 'opacity-50' : ''}`}
+                      collectionId={collectionId}
                     />
                   )}
                 </td>

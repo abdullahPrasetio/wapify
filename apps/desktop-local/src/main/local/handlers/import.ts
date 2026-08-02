@@ -10,6 +10,7 @@ type Res = { status: number; data: unknown }
 interface PostmanHeader {
   key: string
   value: string
+  disabled?: boolean
 }
 
 interface PostmanFormParam {
@@ -205,7 +206,10 @@ function processPostmanItems(
 
     const req = item.request
     const headers: Record<string, string> = {}
-    for (const h of req.header ?? []) headers[h.key] = h.value
+    for (const h of req.header ?? []) {
+      if (h.disabled) continue
+      headers[h.key] = h.value
+    }
 
     const [bodyVal, bodyType] = resolvePostmanBody(req.body)
     const urlStr = resolveUrl(req.url)

@@ -551,7 +551,7 @@ describe('import postman', () => {
             request: {
               method: 'POST',
               url: { raw: 'http://api.test/login' },
-              header: [{ key: 'X-Test', value: '1' }],
+              header: [{ key: 'X-Test', value: '1' }, { key: 'Authorization', value: 'should-be-skipped', disabled: true }],
               body: { mode: 'raw', raw: '{"user":"a"}' },
               auth_config: { type: 'Bearer', token: 'xyz' }
             },
@@ -590,12 +590,14 @@ describe('import postman', () => {
         name: 'Login',
         method: 'POST',
         url: 'http://api.test/login',
-        headers: { 'X-Test': '1' },
         body: { user: 'a' },
         auth_config: { type: 'Bearer', token: 'xyz' },
         examples: [{ name: 'OK', response_status: 200, response_body: '{"ok":true}' }]
       }
     ])
+    // A `disabled: true` Postman header must not be imported as an active header.
+    const loginHeaders = (nested.data as Array<{ headers: Record<string, string> }>)[0].headers
+    expect(loginHeaders).toEqual({ 'X-Test': '1' })
   })
 
   it('rejects overwrite of a non-existent collection name (400)', () => {
