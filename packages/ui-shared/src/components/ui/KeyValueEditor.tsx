@@ -1,4 +1,4 @@
-import { Trash2, CheckSquare, Square, Eye, EyeOff, Paperclip, Type } from 'lucide-react'
+import { Trash2, CheckSquare, Square, Eye, EyeOff, Paperclip, Type, Lock } from 'lucide-react'
 import { useState, useEffect, useRef } from 'react'
 import { VariableOverlayInput } from './VariableOverlayInput'
 
@@ -11,6 +11,12 @@ interface KeyValueRow {
   type?: 'text' | 'file'
 }
 
+interface AutoRow {
+  key: string
+  value: string
+  note?: string
+}
+
 interface KeyValueEditorProps {
   initialData?: Record<string, string | number | boolean> | any[]
   disabled?: boolean
@@ -19,6 +25,9 @@ interface KeyValueEditorProps {
   onSecretToggle?: (key: string) => void
   allowFileType?: boolean
   collectionId?: number
+  // Read-only rows shown above the editable ones — greyed out, not part of
+  // the saved data (Postman's "this header is auto-generated" convention).
+  autoRows?: AutoRow[]
 }
 
 const formatFileSize = (bytes: number): string => {
@@ -58,7 +67,8 @@ export const KeyValueEditor = ({
   secretKeys,
   onSecretToggle,
   allowFileType = false,
-  collectionId
+  collectionId,
+  autoRows = []
 }: KeyValueEditorProps): React.JSX.Element => {
   const [rows, setRows] = useState<KeyValueRow[]>(() => mapDataToRows(initialData))
   const isInternalChange = useRef(false)
@@ -174,6 +184,18 @@ export const KeyValueEditor = ({
           </tr>
         </thead>
         <tbody>
+          {autoRows.map((row) => (
+            <tr key={`auto-${row.key}`} className="border-b border-border/50 bg-surface/20 text-muted italic">
+              <td className="px-3 py-1.5 border-r border-border text-center">
+                <Lock size={12} className="inline-block opacity-60" />
+              </td>
+              <td className="px-4 py-1.5 border-r border-border truncate">{row.key}</td>
+              {allowFileType && <td className="border-r border-border" />}
+              <td className="px-4 py-1.5 border-r border-border truncate">{row.value}</td>
+              <td className="px-4 py-1.5 text-[10px] text-center">{row.note ?? 'auto-generated'}</td>
+              <td className="px-3 py-1.5" />
+            </tr>
+          ))}
           {rows.map((row, index) => {
             const isLastEmpty = index === rows.length - 1 && !row.key && !row.value
             const isSecret = secretKeys && row.key ? secretKeys.has(row.key) : false

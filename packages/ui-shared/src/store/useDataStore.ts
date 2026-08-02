@@ -659,6 +659,11 @@ const withDefaultContentType = (
   return { ...headers, 'Content-Type': defaultType }
 }
 
+// Exposed so the Headers tab UI can show the same auto Content-Type as a
+// greyed "hidden header" row (Postman-style), not just apply it at send time.
+export const getDefaultContentType = (bodyType: string | undefined): string | undefined =>
+  bodyType ? DEFAULT_CONTENT_TYPE_BY_BODY_TYPE[bodyType] : undefined
+
 // updateCollectionVariable/updateActiveEnvironmentVariable each read-merge-write
 // the full variables map. Scripts often call these more than once back-to-back
 // (e.g. set access_token then refresh_token) without awaiting — two concurrent

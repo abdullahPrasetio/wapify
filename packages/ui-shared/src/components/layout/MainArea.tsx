@@ -1,5 +1,5 @@
 import { useAppStore } from '../../store/useAppStore'
-import { useDataStore, AuthConfig, WorkingRequest } from '../../store/useDataStore'
+import { useDataStore, AuthConfig, WorkingRequest, getDefaultContentType } from '../../store/useDataStore'
 import { apiClient } from '../../api/client'
 import { useAuthStore } from '../../store/useAuthStore'
 import { KeyValueEditor } from '../ui/KeyValueEditor'
@@ -356,6 +356,17 @@ const EditorArea = ({
   const parentCollection = typeof requestId === 'number'
     ? allCollections.find((c) => c.id === allRequests.find((r) => r.id === requestId)?.collection_id)
     : undefined
+
+  // Postman-style "hidden header" row: shown (greyed, read-only) in the
+  // Headers tab whenever a default would actually apply at send time —
+  // never when the request already has its own explicit Content-Type.
+  const hasExplicitContentType = Object.keys(workingRequest.headers || {}).some(
+    (k) => k.toLowerCase() === 'content-type'
+  )
+  const autoContentType = !hasExplicitContentType ? getDefaultContentType(workingRequest.body_type) : undefined
+  const autoHeaderRows = autoContentType
+    ? [{ key: 'Content-Type', value: autoContentType, note: 'auto-generated from Body type' }]
+    : []
 
   // --- Header Bulk Logic ---
   const headerBulkValue = useMemo(() => {
@@ -766,6 +777,7 @@ const EditorArea = ({
               disabled={isLocked}
               onChange={(data): void => onUpdate({ headers: data as Record<string, string> })}
               collectionId={parentCollection?.id}
+              autoRows={autoHeaderRows}
             />
           </div>
         )}

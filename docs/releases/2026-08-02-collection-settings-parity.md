@@ -145,3 +145,13 @@ Wapbolt sebelumnya cuma auto-set `Content-Type` saat body type diganti lewat UI 
 Ditambahkan `withDefaultContentType(headers, bodyType)` di `useDataStore.ts` — dipanggil tepat sebelum request benar-benar dikirim (baik di single-request send maupun Collection Runner), untuk `raw-json`/`raw-xml`/`raw-html`/`raw-text`/`graphql`/`x-www-form-urlencoded`. Aturan: **cuma isi kalau belum ada header Content-Type sama sekali** (case-insensitive check) — header eksplisit (hasil import atau ditulis manual user) selalu menang, tidak pernah ditimpa. `form-data` sengaja dikecualikan karena butuh boundary per-request yang di-generate executor, bukan string tetap. Ini juga menggantikan special-case `isGraphQL`-only yang sudah ada sebelumnya (sekarang jadi kasus umum dari helper yang sama).
 
 Diverifikasi lewat skrip Node standalone (5 skenario: inject saat kosong, tidak menimpa yang sudah eksplisit, case-insensitive existing header tidak dobel, `form-data` sengaja dilewati, body type `none` tidak disentuh) — semua lulus. Juga `npm run typecheck` bersih di kedua app dan 56/56 test Local masih lulus (tidak ada test vitest khusus untuk helper ini — sama seperti sandbox script, `packages/ui-shared` belum ada infrastruktur test).
+
+## Fitur lanjutan: auto Content-Type ditampilkan sebagai "hidden header" di tab Headers (persis Postman)
+
+User minta paritas visual penuh dengan Postman: auto Content-Type di atas tidak cuma berlaku saat kirim, tapi juga **muncul di tab Headers** sebagai baris abu-abu/read-only (Postman menampilkan header auto-generate seperti ini, bukan hanya menyisipkannya diam-diam saat request benar-benar berangkat).
+
+- `getDefaultContentType(bodyType)` diekspor dari `useDataStore.ts` (re-export tipis dari `DEFAULT_CONTENT_TYPE_BY_BODY_TYPE`/`withDefaultContentType` yang sudah ada) supaya UI pakai sumber data yang sama persis dengan yang dipakai saat eksekusi — tidak ada logic kedua yang bisa drift.
+- `KeyValueEditor` (dipakai untuk tab Headers) dapat prop baru `autoRows?: { key, value, note }[]` — baris tambahan yang dirender di `<tbody>` sebelum baris yang bisa diedit, gaya abu-abu/italic dengan ikon gembok (`Lock`) menggantikan checkbox, tanpa tombol hapus (memang bukan data yang tersimpan).
+- Di `MainArea.tsx`'s tab Headers: dihitung `hasExplicitContentType` (case-insensitive, dari `workingRequest.headers`) — kalau request **sudah** punya Content-Type sendiri, baris auto ini tidak muncul sama sekali (menghindari duplikasi/kebingungan "yang mana yang beneran dikirim").
+
+Cuma dipasang di Headers tab request (`MainArea.tsx`) — collection tidak punya tab Headers sendiri (cuma Overview/Authorization/Scripts/Variables), jadi tidak relevan di `CollectionTabContent.tsx`.
