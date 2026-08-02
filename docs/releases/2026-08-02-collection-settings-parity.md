@@ -128,3 +128,20 @@ Penyebab: `updateCollectionVariable` membaca `collection.variables` dari Zustand
 Diperbaiki dengan antrean (`queueByKey`) per `collectionId`/`environmentId` — panggilan `set()` berikutnya untuk collection/environment yang sama menunggu round-trip (baca-gabung-PUT-simpan state) panggilan sebelumnya selesai dulu, baru baca snapshot terbaru. Diterapkan ke `updateCollectionVariable` (bug utama) dan `updateActiveEnvironmentVariable` (potensi race yang sama, diperbaiki sekalian meski mitigasinya sudah sedikit lebih baik karena update state lokal duluan sebelum network call).
 
 Sekalian ditambahkan `console.warn` di `pm.collectionVariables.set` kalau `collection` gagal di-resolve untuk tab request yang aktif (sebelumnya diam-diam no-op) — supaya kelas bug ini kelihatan lewat DevTools Console, bukan cuma "kok gak ke-set" tanpa jejak.
+
+## Debugging: header "kosong" di beberapa request — dicek langsung ke database dev user
+
+Waktu ditelusuri lebih lanjut ("header masih ga ada"), saya cek langsung isi database SQLite dev milik user (`~/Library/Application Support/wapbolt-desktop-local-dev/wapbolt-local.db`) lewat `sqlite3` CLI untuk dapat jawaban pasti, bukan menebak dari UI:
+
+- Request `eSign request Template` (id 30): `headers` tersimpan benar — `{"Content-Type":"application/json","Authorization":"Bearer eyJ..."}`. Bukan bug; kemungkinan yang dilihat user adalah tab lama yang belum di-refresh setelah re-import (tab menyimpan `workingRequest` sendiri, tidak otomatis sinkron ke row baru hasil overwrite-import yang ID-nya berubah).
+- Request `Fraud Prevention API - FR` (id 28, URL `{{services-svc}}/v2/services/fraud`): `headers = {}` — ini **benar**, sesuai temuan sebelumnya (satu-satunya header di file aslinya, `Authorization`, `disabled: true`).
+
+## Fitur lanjutan: auto default `Content-Type` header saat request dikirim (mirip Postman)
+
+Dari pengecekan `Fraud Prevention API - FR` di atas, ketemu gap nyata: request itu tidak punya header `Content-Type` sama sekali (baik di file Postman asli maupun di Wapbolt), padahal body-nya raw-JSON. Diverifikasi ini bukan cuma soal request itu — dicek perilaku asli Postman: Postman **selalu** otomatis menambahkan `Content-Type` sesuai bahasa yang dipilih di tab Body (JSON/XML/HTML/Text) sebagai *hidden header* saat mengirim, tapi **tidak pernah menuliskannya ke file export** collection. Itu sebabnya banyak request hasil import tidak punya `Content-Type` eksplisit — bukan lupa ditulis, tapi memang Postman yang mengurusnya diam-diam di baliknya.
+
+Wapbolt sebelumnya cuma auto-set `Content-Type` saat body type diganti lewat UI (`setWorkingRequest`'s `contentTypeMap`, dipicu oleh aksi eksplisit user), **tidak pernah** saat mengirim request — jadi request hasil import raw-JSON tanpa header eksplisit selalu berangkat tanpa `Content-Type` sama sekali, berpotensi ditolak API tujuan yang strict soal ini.
+
+Ditambahkan `withDefaultContentType(headers, bodyType)` di `useDataStore.ts` — dipanggil tepat sebelum request benar-benar dikirim (baik di single-request send maupun Collection Runner), untuk `raw-json`/`raw-xml`/`raw-html`/`raw-text`/`graphql`/`x-www-form-urlencoded`. Aturan: **cuma isi kalau belum ada header Content-Type sama sekali** (case-insensitive check) — header eksplisit (hasil import atau ditulis manual user) selalu menang, tidak pernah ditimpa. `form-data` sengaja dikecualikan karena butuh boundary per-request yang di-generate executor, bukan string tetap. Ini juga menggantikan special-case `isGraphQL`-only yang sudah ada sebelumnya (sekarang jadi kasus umum dari helper yang sama).
+
+Diverifikasi lewat skrip Node standalone (5 skenario: inject saat kosong, tidak menimpa yang sudah eksplisit, case-insensitive existing header tidak dobel, `form-data` sengaja dilewati, body type `none` tidak disentuh) — semua lulus. Juga `npm run typecheck` bersih di kedua app dan 56/56 test Local masih lulus (tidak ada test vitest khusus untuk helper ini — sama seperti sandbox script, `packages/ui-shared` belum ada infrastruktur test).

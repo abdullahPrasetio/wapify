@@ -626,6 +626,39 @@ const injectAuth = (
   return newHeaders
 }
 
+// Postman auto-adds a Content-Type header matching the raw body's selected
+// language (JSON/XML/HTML/Text) — but as a "hidden" header, never written
+// into the collection export. That's why plenty of imported requests have no
+// explicit Content-Type at all: Postman was filling it in silently. Wapbolt
+// only auto-set it in response to a body-type change via the UI (see
+// contentTypeMap in setWorkingRequest), never at send time — so an imported
+// raw-JSON request with no explicit header went out with none, and some
+// APIs reject that. Mirror Postman's send-time behavior: fill in the default
+// only when the request doesn't already specify Content-Type itself
+// (case-insensitive) — an explicit header, imported or user-set, always wins.
+const DEFAULT_CONTENT_TYPE_BY_BODY_TYPE: Record<string, string | undefined> = {
+  'raw-json': 'application/json',
+  'raw-xml': 'application/xml',
+  'raw-html': 'text/html',
+  'raw-text': 'text/plain',
+  graphql: 'application/json',
+  'x-www-form-urlencoded': 'application/x-www-form-urlencoded'
+  // 'form-data' deliberately excluded — real multipart form-data needs a
+  // per-request boundary the executor generates, not a fixed string here.
+}
+
+const withDefaultContentType = (
+  headers: Record<string, string>,
+  bodyType: string | undefined
+): Record<string, string> => {
+  if (!bodyType) return headers
+  const hasContentType = Object.keys(headers).some((k) => k.toLowerCase() === 'content-type')
+  if (hasContentType) return headers
+  const defaultType = DEFAULT_CONTENT_TYPE_BY_BODY_TYPE[bodyType]
+  if (!defaultType) return headers
+  return { ...headers, 'Content-Type': defaultType }
+}
+
 // updateCollectionVariable/updateActiveEnvironmentVariable each read-merge-write
 // the full variables map. Scripts often call these more than once back-to-back
 // (e.g. set access_token then refresh_token) without awaiting — two concurrent
@@ -2264,7 +2297,7 @@ export const useDataStore = create<DataState>()(
           const finalHeaders = injectAuth(workingRequest.headers, effectiveAuth, vars)
 
           // Substitusi variabel di Headers
-          const substitutedHeaders: Record<string, string> = {}
+          let substitutedHeaders: Record<string, string> = {}
           Object.entries(finalHeaders).forEach(([key, value]) => {
             const resolved = replaceVariables(value, vars)
             substitutedHeaders[key] = resolved
@@ -2297,9 +2330,10 @@ export const useDataStore = create<DataState>()(
               return JSON.stringify({ query: '' })
             }
           })()
-          if (isGraphQL && !substitutedHeaders['Content-Type']) {
-            substitutedHeaders['Content-Type'] = 'application/json'
-          }
+          // Mirror Postman's silent default Content-Type when the request
+          // doesn't specify one itself (covers isGraphQL too — finalBodyType
+          // is forced to 'raw-json' above).
+          substitutedHeaders = withDefaultContentType(substitutedHeaders, finalBodyType)
 
           // Inject Auth into URL if type is API Key and addTo is query
           if (
@@ -2858,8 +2892,10 @@ export const useDataStore = create<DataState>()(
             // Substitutions
             let substitutedUrl = replaceVariables(workingRequest.url, vars)
             const finalHeaders = injectAuth(workingRequest.headers, effectiveAuth, vars)
-            const substitutedHeaders: Record<string, string> = {}
+            let substitutedHeaders: Record<string, string> = {}
             Object.entries(finalHeaders).forEach(([k, v]) => { substitutedHeaders[k] = replaceVariables(v, vars) })
+            // Mirror Postman's silent default Content-Type when the request doesn't specify one itself.
+            substitutedHeaders = withDefaultContentType(substitutedHeaders, normalizedReq.body_type)
             const substitutedBody = Array.isArray(workingRequest.body)
               ? workingRequest.body.map((item) => ({
                 ...item,
