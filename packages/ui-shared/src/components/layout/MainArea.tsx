@@ -1074,14 +1074,16 @@ const EditorArea = ({
               <div className="space-y-4">
                 <div>
                   <label className="text-xs font-semibold text-muted mb-1.5 block">Token</label>
-                  <div className="relative">
-                    <input
-                      type={showPassword ? 'text' : 'password'}
+                  <div className={`relative bg-surface border border-border rounded h-9 pl-3 pr-8 ${isLocked ? 'cursor-not-allowed opacity-50' : ''}`}>
+                    <VariableOverlayInput
+                      multiline={false}
+                      masked
+                      revealed={showPassword}
                       value={auth.token || ''}
                       disabled={isLocked}
                       onChange={(e): void => handleAuthChange({ token: e.target.value })}
-                      className={`w-full bg-surface border border-border rounded px-3 py-2 text-sm text-text focus:outline-none focus:border-primary pr-10 ${isLocked ? 'cursor-not-allowed opacity-50' : ''}`}
                       placeholder="Enter bearer token"
+                      collectionId={parentCollection?.id}
                     />
                     <button
                       onClick={(): void => setShowPassword(!showPassword)}
@@ -1116,14 +1118,16 @@ const EditorArea = ({
                     <label className="text-xs font-semibold text-muted mb-1.5 block">
                       Password
                     </label>
-                    <div className="relative">
-                      <input
-                        type={showPassword ? 'text' : 'password'}
+                    <div className={`relative bg-surface border border-border rounded h-9 pl-3 pr-8 ${isLocked ? 'cursor-not-allowed opacity-50' : ''}`}>
+                      <VariableOverlayInput
+                        multiline={false}
+                        masked
+                        revealed={showPassword}
                         value={auth.password || ''}
                         disabled={isLocked}
                         onChange={(e): void => handleAuthChange({ password: e.target.value })}
-                        className={`w-full bg-surface border border-border rounded px-3 py-2 text-sm text-text focus:outline-none focus:border-primary pr-10 ${isLocked ? 'cursor-not-allowed opacity-50' : ''}`}
                         placeholder="Password"
+                        collectionId={parentCollection?.id}
                       />
                       <button
                         onClick={(): void => setShowPassword(!showPassword)}

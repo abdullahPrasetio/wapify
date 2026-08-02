@@ -11,6 +11,13 @@ interface VariableOverlayInputProps extends React.TextareaHTMLAttributes<HTMLTex
   // precedence `replaceVariables` already uses at execution time: Environment
   // wins on key conflict.
   collectionId?: number
+  // Secret fields (Bearer Token, Basic Auth password): mask literal
+  // characters as bullets while still showing {{variable}} references
+  // highlighted (a variable *name* isn't the secret — its resolved value
+  // is). `revealed` toggles this off, same idea as a password field's
+  // show/hide eye icon — pass the parent's existing toggle state in.
+  masked?: boolean
+  revealed?: boolean
 }
 
 export const VariableOverlayInput: React.FC<VariableOverlayInputProps> = ({
@@ -20,6 +27,8 @@ export const VariableOverlayInput: React.FC<VariableOverlayInputProps> = ({
   onUpdateValue,
   multiline = true,
   collectionId,
+  masked = false,
+  revealed = false,
   ...props
 }) => {
   const [isOpen, setIsOpen] = useState(false)
@@ -174,6 +183,10 @@ export const VariableOverlayInput: React.FC<VariableOverlayInputProps> = ({
     setIsOpen(false)
   }
 
+  // A variable NAME isn't the secret (its resolved value is) — only mask the
+  // literal characters outside {{...}}.
+  const maskLiteral = (s: string): string => (masked && !revealed ? '•'.repeat(s.length) : s)
+
   // Render text with highlights
   const { res: renderedHighlights, parts: interactionParts } = (() => {
     const regex = /\{\{([^}]+)\}\}/g
@@ -185,7 +198,7 @@ export const VariableOverlayInput: React.FC<VariableOverlayInputProps> = ({
 
     while ((match = regex.exec(text)) !== null) {
       const plainText = text.substring(lastIdx, match.index)
-      res.push(<span key={`t-${idx}`}>{plainText}</span>)
+      res.push(<span key={`t-${idx}`}>{maskLiteral(plainText)}</span>)
 
       const varName = match[1].trim()
       const isSet = allVars[varName] !== undefined || allVars[varName.toLowerCase()] !== undefined
@@ -222,7 +235,7 @@ export const VariableOverlayInput: React.FC<VariableOverlayInputProps> = ({
     }
 
     const finalPlainText = text.substring(lastIdx)
-    res.push(<span key="last-t">{finalPlainText}</span>)
+    res.push(<span key="last-t">{maskLiteral(finalPlainText)}</span>)
     parts.push(<span key="last-it" className="text-transparent">{finalPlainText}</span>)
 
     return { res, parts }

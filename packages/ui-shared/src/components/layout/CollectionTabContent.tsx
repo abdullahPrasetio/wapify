@@ -215,13 +215,15 @@ export const CollectionTabContent: React.FC<CollectionTabContentProps> = ({ tab 
                 <div className="space-y-4">
                   <div>
                     <label className="text-xs font-semibold text-muted mb-1.5 block">Token</label>
-                    <div className="relative">
-                      <input
-                        type={showPassword ? 'text' : 'password'}
+                    <div className="relative bg-surface border border-border rounded h-9 pl-3 pr-8">
+                      <VariableOverlayInput
+                        multiline={false}
+                        masked
+                        revealed={showPassword}
                         value={auth.token || ''}
                         onChange={(e) => handleAuthChange({ token: e.target.value })}
-                        className="w-full bg-surface border border-border rounded px-3 py-2 text-sm text-text focus:outline-none focus:border-primary pr-10"
                         placeholder="Enter bearer token"
+                        collectionId={tab.collectionId}
                       />
                       <button
                         type="button"
@@ -251,13 +253,15 @@ export const CollectionTabContent: React.FC<CollectionTabContentProps> = ({ tab 
                   </div>
                   <div>
                     <label className="text-xs font-semibold text-muted mb-1.5 block">Password</label>
-                    <div className="relative">
-                      <input
-                        type={showPassword ? 'text' : 'password'}
+                    <div className="relative bg-surface border border-border rounded h-9 pl-3 pr-8">
+                      <VariableOverlayInput
+                        multiline={false}
+                        masked
+                        revealed={showPassword}
                         value={auth.password || ''}
                         onChange={(e) => handleAuthChange({ password: e.target.value })}
-                        className="w-full bg-surface border border-border rounded px-3 py-2 text-sm text-text focus:outline-none focus:border-primary pr-10"
                         placeholder="Password"
+                        collectionId={tab.collectionId}
                       />
                       <button
                         type="button"
