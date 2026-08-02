@@ -634,4 +634,60 @@ describe('import postman', () => {
       requests: [{ name: 'Only Request', url: 'http://api.test/only' }]
     })
   })
+
+  it('maps collection/request Authorization + collection variables + prerequest/test scripts, flagging unsupported auth', () => {
+    const withAuthAndScripts = {
+      info: { name: 'Auth Coll' },
+      auth: { type: 'bearer', bearer: [{ key: 'token', value: '{{collToken}}' }] },
+      variable: [
+        { key: 'clientid', value: 'abc' },
+        { key: 'count', value: 3 }
+      ],
+      event: [
+        { listen: 'prerequest', script: { exec: ["console.log('coll pre')"] } },
+        { listen: 'test', script: { exec: ["pm.test('coll test', () => {})"] } }
+      ],
+      item: [
+        {
+          name: 'OAuthReq',
+          request: {
+            method: 'GET',
+            url: 'http://x',
+            auth: { type: 'oauth2', oauth2: [{ key: 'accessTokenUrl', value: 'http://token' }] }
+          },
+          event: [{ listen: 'test', script: { exec: ["pm.test('req test', () => {})"] } }]
+        },
+        {
+          name: 'BasicReq',
+          request: {
+            method: 'GET',
+            url: 'http://y',
+            auth: { type: 'basic', basic: [{ key: 'username', value: 'u' }, { key: 'password', value: 'p' }] }
+          }
+        }
+      ]
+    }
+
+    const res = call('POST', '/api/v1/teams/1/import', withAuthAndScripts)
+    expect(res.status).toBe(201)
+    const { collection_id: colId, unsupported_auth_count: unsupported } = res.data as {
+      collection_id: number
+      unsupported_auth_count: number
+    }
+    expect(unsupported).toBe(1) // only the oauth2 request; collection's own bearer auth is supported
+
+    const detail = call('GET', `/api/v1/collections/${colId}`)
+    expect(detail.data).toMatchObject({
+      collection: {
+        auth_config: { type: 'Bearer Token', token: '{{collToken}}' },
+        pre_request_script: "console.log('coll pre')",
+        post_request_script: "pm.test('coll test', () => {})",
+        variables: { clientid: 'abc', count: '3' }
+      },
+      requests: [
+        { name: 'OAuthReq', auth_config: { type: 'No Auth' }, post_request_script: "pm.test('req test', () => {})" },
+        { name: 'BasicReq', auth_config: { type: 'Basic Auth', username: 'u', password: 'p' } }
+      ]
+    })
+  })
 })

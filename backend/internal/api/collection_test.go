@@ -444,6 +444,55 @@ func TestImportPostman(t *testing.T) {
 		assert.Equal(t, http.StatusCreated, resp.StatusCode)
 	})
 
+	t.Run("Auth/Variables/Scripts mapping + unsupported auth count", func(t *testing.T) {
+		mock.ExpectQuery("^SELECT \\* FROM \"team_members\"").WillReturnRows(sqlmock.NewRows([]string{"id", "role"}).AddRow(1, "Editor"))
+
+		mock.ExpectBegin()
+		mock.ExpectQuery("^INSERT INTO \"collections\"").WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(2))
+		mock.ExpectQuery("^INSERT INTO \"requests\"").WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(200))
+		mock.ExpectCommit()
+
+		mock.ExpectBegin()
+		mock.ExpectQuery("^INSERT INTO \"activity_logs\"").WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(1))
+		mock.ExpectCommit()
+
+		// Collection-level: bearer auth (supported) + variables + prerequest/test scripts.
+		// Request-level: oauth2 (unsupported — should be skipped, not silently kept as-is).
+		postmanJSON := `{
+			"info": {"name": "Auth Coll"},
+			"auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{collToken}}"}]},
+			"variable": [{"key": "clientid", "value": "abc"}, {"key": "count", "value": 3}],
+			"event": [
+				{"listen": "prerequest", "script": {"exec": ["console.log('coll pre')"]}},
+				{"listen": "test", "script": {"exec": ["pm.test('coll test', () => {})"]}}
+			],
+			"item": [
+				{
+					"name": "OAuthReq",
+					"request": {
+						"method": "GET",
+						"url": "http://x",
+						"auth": {"type": "oauth2", "oauth2": [{"key": "accessTokenUrl", "value": "http://token"}]}
+					},
+					"event": [{"listen": "test", "script": {"exec": ["pm.test('req test', () => {})"]}}]
+				}
+			]
+		}`
+
+		req := httptest.NewRequest("POST", "/api/v1/teams/1/import", bytes.NewBufferString(postmanJSON))
+		req.Header.Set("Content-Type", "application/json")
+		resp, _ := app.Test(req, -1)
+		assert.Equal(t, http.StatusCreated, resp.StatusCode)
+
+		var body struct {
+			CollectionID         uint `json:"collection_id"`
+			UnsupportedAuthCount int  `json:"unsupported_auth_count"`
+		}
+		require.NoError(t, json.NewDecoder(resp.Body).Decode(&body))
+		assert.Equal(t, uint(2), body.CollectionID)
+		assert.Equal(t, 1, body.UnsupportedAuthCount) // the oauth2 request, collection's own bearer auth is supported
+	})
+
 	t.Run("Forbidden", func(t *testing.T) {
 		mock.ExpectQuery("^SELECT \\* FROM \"team_members\"").WillReturnRows(sqlmock.NewRows([]string{"id"}))
 		req := httptest.NewRequest("POST", "/api/v1/teams/1/import", nil)
@@ -494,7 +543,8 @@ func TestProcessPostmanItems_Additional(t *testing.T) {
 					},
 				},
 			}
-			return processPostmanItems(tx, items, 1, nil, 1)
+			count := 0
+			return processPostmanItems(tx, items, 1, nil, 1, &count)
 		})
 		assert.NoError(t, err)
 	})
@@ -514,7 +564,8 @@ func TestProcessPostmanItems_Additional(t *testing.T) {
 					},
 				},
 			}
-			return processPostmanItems(tx, items, 1, nil, 1)
+			count := 0
+			return processPostmanItems(tx, items, 1, nil, 1, &count)
 		})
 		assert.NoError(t, err)
 	})
@@ -534,7 +585,8 @@ func TestProcessPostmanItems_Additional(t *testing.T) {
 					},
 				},
 			}
-			return processPostmanItems(tx, items, 1, nil, 1)
+			count := 0
+			return processPostmanItems(tx, items, 1, nil, 1, &count)
 		})
 		assert.NoError(t, err) // json.Unmarshal error is ignored in code
 	})
@@ -554,7 +606,8 @@ func TestProcessPostmanItems_Additional(t *testing.T) {
 					},
 				},
 			}
-			return processPostmanItems(tx, items, 1, nil, 1)
+			count := 0
+			return processPostmanItems(tx, items, 1, nil, 1, &count)
 		})
 		assert.Error(t, err)
 		assert.Equal(t, "recursive fail", err.Error())
@@ -567,7 +620,8 @@ func TestProcessPostmanItems_Additional(t *testing.T) {
 
 		err := repository.DB.Transaction(func(tx *gorm.DB) error {
 			items := []PostmanItem{{Name: "F", Item: []PostmanItem{{Name: "Sub"}}}}
-			return processPostmanItems(tx, items, 1, nil, 1)
+			count := 0
+			return processPostmanItems(tx, items, 1, nil, 1, &count)
 		})
 		assert.Error(t, err)
 	})
@@ -579,7 +633,8 @@ func TestProcessPostmanItems_Additional(t *testing.T) {
 
 		err := repository.DB.Transaction(func(tx *gorm.DB) error {
 			items := []PostmanItem{{Name: "R", Request: &PostmanReq{Method: "GET"}}}
-			return processPostmanItems(tx, items, 1, nil, 1)
+			count := 0
+			return processPostmanItems(tx, items, 1, nil, 1, &count)
 		})
 		assert.Error(t, err)
 	})

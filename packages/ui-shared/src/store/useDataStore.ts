@@ -1210,6 +1210,13 @@ export const useDataStore = create<DataState>()(
             if (response.status === 201 || response.status === 200) {
               await get().fetchCollections(activeTeamId)
               toast.success(mode === 'overwrite' ? 'Collection overwritten successfully' : 'Collection imported successfully')
+              const unsupportedAuthCount = (response.data as { unsupported_auth_count?: number })?.unsupported_auth_count
+              if (unsupportedAuthCount) {
+                toast(
+                  `${unsupportedAuthCount} request${unsupportedAuthCount !== 1 ? 's' : ''}/collection used an Authorization type Wapbolt doesn't support yet (e.g. OAuth 2.0) — set to No Auth, please configure manually.`,
+                  { duration: 8000 }
+                )
+              }
             } else {
               toast.error('Failed to import collection')
             }

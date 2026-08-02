@@ -2,8 +2,8 @@ import type Database from 'better-sqlite3'
 import { Row, getString, markDirty, nowIso, deleteWithTombstone, LOCAL_USER_ID } from './helpers'
 
 // Port dari backend/internal/api/collection.go (ImportPostman, processPostmanItems,
-// resolvePostmanBody, postmanParamsToFields) — hanya Postman v2.1 (bukan OpenAPI/Insomnia,
-// yang belum di-port ke LocalRouter).
+// resolvePostmanBody, resolvePostmanAuth, resolvePostmanScripts, postmanParamsToFields)
+// — hanya Postman v2.1 (bukan OpenAPI/Insomnia, yang belum di-port ke LocalRouter).
 
 type Res = { status: number; data: unknown }
 
@@ -26,6 +26,33 @@ interface PostmanBody {
   formdata?: PostmanFormParam[]
 }
 
+interface PostmanAuthParam {
+  key: string
+  value: unknown
+}
+
+// Mirrors Postman v2.1's request.auth / collection.auth object. Only
+// bearer/basic/apikey/noauth have a Wapbolt auth_config equivalent — other
+// types (oauth2, digest, awsv4, hawk, ntlm, oauth1, ...) have no executable
+// equivalent and are reported back as "unsupported" so the caller doesn't
+// lose them silently.
+interface PostmanAuth {
+  type?: string
+  bearer?: PostmanAuthParam[]
+  basic?: PostmanAuthParam[]
+  apikey?: PostmanAuthParam[]
+}
+
+interface PostmanVariable {
+  key: string
+  value?: unknown
+}
+
+interface PostmanEvent {
+  listen?: string
+  script?: { exec?: string[] }
+}
+
 interface PostmanRequest {
   method?: string
   url?: string | { raw?: string }
@@ -33,7 +60,8 @@ interface PostmanRequest {
   body?: PostmanBody
   description?: string
   field_validations?: Record<string, unknown>
-  auth_config?: Record<string, unknown>
+  auth_config?: Record<string, unknown> // Wapbolt's own export round-trip extension
+  auth?: PostmanAuth // native Postman request-level Authorization
 }
 
 interface PostmanResponse {
@@ -48,11 +76,15 @@ interface PostmanItem {
   item?: PostmanItem[]
   request?: PostmanRequest
   response?: PostmanResponse[]
+  event?: PostmanEvent[] // request-level pre-request/test scripts (item-level, sibling of request)
 }
 
 interface PostmanCollectionJson {
   info?: { name?: string; description?: string }
   item?: PostmanItem[]
+  auth?: PostmanAuth // collection-level Authorization
+  variable?: PostmanVariable[] // collection-level Variables
+  event?: PostmanEvent[] // collection-level pre-request/test scripts
 }
 
 class ImportError extends Error {
@@ -96,11 +128,64 @@ function resolveUrl(url: PostmanRequest['url']): string {
   return ''
 }
 
+function authParamsToMap(params: PostmanAuthParam[] = []): Record<string, string> {
+  const m: Record<string, string> = {}
+  for (const p of params) {
+    if (typeof p.value === 'string') m[p.key] = p.value
+  }
+  return m
+}
+
+// resolvePostmanAuth converts Postman's native `auth` block into Wapbolt's
+// auth_config shape for the types Wapbolt can actually execute. `undefined`
+// return means "no Authorization tab data at all" (supported=true — caller
+// keeps whatever default applies). A recognized-but-unsupported type
+// (oauth2, digest, awsv4, hawk, ntlm, oauth1, ...) returns supported=false so
+// the caller can surface a summary instead of silently dropping it.
+function resolvePostmanAuth(auth?: PostmanAuth): { config: Row | undefined; supported: boolean } {
+  if (!auth || !auth.type) return { config: undefined, supported: true }
+  switch (auth.type) {
+    case 'noauth':
+      return { config: { type: 'No Auth' }, supported: true }
+    case 'bearer': {
+      const m = authParamsToMap(auth.bearer)
+      return { config: { type: 'Bearer Token', token: m.token ?? '' }, supported: true }
+    }
+    case 'basic': {
+      const m = authParamsToMap(auth.basic)
+      return { config: { type: 'Basic Auth', username: m.username ?? '', password: m.password ?? '' }, supported: true }
+    }
+    case 'apikey': {
+      const m = authParamsToMap(auth.apikey)
+      return {
+        config: { type: 'API Key', key: m.key ?? '', value: m.value ?? '', addTo: m.in === 'query' ? 'query' : 'header' },
+        supported: true
+      }
+    }
+    default:
+      return { config: undefined, supported: false }
+  }
+}
+
+// resolvePostmanScripts joins a Postman event array's prerequest/test exec
+// lines into the single-string scripts Wapbolt stores.
+function resolvePostmanScripts(events: PostmanEvent[] = []): { preRequest: string; test: string } {
+  let preRequest = ''
+  let test = ''
+  for (const e of events) {
+    const joined = (e.script?.exec ?? []).join('\n')
+    if (e.listen === 'prerequest') preRequest = joined
+    else if (e.listen === 'test') test = joined
+  }
+  return { preRequest, test }
+}
+
 function processPostmanItems(
   db: Database.Database,
   items: PostmanItem[],
   collectionId: number,
-  folderId: number | null
+  folderId: number | null,
+  unsupportedAuth: { count: number }
 ): void {
   const now = nowIso()
 
@@ -112,7 +197,7 @@ function processPostmanItems(
         .run(item.name, collectionId, folderId)
       const newFolderId = Number(result.lastInsertRowid)
       markDirty(db, 'folder', newFolderId)
-      processPostmanItems(db, item.item, collectionId, newFolderId)
+      processPostmanItems(db, item.item, collectionId, newFolderId, unsupportedAuth)
       continue
     }
 
@@ -124,7 +209,12 @@ function processPostmanItems(
 
     const [bodyVal, bodyType] = resolvePostmanBody(req.body)
     const urlStr = resolveUrl(req.url)
-    const authConfig = req.auth_config ?? { type: 'No Auth' }
+
+    const { config: reqAuth, supported: reqAuthSupported } = resolvePostmanAuth(req.auth)
+    if (!reqAuthSupported) unsupportedAuth.count++
+    // Fall back to Wapbolt's own export round-trip extension when there's no native auth.
+    const authConfig = reqAuth ?? req.auth_config ?? { type: 'No Auth' }
+    const { preRequest, test } = resolvePostmanScripts(item.event)
 
     const result = db
       .prepare(
@@ -132,7 +222,7 @@ function processPostmanItems(
           (name, description, method, url, headers, body, body_type, body_variants, auth_config,
            field_validations, collection_id, folder_id, created_by, order_index,
            pre_request_script, post_request_script, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, '{}', ?, ?, ?, ?, ?, 0, '', '', ?, ?)`
+         VALUES (?, ?, ?, ?, ?, ?, ?, '{}', ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)`
       )
       .run(
         item.name,
@@ -147,6 +237,8 @@ function processPostmanItems(
         collectionId,
         folderId,
         LOCAL_USER_ID,
+        preRequest,
+        test,
         now,
         now
       )
@@ -198,6 +290,15 @@ export function importPostman(
   const mode = query.get('mode') ?? 'new'
   const confirmName = query.get('confirm_name') ?? ''
 
+  const unsupportedAuth = { count: 0 }
+  const { config: collAuth, supported: collAuthSupported } = resolvePostmanAuth(postman.auth)
+  if (!collAuthSupported) unsupportedAuth.count++
+  const collVars: Record<string, string> = {}
+  for (const v of postman.variable ?? []) {
+    collVars[v.key] = typeof v.value === 'string' ? v.value : v.value != null ? String(v.value) : ''
+  }
+  const { preRequest: collPreScript, test: collTestScript } = resolvePostmanScripts(postman.event)
+
   let collectionId = 0
 
   const run = db.transaction(() => {
@@ -222,8 +323,23 @@ export function importPostman(
       for (const r of requests) deleteWithTombstone(db, 'request', 'requests', r.id)
       for (const f of folders) deleteWithTombstone(db, 'folder', 'folders', f.id)
 
-      db.prepare('UPDATE collections SET description = ?, updated_at = ? WHERE id = ?').run(
+      // Auth stays untouched when the imported file has no Authorization block at
+      // all (mirrors Go); scripts/variables always overwrite, same as Go.
+      const authConfigJson = collAuth
+        ? JSON.stringify(collAuth)
+        : typeof existing.auth_config === 'string'
+          ? existing.auth_config
+          : '{}'
+
+      db.prepare(
+        `UPDATE collections SET description = ?, auth_config = ?, pre_request_script = ?,
+         post_request_script = ?, variables = ?, updated_at = ? WHERE id = ?`
+      ).run(
         description,
+        authConfigJson,
+        collPreScript,
+        collTestScript,
+        JSON.stringify(collVars),
         nowIso(),
         collectionId
       )
@@ -235,14 +351,25 @@ export function importPostman(
           `INSERT INTO collections
             (name, description, team_id, created_by, confluence_page_id, auth_config,
              pre_request_script, post_request_script, variables, created_at, updated_at)
-           VALUES (?, ?, ?, ?, '', '{}', '', '', '{}', ?, ?)`
+           VALUES (?, ?, ?, ?, '', ?, ?, ?, ?, ?, ?)`
         )
-        .run(name, description, teamId, LOCAL_USER_ID, now, now)
+        .run(
+          name,
+          description,
+          teamId,
+          LOCAL_USER_ID,
+          JSON.stringify(collAuth ?? { type: 'No Auth' }),
+          collPreScript,
+          collTestScript,
+          JSON.stringify(collVars),
+          now,
+          now
+        )
       collectionId = Number(result.lastInsertRowid)
       markDirty(db, 'collection', collectionId)
     }
 
-    processPostmanItems(db, postman.item ?? [], collectionId, null)
+    processPostmanItems(db, postman.item ?? [], collectionId, null, unsupportedAuth)
   })
 
   try {
@@ -257,5 +384,8 @@ export function importPostman(
     }
   }
 
-  return { status: 201, data: { message: 'Import successful', collection_id: collectionId } }
+  return {
+    status: 201,
+    data: { message: 'Import successful', collection_id: collectionId, unsupported_auth_count: unsupportedAuth.count }
+  }
 }

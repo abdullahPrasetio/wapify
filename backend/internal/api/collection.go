@@ -28,7 +28,10 @@ type PostmanCollection struct {
 		Name        string `json:"name"`
 		Description string `json:"description"`
 	} `json:"info"`
-	Item []PostmanItem `json:"item"`
+	Item     []PostmanItem     `json:"item"`
+	Auth     *PostmanAuth      `json:"auth,omitempty"`     // collection-level Authorization
+	Variable []PostmanVariable `json:"variable,omitempty"` // collection-level Variables
+	Event    []PostmanEvent    `json:"event,omitempty"`    // collection-level pre-request/test scripts
 }
 
 type PostmanItem struct {
@@ -36,6 +39,7 @@ type PostmanItem struct {
 	Item      []PostmanItem     `json:"item,omitempty"` // for folders
 	Request   *PostmanReq       `json:"request,omitempty"`
 	Responses []PostmanResponse `json:"response,omitempty"` // examples are at item level in Postman v2.1
+	Event     []PostmanEvent    `json:"event,omitempty"`    // request-level pre-request/test scripts (item-level, sibling of request)
 }
 
 type PostmanReq struct {
@@ -48,7 +52,97 @@ type PostmanReq struct {
 	Body             *PostmanBody           `json:"body"`
 	Description      string                 `json:"description,omitempty"`
 	FieldValidations map[string]interface{} `json:"field_validations,omitempty"`
-	AuthConfig       map[string]interface{} `json:"auth_config,omitempty"`
+	AuthConfig       map[string]interface{} `json:"auth_config,omitempty"` // Wapbolt's own export round-trip extension
+	Auth             *PostmanAuth           `json:"auth,omitempty"`        // native Postman request-level Authorization
+}
+
+// PostmanAuth mirrors Postman v2.1's request.auth / collection.auth object.
+// Only bearer/basic/apikey/noauth have a Wapbolt auth_config equivalent —
+// other types (oauth2, digest, awsv4, hawk, ntlm, oauth1, ...) have no
+// executable equivalent and are reported back as "unsupported" so the
+// caller doesn't lose them silently.
+type PostmanAuth struct {
+	Type   string             `json:"type"`
+	Bearer []PostmanAuthParam `json:"bearer,omitempty"`
+	Basic  []PostmanAuthParam `json:"basic,omitempty"`
+	Apikey []PostmanAuthParam `json:"apikey,omitempty"`
+}
+
+type PostmanAuthParam struct {
+	Key   string      `json:"key"`
+	Value interface{} `json:"value"`
+	Type  string      `json:"type"`
+}
+
+// PostmanVariable mirrors an entry of Postman's collection-level `variable` array.
+type PostmanVariable struct {
+	Key   string      `json:"key"`
+	Value interface{} `json:"value"`
+}
+
+// PostmanEvent mirrors Postman's `event` array (collection- and item-level
+// pre-request/test scripts).
+type PostmanEvent struct {
+	Listen string `json:"listen"`
+	Script struct {
+		Exec []string `json:"exec"`
+	} `json:"script"`
+}
+
+func postmanAuthParamsToMap(params []PostmanAuthParam) map[string]string {
+	m := map[string]string{}
+	for _, p := range params {
+		if s, ok := p.Value.(string); ok {
+			m[p.Key] = s
+		}
+	}
+	return m
+}
+
+// resolvePostmanAuth converts Postman's native `auth` block into Wapbolt's
+// auth_config shape for the types Wapbolt can actually execute. `nil` auth
+// means "no Authorization tab data at all" (supported=true, config=nil —
+// caller keeps whatever default applies). A recognized-but-unsupported type
+// (oauth2, digest, awsv4, hawk, ntlm, oauth1, ...) returns supported=false so
+// the caller can surface a summary instead of silently dropping it.
+func resolvePostmanAuth(auth *PostmanAuth) (map[string]interface{}, bool) {
+	if auth == nil {
+		return nil, true
+	}
+	switch auth.Type {
+	case "noauth":
+		return map[string]interface{}{"type": "No Auth"}, true
+	case "bearer":
+		m := postmanAuthParamsToMap(auth.Bearer)
+		return map[string]interface{}{"type": "Bearer Token", "token": m["token"]}, true
+	case "basic":
+		m := postmanAuthParamsToMap(auth.Basic)
+		return map[string]interface{}{"type": "Basic Auth", "username": m["username"], "password": m["password"]}, true
+	case "apikey":
+		m := postmanAuthParamsToMap(auth.Apikey)
+		addTo := "header"
+		if m["in"] == "query" {
+			addTo = "query"
+		}
+		return map[string]interface{}{"type": "API Key", "key": m["key"], "value": m["value"], "addTo": addTo}, true
+	default:
+		return nil, false
+	}
+}
+
+// resolvePostmanScripts joins a Postman event array's prerequest/test exec
+// lines into the single-string scripts Wapbolt stores.
+func resolvePostmanScripts(events []PostmanEvent) (preRequest string, test string) {
+	for _, e := range events {
+		joined := strings.Join(e.Script.Exec, "\n")
+		switch e.Listen {
+		case "prerequest":
+			preRequest = joined
+		case "test":
+			test = joined
+		}
+	}
+	return
 }
 
 // PostmanBody mirrors Postman v2.1's request.body object across the modes we support.
@@ -477,7 +571,8 @@ func ImportOpenAPI(c *fiber.Ctx) error {
 				return err
 			}
 		}
-		return processPostmanItems(tx, postman.Item, collection.ID, nil, userID)
+		unusedAuthCount := 0
+		return processPostmanItems(tx, postman.Item, collection.ID, nil, userID, &unusedAuthCount)
 	})
 
 	if err != nil {
@@ -527,6 +622,21 @@ func ImportPostman(c *fiber.Ctx) error {
 	tid := parseUint(teamID)
 
 	var collection repository.Collection
+	unsupportedAuthCount := 0
+
+	collAuth, collAuthOk := resolvePostmanAuth(postman.Auth)
+	if !collAuthOk {
+		unsupportedAuthCount++
+	}
+	collVars := repository.JSONB{}
+	for _, v := range postman.Variable {
+		if s, ok := v.Value.(string); ok {
+			collVars[v.Key] = s
+		} else if v.Value != nil {
+			collVars[v.Key] = fmt.Sprintf("%v", v.Value)
+		}
+	}
+	collPreScript, collTestScript := resolvePostmanScripts(postman.Event)
 
 	err := repository.DB.Transaction(func(tx *gorm.DB) error {
 		if mode == "overwrite" {
@@ -552,18 +662,32 @@ func ImportPostman(c *fiber.Ctx) error {
 				return err
 			}
 
-			// Update description
+			// Update description + Authorization/Scripts/Variables from the Postman file
 			collection.Description = postman.Info.Description
+			if collAuth != nil {
+				collection.AuthConfig = repository.JSONB(collAuth)
+			}
+			collection.PreRequestScript = collPreScript
+			collection.PostRequestScript = collTestScript
+			collection.Variables = collVars
 			if err := tx.Save(&collection).Error; err != nil {
 				return err
 			}
 		} else {
+			authConfig := repository.JSONB{"type": "No Auth"}
+			if collAuth != nil {
+				authConfig = repository.JSONB(collAuth)
+			}
 			// Create brand new collection (even if name matches, will be a duplicate)
 			collection = repository.Collection{
-				Name:        postman.Info.Name,
-				Description: postman.Info.Description,
-				TeamID:      tid,
-				CreatedByID: &userID,
+				Name:              postman.Info.Name,
+				Description:       postman.Info.Description,
+				TeamID:            tid,
+				CreatedByID:       &userID,
+				AuthConfig:        authConfig,
+				PreRequestScript:  collPreScript,
+				PostRequestScript: collTestScript,
+				Variables:         collVars,
 			}
 			if err := tx.Create(&collection).Error; err != nil {
 				return err
@@ -571,7 +695,7 @@ func ImportPostman(c *fiber.Ctx) error {
 		}
 
 		// 2. Process Items recursively
-		return processPostmanItems(tx, postman.Item, collection.ID, nil, userID)
+		return processPostmanItems(tx, postman.Item, collection.ID, nil, userID, &unsupportedAuthCount)
 	})
 
 	if err != nil {
@@ -592,10 +716,14 @@ func ImportPostman(c *fiber.Ctx) error {
 	}
 	LogActivity(repository.DB, tid, userID, action, "TEAM", tid, map[string]interface{}{"collection_name": postman.Info.Name})
 
-	return c.Status(fiber.StatusCreated).JSON(fiber.Map{"message": "Import successful", "collection_id": collection.ID})
+	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
+		"message":                "Import successful",
+		"collection_id":          collection.ID,
+		"unsupported_auth_count": unsupportedAuthCount,
+	})
 }
 
-func processPostmanItems(tx *gorm.DB, items []PostmanItem, collectionID uint, folderID *uint, userID uint) error {
+func processPostmanItems(tx *gorm.DB, items []PostmanItem, collectionID uint, folderID *uint, userID uint, unsupportedAuthCount *int) error {
 	for _, item := range items {
 		if item.Item != nil {
 			// It's a folder
@@ -607,7 +735,7 @@ func processPostmanItems(tx *gorm.DB, items []PostmanItem, collectionID uint, fo
 			if err := tx.Create(&folder).Error; err != nil {
 				return err
 			}
-			if err := processPostmanItems(tx, item.Item, collectionID, &folder.ID, userID); err != nil {
+			if err := processPostmanItems(tx, item.Item, collectionID, &folder.ID, userID, unsupportedAuthCount); err != nil {
 				return err
 			}
 		} else if item.Request != nil {
@@ -630,23 +758,33 @@ func processPostmanItems(tx *gorm.DB, items []PostmanItem, collectionID uint, fo
 				}
 			}
 
+			reqAuth, reqAuthOk := resolvePostmanAuth(item.Request.Auth)
+			if !reqAuthOk {
+				*unsupportedAuthCount++
+			}
 			authConfig := repository.JSONB{"type": "No Auth"}
-			if item.Request.AuthConfig != nil {
+			if reqAuth != nil {
+				authConfig = repository.JSONB(reqAuth)
+			} else if item.Request.AuthConfig != nil {
+				// Wapbolt's own export round-trip extension (not a native Postman field)
 				authConfig = repository.JSONB(item.Request.AuthConfig)
 			}
+			preScript, testScript := resolvePostmanScripts(item.Event)
 			request := repository.Request{
-				Name:             item.Name,
-				CollectionID:     collectionID,
-				FolderID:         folderID,
-				Method:           item.Request.Method,
-				URL:              urlStr,
-				Headers:          headers,
-				Body:             body,
-				BodyType:         bodyType,
-				Description:      item.Request.Description,
-				FieldValidations: item.Request.FieldValidations,
-				CreatedByID:      &userID,
-				AuthConfig:       authConfig,
+				Name:              item.Name,
+				CollectionID:      collectionID,
+				FolderID:          folderID,
+				Method:            item.Request.Method,
+				URL:               urlStr,
+				Headers:           headers,
+				Body:              body,
+				BodyType:          bodyType,
+				Description:       item.Request.Description,
+				FieldValidations:  item.Request.FieldValidations,
+				CreatedByID:       &userID,
+				AuthConfig:        authConfig,
+				PreRequestScript:  preScript,
+				PostRequestScript: testScript,
 			}
 			if err := tx.Create(&request).Error; err != nil {
 				return err
