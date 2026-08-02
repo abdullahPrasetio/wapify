@@ -7,6 +7,7 @@ import {
   notTombstonedSql,
   isTombstoned,
   deleteWithTombstone,
+  toJsonbMap,
   LOCAL_USER_ID
 } from './helpers'
 import { collectionToJson, folderToJson, requestToJson } from './serializers'
@@ -38,8 +39,8 @@ export function createCollection(db: Database.Database, teamId: string, body: Ro
   const now = nowIso()
   const result = db
     .prepare(
-      `INSERT INTO collections (name, description, team_id, created_by, confluence_page_id, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO collections (name, description, team_id, created_by, confluence_page_id, auth_config, pre_request_script, post_request_script, variables, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .run(
       getString(body, 'name'),
@@ -47,6 +48,10 @@ export function createCollection(db: Database.Database, teamId: string, body: Ro
       teamId,
       LOCAL_USER_ID,
       getString(body, 'confluence_page_id'),
+      JSON.stringify(toJsonbMap(body.auth_config) ?? {}),
+      getString(body, 'pre_request_script'),
+      getString(body, 'post_request_script'),
+      JSON.stringify(toJsonbMap(body.variables) ?? {}),
       now,
       now
     )
@@ -90,18 +95,36 @@ export function updateCollection(db: Database.Database, id: string, body: Row | 
     return { status: 400, data: { error: 'Invalid request body', code: 'BAD_REQUEST' } }
   }
 
-  // Semantik Go: name/description hanya jika non-kosong, confluence_page_id selalu.
+  // Semantik Go: name/description hanya jika non-kosong, confluence_page_id
+  // dan settings (auth/scripts/variables) selalu ditimpa penuh (modal settings
+  // selalu mengirim state lengkap — lihat UpdateCollection Go).
   const name = getString(body, 'name')
   const description = getString(body, 'description')
   const updated = {
     name: name !== '' ? name : (collection.name as string),
     description: description !== '' ? description : (collection.description as string),
-    confluence_page_id: getString(body, 'confluence_page_id')
+    confluence_page_id: getString(body, 'confluence_page_id'),
+    auth_config: JSON.stringify(toJsonbMap(body.auth_config) ?? {}),
+    pre_request_script: getString(body, 'pre_request_script'),
+    post_request_script: getString(body, 'post_request_script'),
+    variables: JSON.stringify(toJsonbMap(body.variables) ?? {})
   }
 
   db.prepare(
-    'UPDATE collections SET name = ?, description = ?, confluence_page_id = ?, updated_at = ? WHERE id = ?'
-  ).run(updated.name, updated.description, updated.confluence_page_id, nowIso(), collection.id)
+    `UPDATE collections SET name = ?, description = ?, confluence_page_id = ?,
+     auth_config = ?, pre_request_script = ?, post_request_script = ?, variables = ?,
+     updated_at = ? WHERE id = ?`
+  ).run(
+    updated.name,
+    updated.description,
+    updated.confluence_page_id,
+    updated.auth_config,
+    updated.pre_request_script,
+    updated.post_request_script,
+    updated.variables,
+    nowIso(),
+    collection.id
+  )
   markDirty(db, 'collection', Number(collection.id))
 
   const row = db.prepare('SELECT * FROM collections WHERE id = ?').get(collection.id) as Row

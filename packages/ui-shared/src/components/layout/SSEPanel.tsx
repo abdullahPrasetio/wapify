@@ -43,7 +43,7 @@ function formatTime(d: Date): string {
 export function SSEPanel(): React.JSX.Element {
   const { tabs, activeTabId, environments, activeEnvironmentId } = useDataStore()
   const activeTab = tabs.find((t) => t.requestId === activeTabId)
-  const workingRequest = activeTab?.workingRequest
+  const workingRequest = activeTab?.kind === 'request' ? activeTab.workingRequest : undefined
 
   const [status, setStatus] = useState<SseStatus>('disconnected')
   const [events, setEvents] = useState<SseEvent[]>([])

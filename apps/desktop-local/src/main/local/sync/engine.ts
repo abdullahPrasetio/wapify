@@ -37,6 +37,7 @@ interface MetaRow {
 }
 
 const JSON_COLUMNS: Record<string, string[]> = {
+  collection: ['auth_config', 'variables'],
   request: ['headers', 'body', 'body_variants', 'auth_config', 'field_validations'],
   environment: ['variables'],
   example: ['request_headers', 'request_body', 'response_headers']
@@ -319,8 +320,8 @@ export function createSyncEngine(db: Database.Database, http: HttpFn) {
           Number(
             db
               .prepare(
-                `INSERT INTO collections (name, description, team_id, created_by, confluence_page_id, chaos_mode, created_at, updated_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+                `INSERT INTO collections (name, description, team_id, created_by, confluence_page_id, chaos_mode, auth_config, pre_request_script, post_request_script, variables, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
               )
               .run(
                 s.name,
@@ -329,6 +330,10 @@ export function createSyncEngine(db: Database.Database, http: HttpFn) {
                 s.created_by ?? null,
                 s.confluence_page_id ?? '',
                 s.chaos_mode ? 1 : 0,
+                JSON.stringify(s.auth_config ?? {}),
+                s.pre_request_script ?? '',
+                s.post_request_script ?? '',
+                JSON.stringify(s.variables ?? {}),
                 s.created_at,
                 s.updated_at
               ).lastInsertRowid
@@ -336,9 +341,21 @@ export function createSyncEngine(db: Database.Database, http: HttpFn) {
         (localId, s) =>
           db
             .prepare(
-              'UPDATE collections SET name = ?, description = ?, confluence_page_id = ?, chaos_mode = ?, updated_at = ? WHERE id = ?'
+              `UPDATE collections SET name = ?, description = ?, confluence_page_id = ?, chaos_mode = ?,
+               auth_config = ?, pre_request_script = ?, post_request_script = ?, variables = ?, updated_at = ? WHERE id = ?`
             )
-            .run(s.name, s.description ?? '', s.confluence_page_id ?? '', s.chaos_mode ? 1 : 0, s.updated_at, localId)
+            .run(
+              s.name,
+              s.description ?? '',
+              s.confluence_page_id ?? '',
+              s.chaos_mode ? 1 : 0,
+              JSON.stringify(s.auth_config ?? {}),
+              s.pre_request_script ?? '',
+              s.post_request_script ?? '',
+              JSON.stringify(s.variables ?? {}),
+              s.updated_at,
+              localId
+            )
       )
     }
 
@@ -752,7 +769,11 @@ export function createSyncEngine(db: Database.Database, http: HttpFn) {
           body: {
             name: local.name,
             description: local.description,
-            confluence_page_id: local.confluence_page_id
+            confluence_page_id: local.confluence_page_id,
+            auth_config: local.auth_config ?? {},
+            pre_request_script: local.pre_request_script ?? '',
+            post_request_script: local.post_request_script ?? '',
+            variables: local.variables ?? {}
           } as Row
         }
       },
@@ -763,7 +784,11 @@ export function createSyncEngine(db: Database.Database, http: HttpFn) {
           body: {
             name: local.name,
             description: local.description,
-            confluence_page_id: local.confluence_page_id
+            confluence_page_id: local.confluence_page_id,
+            auth_config: local.auth_config ?? {},
+            pre_request_script: local.pre_request_script ?? '',
+            post_request_script: local.post_request_script ?? '',
+            variables: local.variables ?? {}
           } as Row
         }
       ]

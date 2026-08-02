@@ -4,6 +4,7 @@ import path from 'path'
 import initSql from './migrations/001_init.sql?raw'
 import commentsUpdatedAtSql from './migrations/002_comments_updated_at.sql?raw'
 import syncExclusionSql from './migrations/003_sync_exclusion.sql?raw'
+import collectionSettingsSql from './migrations/004_collection_settings.sql?raw'
 
 // Migrasi bernomor per docs/local-app-design.md §3 (main/local/migrations/).
 // Ditulis sebagai daftar tetap, bukan glob dari filesystem, supaya urutan
@@ -11,7 +12,8 @@ import syncExclusionSql from './migrations/003_sync_exclusion.sql?raw'
 const MIGRATIONS: Array<{ id: string; sql: string }> = [
   { id: '001_init', sql: initSql },
   { id: '002_comments_updated_at', sql: commentsUpdatedAtSql },
-  { id: '003_sync_exclusion', sql: syncExclusionSql }
+  { id: '003_sync_exclusion', sql: syncExclusionSql },
+  { id: '004_collection_settings', sql: collectionSettingsSql }
 ]
 
 const KEEP_BACKUPS = 5

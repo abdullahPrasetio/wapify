@@ -13,9 +13,13 @@ import (
 )
 
 type CreateCollectionRequest struct {
-	Name             string `json:"name"`
-	Description      string `json:"description"`
-	ConfluencePageID string `json:"confluence_page_id"`
+	Name              string           `json:"name"`
+	Description       string           `json:"description"`
+	ConfluencePageID  string           `json:"confluence_page_id"`
+	AuthConfig        repository.JSONB `json:"auth_config"`
+	PreRequestScript  string           `json:"pre_request_script"`
+	PostRequestScript string           `json:"post_request_script"`
+	Variables         repository.JSONB `json:"variables"`
 }
 
 // Postman Collection Structs (simplified v2.1)
@@ -168,13 +172,13 @@ type OpenAPIRequestBody struct {
 }
 
 type OpenAPIOperation struct {
-	OperationID string                 `json:"operationId"`
-	Summary     string                 `json:"summary"`
-	Description string                 `json:"description"`
-	Tags        []string               `json:"tags"`
-	Parameters  []OpenAPIParameter     `json:"parameters"`
-	RequestBody *OpenAPIRequestBody    `json:"requestBody"`
-	Security    []map[string][]string  `json:"security"`
+	OperationID string                `json:"operationId"`
+	Summary     string                `json:"summary"`
+	Description string                `json:"description"`
+	Tags        []string              `json:"tags"`
+	Parameters  []OpenAPIParameter    `json:"parameters"`
+	RequestBody *OpenAPIRequestBody   `json:"requestBody"`
+	Security    []map[string][]string `json:"security"`
 }
 
 type OpenAPIPathItem struct {
@@ -665,8 +669,8 @@ func processPostmanItems(tx *gorm.DB, items []PostmanItem, collectionID uint, fo
 					RequestMethod:   item.Request.Method,
 					RequestURL:      urlStr,
 					RequestHeaders:  headers,
-					RequestBody:    requestBodyJSONB,
-					ResponseStatus: res.Code,
+					RequestBody:     requestBodyJSONB,
+					ResponseStatus:  res.Code,
 					ResponseHeaders: resHeaders,
 					ResponseBody:    res.Body,
 				}
@@ -705,6 +709,12 @@ func CreateCollection(c *fiber.Ctx) error {
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body", "code": "BAD_REQUEST"})
 	}
+	if req.AuthConfig == nil {
+		req.AuthConfig = repository.JSONB{}
+	}
+	if req.Variables == nil {
+		req.Variables = repository.JSONB{}
+	}
 
 	rawUID, ok := c.Locals("user_id").(float64)
 	if !ok || rawUID <= 0 {
@@ -714,11 +724,15 @@ func CreateCollection(c *fiber.Ctx) error {
 	tid := parseUint(teamID)
 
 	collection := repository.Collection{
-		Name:             req.Name,
-		Description:      req.Description,
-		TeamID:           tid,
-		CreatedByID:      &userID,
-		ConfluencePageID: req.ConfluencePageID,
+		Name:              req.Name,
+		Description:       req.Description,
+		TeamID:            tid,
+		CreatedByID:       &userID,
+		ConfluencePageID:  req.ConfluencePageID,
+		AuthConfig:        req.AuthConfig,
+		PreRequestScript:  req.PreRequestScript,
+		PostRequestScript: req.PostRequestScript,
+		Variables:         req.Variables,
 	}
 
 	if err := repository.DB.Create(&collection).Error; err != nil {
@@ -774,6 +788,12 @@ func UpdateCollection(c *fiber.Ctx) error {
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body", "code": "BAD_REQUEST"})
 	}
+	if req.AuthConfig == nil {
+		req.AuthConfig = repository.JSONB{}
+	}
+	if req.Variables == nil {
+		req.Variables = repository.JSONB{}
+	}
 
 	if req.Name != "" {
 		collection.Name = req.Name
@@ -783,6 +803,11 @@ func UpdateCollection(c *fiber.Ctx) error {
 	}
 	// Always allow updating page id (even to empty string)
 	collection.ConfluencePageID = req.ConfluencePageID
+	// Always overwrite settings — the settings modal always submits full state.
+	collection.AuthConfig = req.AuthConfig
+	collection.PreRequestScript = req.PreRequestScript
+	collection.PostRequestScript = req.PostRequestScript
+	collection.Variables = req.Variables
 
 	if err := repository.DB.Save(&collection).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to update collection", "code": "INTERNAL_SERVER_ERROR"})

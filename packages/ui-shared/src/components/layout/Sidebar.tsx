@@ -90,10 +90,11 @@ const METHOD_COLORS: Record<string, string> = {
   DELETE: 'text-danger'
 }
 
-const CollectionHeader = ({ collection, isExpanded, onExpand, onContextMenu }: {
+const CollectionHeader = ({ collection, isExpanded, onExpand, onSelect, onContextMenu }: {
   collection: Collection,
   isExpanded: boolean,
   onExpand: () => void,
+  onSelect: () => void,
   onContextMenu: (e: React.MouseEvent) => void
 }) => {
   const { setNodeRef, isOver } = useDroppable({
@@ -103,15 +104,20 @@ const CollectionHeader = ({ collection, isExpanded, onExpand, onContextMenu }: {
   return (
     <div
       ref={setNodeRef}
-      onClick={onExpand}
+      onClick={onSelect}
       onContextMenu={onContextMenu}
       className={`flex items-center px-2 py-1.5 rounded hover:bg-background cursor-pointer text-sm text-text group transition-all duration-200 ${isOver ? 'bg-primary/20 ring-1 ring-primary/50' : ''}`}
     >
-      {isExpanded ? (
-        <ChevronDown size={14} className="text-muted mr-1 shrink-0" />
-      ) : (
-        <ChevronRight size={14} className="text-muted mr-1 shrink-0" />
-      )}
+      <button
+        onClick={(e) => { e.stopPropagation(); onExpand() }}
+        className="mr-1 shrink-0 p-0.5 -m-0.5 rounded hover:bg-surface"
+      >
+        {isExpanded ? (
+          <ChevronDown size={14} className="text-muted" />
+        ) : (
+          <ChevronRight size={14} className="text-muted" />
+        )}
+      </button>
       <FolderIcon size={14} className="text-primary mr-2 shrink-0" />
       <span className="truncate flex-1 font-medium">{collection.name}</span>
     </div>
@@ -491,7 +497,7 @@ const CollectionItem = ({ collection }: { collection: Collection }): React.JSX.E
     deleteRequest,
     duplicateRequest,
     exportCollection,
-    updateCollection
+    openCollectionInTab
   } = useDataStore()
   const { setActiveView } = useAppStore()
 
@@ -501,7 +507,6 @@ const CollectionItem = ({ collection }: { collection: Collection }): React.JSX.E
   const [showDocs, setShowDocs] = useState(false)
   const [showMockServer, setShowMockServer] = useState(false)
   const [showRunner, setShowRunner] = useState(false)
-  const [showSettings, setShowSettings] = useState(false)
 
   // Auto-fetch on mount if collection is expanded (handles localStorage-restored state)
   useEffect(() => {
@@ -547,6 +552,11 @@ const CollectionItem = ({ collection }: { collection: Collection }): React.JSX.E
     setActiveView('request-builder')
   }
 
+  const handleSelectCollection = (): void => {
+    openCollectionInTab(collection.id, collection.name)
+    setActiveView('request-builder')
+  }
+
   const requests: ApiRequest[] = requestsByCollection[collection.id] ?? []
   const allFolders: Folder[] = foldersByCollection[collection.id] ?? []
   const rootFolders = allFolders.filter((f) => f.parent_folder_id === null)
@@ -565,6 +575,7 @@ const CollectionItem = ({ collection }: { collection: Collection }): React.JSX.E
         collection={collection}
         isExpanded={isExpanded}
         onExpand={handleExpand}
+        onSelect={handleSelectCollection}
         onContextMenu={handleContextMenu}
       />
 
@@ -579,7 +590,7 @@ const CollectionItem = ({ collection }: { collection: Collection }): React.JSX.E
             { label: 'Run Collection', icon: PlayCircle, onClick: (): void => setShowRunner(true) },
             { label: 'View Documentation', icon: BookOpen, onClick: (): void => setShowDocs(true) },
             { label: 'Mock Server', icon: Server, onClick: (): void => setShowMockServer(true) },
-            { label: 'Collection Settings', icon: Settings, onClick: (): void => setShowSettings(true) },
+            { label: 'Collection Settings', icon: Settings, onClick: handleSelectCollection },
             { label: 'Export Collection', icon: Download, onClick: (): Promise<void> => exportCollection(collection.id) },
             { label: 'Delete Collection', icon: Trash2, onClick: handleDeleteCollection, variant: 'danger' }
           ]}
@@ -595,21 +606,6 @@ const CollectionItem = ({ collection }: { collection: Collection }): React.JSX.E
           collectionId={collection.id}
           collectionName={collection.name}
           onClose={() => setShowRunner(false)}
-        />
-      )}
-
-      {showSettings && (
-        <CollectionModal
-          isOpen={showSettings}
-          onClose={() => setShowSettings(false)}
-          title="Collection Settings"
-          submitText="Save Changes"
-          initialData={{
-            name: collection.name,
-            description: collection.description,
-            confluence_page_id: collection.confluence_page_id || ''
-          }}
-          onSubmit={(data) => updateCollection(collection.id, data.name, data.description, data.confluence_page_id)}
         />
       )}
 

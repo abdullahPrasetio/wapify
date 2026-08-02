@@ -5,10 +5,11 @@ import { useAuthStore } from '../../store/useAuthStore'
 import { KeyValueEditor } from '../ui/KeyValueEditor'
 import { VariableOverlayInput } from '../ui/VariableOverlayInput'
 import { SetVarModal } from '../modals/SetVarModal'
-import { Shield, Eye, EyeOff, X, RefreshCw, Save, Lock, Users, ChevronDown, ChevronRight, FileCode2, Terminal as TerminalIcon, Code, Box, Globe, Link as LinkIcon, BookOpen, Zap, ShieldCheck, FileText, Copy, XCircle, Minus, Plus } from 'lucide-react'
+import { Shield, Eye, EyeOff, X, RefreshCw, Save, Lock, Users, ChevronDown, ChevronRight, FileCode2, Terminal as TerminalIcon, Code, Box, Globe, Link as LinkIcon, BookOpen, Zap, ShieldCheck, FileText, Copy, XCircle, Minus, Plus, Folder } from 'lucide-react'
 import * as ContextMenu from '@radix-ui/react-context-menu'
 import { ResponseArea } from './ResponseArea'
 import { HistoryDetailView } from './HistoryDetailView'
+import { CollectionTabContent } from './CollectionTabContent'
 import { CollaborationPanel } from './CollaborationPanel'
 import { SaveRequestLocationModal } from '../modals/SaveRequestLocationModal'
 import { ImportCurlModal } from '../modals/ImportCurlModal'
@@ -239,6 +240,12 @@ const METHOD_COLOR: Record<string, string> = {
   OPTIONS: 'text-slate-400'
 }
 
+// Saved examples reuse the `request` tab kind (they run through the same
+// request-builder JSX) — tell them apart from real requests by requestId
+// prefix, same convention as the draft-/example- checks elsewhere in this file.
+const isExampleTabId = (requestId: string | number): boolean =>
+  typeof requestId === 'string' && requestId.startsWith('example-')
+
 interface RequestFormProps {
   method: string
   url: string
@@ -342,6 +349,11 @@ const EditorArea = ({
   const handleAuthChange = (update: Partial<AuthConfig>): void => {
     onUpdate({ auth_config: { ...auth, ...update } as AuthConfig })
   }
+
+  const { requests: allRequests, collections: allCollections } = useDataStore()
+  const parentCollection = typeof requestId === 'number'
+    ? allCollections.find((c) => c.id === allRequests.find((r) => r.id === requestId)?.collection_id)
+    : undefined
 
   // --- Header Bulk Logic ---
   const headerBulkValue = useMemo(() => {
@@ -1021,7 +1033,7 @@ const EditorArea = ({
             <label className="text-[10px] font-bold text-muted uppercase tracking-widest mb-2 px-2">
               Type
             </label>
-            {['No Auth', 'Bearer Token', 'Basic Auth', 'API Key'].map((type) => (
+            {['Inherit', 'No Auth', 'Bearer Token', 'Basic Auth', 'API Key'].map((type) => (
               <div
                 key={type}
                 onClick={(): void => {
@@ -1035,6 +1047,16 @@ const EditorArea = ({
           </div>
 
           <div className="flex-1 max-w-xl animate-in fade-in slide-in-from-left-2 duration-300">
+            {auth.type === 'Inherit' && (
+              <div className="h-full flex flex-col items-center justify-center text-center opacity-70">
+                <Shield size={48} className="text-primary mb-4" />
+                <p className="text-sm text-text">
+                  Inherits <span className="font-semibold">{parentCollection?.auth_config?.type || 'No Auth'}</span> from{' '}
+                  <span className="font-semibold">{parentCollection?.name || 'the parent collection'}</span>.
+                </p>
+              </div>
+            )}
+
             {auth.type === 'No Auth' && (
               <div className="h-full flex flex-col items-center justify-center text-center opacity-50">
                 <Shield size={48} className="text-muted mb-4" />
@@ -1075,14 +1097,15 @@ const EditorArea = ({
                     <label className="text-xs font-semibold text-muted mb-1.5 block">
                       Username
                     </label>
-                    <input
-                      type="text"
-                      value={auth.username || ''}
-                      disabled={isLocked}
-                      onChange={(e): void => handleAuthChange({ username: e.target.value })}
-                      className={`w-full bg-surface border border-border rounded px-3 py-2 text-sm text-text focus:outline-none focus:border-primary ${isLocked ? 'cursor-not-allowed opacity-50' : ''}`}
-                      placeholder="Username"
-                    />
+                    <div className={`bg-surface border border-border rounded px-3 h-9 ${isLocked ? 'cursor-not-allowed opacity-50' : ''}`}>
+                      <VariableOverlayInput
+                        multiline={false}
+                        value={auth.username || ''}
+                        disabled={isLocked}
+                        onChange={(e): void => handleAuthChange({ username: e.target.value })}
+                        placeholder="Username"
+                      />
+                    </div>
                   </div>
                   <div>
                     <label className="text-xs font-semibold text-muted mb-1.5 block">
@@ -1114,25 +1137,27 @@ const EditorArea = ({
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="text-xs font-semibold text-muted mb-1.5 block">Key</label>
-                    <input
-                      type="text"
-                      value={auth.key || ''}
-                      disabled={isLocked}
-                      onChange={(e): void => handleAuthChange({ key: e.target.value })}
-                      className={`w-full bg-surface border border-border rounded px-3 py-2 text-sm text-text focus:outline-none focus:border-primary ${isLocked ? 'cursor-not-allowed opacity-50' : ''}`}
-                      placeholder="X-API-Key"
-                    />
+                    <div className={`bg-surface border border-border rounded px-3 h-9 ${isLocked ? 'cursor-not-allowed opacity-50' : ''}`}>
+                      <VariableOverlayInput
+                        multiline={false}
+                        value={auth.key || ''}
+                        disabled={isLocked}
+                        onChange={(e): void => handleAuthChange({ key: e.target.value })}
+                        placeholder="X-API-Key"
+                      />
+                    </div>
                   </div>
                   <div>
                     <label className="text-xs font-semibold text-muted mb-1.5 block">Value</label>
-                    <input
-                      type="text"
-                      value={auth.value || ''}
-                      disabled={isLocked}
-                      onChange={(e): void => handleAuthChange({ value: e.target.value })}
-                      className={`w-full bg-surface border border-border rounded px-3 py-2 text-sm text-text focus:outline-none focus:border-primary ${isLocked ? 'cursor-not-allowed opacity-50' : ''}`}
-                      placeholder="Value"
-                    />
+                    <div className={`bg-surface border border-border rounded px-3 h-9 ${isLocked ? 'cursor-not-allowed opacity-50' : ''}`}>
+                      <VariableOverlayInput
+                        multiline={false}
+                        value={auth.value || ''}
+                        disabled={isLocked}
+                        onChange={(e): void => handleAuthChange({ value: e.target.value })}
+                        placeholder="Value"
+                      />
+                    </div>
                   </div>
                 </div>
                 <div>
@@ -1508,7 +1533,13 @@ const RequestTabs = (): React.JSX.Element => {
           onClick={() => { setActiveTab(tab.requestId); setOverflowOpen(false) }}
           className={`w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-background transition-colors text-left ${activeTabId === tab.requestId ? 'text-primary' : 'text-text'}`}
         >
-          <span className={`text-[9px] font-black shrink-0 w-8 ${METHOD_COLOR[tab.method] ?? 'text-muted'}`}>{tab.method}</span>
+          {tab.kind !== 'request' ? (
+            <Folder size={11} className="text-primary shrink-0" />
+          ) : isExampleTabId(tab.requestId) ? (
+            <span className="text-[8px] font-bold border border-border rounded px-1 shrink-0 text-muted">e.g.</span>
+          ) : (
+            <span className={`text-[9px] font-black shrink-0 w-8 ${METHOD_COLOR[tab.method] ?? 'text-muted'}`}>{tab.method}</span>
+          )}
           <span className="truncate flex-1">{tab.name}</span>
           {tab.isDirty && <span className="text-primary shrink-0">•</span>}
         </button>
@@ -1531,9 +1562,15 @@ const RequestTabs = (): React.JSX.Element => {
                   : 'hover:bg-surface/50'
                   }`}
               >
-                <span className={`text-[9px] font-black mr-2 shrink-0 ${METHOD_COLOR[tab.method] ?? 'text-muted'}`}>
-                  {tab.method}
-                </span>
+                {tab.kind !== 'request' ? (
+                  <Folder size={12} className="text-primary mr-2 shrink-0" />
+                ) : isExampleTabId(tab.requestId) ? (
+                  <span className="text-[8px] font-bold border border-border rounded px-1 mr-2 shrink-0 text-muted">e.g.</span>
+                ) : (
+                  <span className={`text-[9px] font-black mr-2 shrink-0 ${METHOD_COLOR[tab.method] ?? 'text-muted'}`}>
+                    {tab.method}
+                  </span>
+                )}
                 <span className={`text-xs truncate flex-1 ${activeTabId === tab.requestId ? 'text-text font-medium' : 'text-muted'}`}>
                   {tab.name}
                   {tab.isDirty && <span className="ml-1 text-primary">•</span>}
@@ -1552,9 +1589,11 @@ const RequestTabs = (): React.JSX.Element => {
                 <ContextMenu.Item className={ctxMenuItemCls} onSelect={() => openDraftRequest({})}>
                   <Plus size={13} className="text-muted" /> New Request <span className={ctxMenuShortcutCls}>⌘T</span>
                 </ContextMenu.Item>
-                <ContextMenu.Item className={ctxMenuItemCls} onSelect={() => duplicateTab(tab.requestId)}>
-                  <Copy size={13} className="text-muted" /> Duplicate Tab
-                </ContextMenu.Item>
+                {tab.kind === 'request' && (
+                  <ContextMenu.Item className={ctxMenuItemCls} onSelect={() => duplicateTab(tab.requestId)}>
+                    <Copy size={13} className="text-muted" /> Duplicate Tab
+                  </ContextMenu.Item>
+                )}
                 <div className={ctxMenuSeparatorCls} />
                 <ContextMenu.Item className={ctxMenuItemCls} onSelect={() => closeTab(tab.requestId)}>
                   <X size={13} className="text-muted" /> Close Tab <span className={ctxMenuShortcutCls}>⌘W</span>
@@ -1722,15 +1761,18 @@ export const MainArea = (): React.JSX.Element => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
         const { tabs, activeTabId } = useDataStore.getState()
         const activeTab = tabs.find((t) => t.requestId === activeTabId)
-        if ((activeTab?.workingRequest?.request_type ?? 'http') !== 'http') return
+        if (activeTab?.kind !== 'request' || (activeTab.workingRequest?.request_type ?? 'http') !== 'http') return
         e.preventDefault()
         executeActiveRequest()
       }
       // Ctrl/Cmd + S for Save
       if ((e.metaKey || e.ctrlKey) && e.key === 's') {
         e.preventDefault()
-        const { activeTabId } = useDataStore.getState()
-        if (typeof activeTabId === 'string' && (activeTabId.startsWith('draft-') || activeTabId.startsWith('example-'))) {
+        const { tabs, activeTabId } = useDataStore.getState()
+        const activeTab = tabs.find((t) => t.requestId === activeTabId)
+        if (activeTab?.kind === 'collection') {
+          window.dispatchEvent(new CustomEvent('wapbolt:save-collection-tab'))
+        } else if (typeof activeTabId === 'string' && (activeTabId.startsWith('draft-') || activeTabId.startsWith('example-'))) {
           setIsSaveModalOpen(true)
         } else {
           saveActiveRequest()
@@ -1766,6 +1808,15 @@ export const MainArea = (): React.JSX.Element => {
             Select a request from the sidebar or create a new one to get started with API testing.
           </p>
         </div>
+      </div>
+    )
+  }
+
+  if (activeTabRequest.kind === 'collection') {
+    return (
+      <div className="flex-1 bg-background flex flex-col overflow-hidden min-w-0">
+        <RequestTabs />
+        <CollectionTabContent tab={activeTabRequest} />
       </div>
     )
   }

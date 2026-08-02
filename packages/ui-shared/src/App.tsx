@@ -9,6 +9,9 @@ import { DonationModal } from './components/modals/DonationModal'
 import { SyncConsentDialog } from './components/auth/SyncConsentDialog'
 import { apiClient } from './api/client'
 import { useAppStore } from './store/useAppStore'
+import { getAppMode } from './config/appMode'
+
+const DONATION_LAST_SHOWN_KEY = 'wapbolt_donation_last_shown'
 
 function WsStatusBadge(): React.JSX.Element {
   const { isAuthenticated } = useAuthStore()
@@ -178,21 +181,34 @@ function App(): React.JSX.Element {
   }, [logout])
 
   useEffect(() => {
-    if (isAuthenticated) {
-      const checkDonation = async () => {
-        try {
-          const res = await apiClient.get<{ show: boolean; message: string }>('/api/v1/donations/check')
-          if (res.status === 200 && res.data.show) {
-            const appStore = useAppStore.getState()
-            appStore.setDonationMessage(res.data.message)
-            appStore.setDonationModalOpen(true)
-          }
-        } catch (e) {
-          console.error('Failed to check donation status:', e)
-        }
+    if (!isAuthenticated) return
+
+    // Wapbolt Local has no backend to run the server-side donation check
+    // against, so it shows the reminder client-side, gated to once per day.
+    if (getAppMode().mode === 'local') {
+      const today = new Date().toDateString()
+      if (localStorage.getItem(DONATION_LAST_SHOWN_KEY) !== today) {
+        const appStore = useAppStore.getState()
+        appStore.setDonationMessage('Dukung pengembangan Wapbolt Local agar tetap gratis dan terus berkembang!')
+        appStore.setDonationModalOpen(true)
+        localStorage.setItem(DONATION_LAST_SHOWN_KEY, today)
       }
-      checkDonation()
+      return
     }
+
+    const checkDonation = async () => {
+      try {
+        const res = await apiClient.get<{ show: boolean; message: string }>('/api/v1/donations/check')
+        if (res.status === 200 && res.data.show) {
+          const appStore = useAppStore.getState()
+          appStore.setDonationMessage(res.data.message)
+          appStore.setDonationModalOpen(true)
+        }
+      } catch (e) {
+        console.error('Failed to check donation status:', e)
+      }
+    }
+    checkDonation()
   }, [isAuthenticated])
 
   if (licenseError) {

@@ -34,7 +34,11 @@ export function syncedFields(entity: SyncEntityName, row: Record<string, unknown
         name: row.name,
         description: row.description,
         confluence_page_id: row.confluence_page_id,
-        chaos_mode: !!row.chaos_mode
+        chaos_mode: !!row.chaos_mode,
+        auth_config: row.auth_config,
+        pre_request_script: row.pre_request_script,
+        post_request_script: row.post_request_script,
+        variables: row.variables
       }
     case 'folder':
       return { name: row.name, order_index: row.order_index }

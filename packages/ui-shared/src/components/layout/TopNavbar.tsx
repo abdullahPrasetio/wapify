@@ -5,6 +5,7 @@ import { useAuthStore } from '../../store/useAuthStore'
 import { useAppStore } from '../../store/useAppStore'
 import { useDataStore } from '../../store/useDataStore'
 import { SyncControls } from './SyncControls'
+import { getAppMode } from '../../config/appMode'
 
 const IS_WINDOWS = navigator.userAgent.includes('Windows')
 
@@ -204,12 +205,17 @@ function AdminDropdown(): React.JSX.Element | null {
     setOpen(false)
   }
 
-  const items = [
-    { icon: <LayoutDashboard size={12} />, label: 'Dashboard', view: 'request-builder' as const },
-    { icon: <UserCog size={12} />, label: 'User Management', view: 'admin-users' as const },
-    { icon: <Building2 size={12} />, label: 'Workspace Management', view: 'admin-teams' as const },
-    { icon: <Heart size={12} />, label: 'Donation Settings', view: 'admin-donations' as const },
-  ]
+  // Dashboard/User/Workspace/Donation management are cloud-only (multi-tenant)
+  // concepts — Wapbolt Local is single-user and has no equivalent backend.
+  const isLocalMode = getAppMode().mode === 'local'
+  const items = isLocalMode
+    ? []
+    : [
+        { icon: <LayoutDashboard size={12} />, label: 'Dashboard', view: 'request-builder' as const },
+        { icon: <UserCog size={12} />, label: 'User Management', view: 'admin-users' as const },
+        { icon: <Building2 size={12} />, label: 'Workspace Management', view: 'admin-teams' as const },
+        { icon: <Heart size={12} />, label: 'Donation Settings', view: 'admin-donations' as const },
+      ]
 
   const dropdown = open ? ReactDOM.createPortal(
     <div
@@ -217,20 +223,24 @@ function AdminDropdown(): React.JSX.Element | null {
       style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 99999 }}
       className="w-52 bg-surface border border-border rounded-lg shadow-xl py-1 overflow-hidden"
     >
-      <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-primary flex items-center gap-1.5">
-        <ShieldCheck size={10} /> Admin Panel
-      </div>
-      {items.map((item) => (
-        <button
-          key={item.view}
-          onClick={() => nav(item.view)}
-          className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-background transition-colors text-text text-left"
-        >
-          <span className="text-muted">{item.icon}</span>
-          {item.label}
-        </button>
-      ))}
-      <div className="border-t border-border mt-1 pt-1">
+      {items.length > 0 && (
+        <>
+          <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-primary flex items-center gap-1.5">
+            <ShieldCheck size={10} /> Admin Panel
+          </div>
+          {items.map((item) => (
+            <button
+              key={item.view}
+              onClick={() => nav(item.view)}
+              className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-background transition-colors text-text text-left"
+            >
+              <span className="text-muted">{item.icon}</span>
+              {item.label}
+            </button>
+          ))}
+        </>
+      )}
+      <div className={items.length > 0 ? 'border-t border-border mt-1 pt-1' : 'py-1'}>
         <button
           onClick={() => {
             setOpen(false)

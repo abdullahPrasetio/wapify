@@ -11,6 +11,7 @@ import (
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/waluyo/wapbolt-backend/internal/repository"
 	"gorm.io/gorm"
 )
@@ -318,6 +319,35 @@ func TestUpdateCollection(t *testing.T) {
 		resp, _ := app.Test(req)
 		assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
 	})
+
+	t.Run("Overwrites settings fields and defaults nil auth_config/variables to empty object", func(t *testing.T) {
+		mock.ExpectQuery("^SELECT \\* FROM \"collections\"").WillReturnRows(sqlmock.NewRows([]string{"id", "team_id", "name", "description"}).AddRow(1, 10, "Old", "Old Desc"))
+		mock.ExpectQuery("^SELECT \\* FROM \"team_members\"").WillReturnRows(sqlmock.NewRows([]string{"id", "role"}).AddRow(1, "Editor"))
+		mock.ExpectBegin()
+		mock.ExpectExec("^UPDATE \"collections\" SET").WillReturnResult(sqlmock.NewResult(1, 1))
+		mock.ExpectCommit()
+
+		mock.ExpectBegin()
+		mock.ExpectQuery("^INSERT INTO \"activity_logs\"").WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(1))
+		mock.ExpectCommit()
+
+		reqBody := CreateCollectionRequest{
+			Name:             "New",
+			PreRequestScript: "wap.collectionVariables.set('x', '1')",
+		}
+		body, _ := json.Marshal(reqBody)
+		req := httptest.NewRequest("PUT", "/api/v1/collections/1", bytes.NewBuffer(body))
+		req.Header.Set("Content-Type", "application/json")
+		resp, _ := app.Test(req, -1)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+		var updated repository.Collection
+		require.NoError(t, json.NewDecoder(resp.Body).Decode(&updated))
+		assert.Equal(t, "wap.collectionVariables.set('x', '1')", updated.PreRequestScript)
+		// Omitted JSONB fields normalize to {} rather than JSON null.
+		assert.Equal(t, repository.JSONB{}, updated.AuthConfig)
+		assert.Equal(t, repository.JSONB{}, updated.Variables)
+	})
 }
 
 func TestDeleteCollection(t *testing.T) {
@@ -388,7 +418,7 @@ func TestImportPostman(t *testing.T) {
 
 	t.Run("Success Full", func(t *testing.T) {
 		mock.ExpectQuery("^SELECT \\* FROM \"team_members\"").WillReturnRows(sqlmock.NewRows([]string{"id", "role"}).AddRow(1, "Editor"))
-		
+
 		mock.ExpectBegin()
 		mock.ExpectQuery("^INSERT INTO \"collections\"").WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(1))
 		mock.ExpectQuery("^INSERT INTO \"folders\"").WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(10))
@@ -423,7 +453,7 @@ func TestImportPostman(t *testing.T) {
 
 	t.Run("BodyParser Error", func(t *testing.T) {
 		mock.ExpectQuery("^SELECT \\* FROM \"team_members\"").WillReturnRows(sqlmock.NewRows([]string{"id", "role"}).AddRow(1, "Editor"))
-		
+
 		req := httptest.NewRequest("POST", "/api/v1/teams/1/import", bytes.NewBufferString("invalid json"))
 		req.Header.Set("Content-Type", "application/json")
 		resp, _ := app.Test(req)
@@ -432,7 +462,7 @@ func TestImportPostman(t *testing.T) {
 
 	t.Run("Transaction/Create Collection Error", func(t *testing.T) {
 		mock.ExpectQuery("^SELECT \\* FROM \"team_members\"").WillReturnRows(sqlmock.NewRows([]string{"id", "role"}).AddRow(1, "Editor"))
-		
+
 		mock.ExpectBegin()
 		mock.ExpectQuery("^INSERT INTO \"collections\"").WillReturnError(errors.New("db fail"))
 		mock.ExpectRollback()

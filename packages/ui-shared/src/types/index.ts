@@ -47,6 +47,18 @@ export interface TeamMember {
   joined_at: string
 }
 
+// ─── Auth Config Types ────────────────────────────────────────────────────────
+export interface AuthConfig {
+  type: string
+  token?: string
+  username?: string
+  password?: string
+  key?: string
+  value?: string
+  addTo?: 'header' | 'query'
+  [key: string]: string | undefined
+}
+
 // ─── Collection Types ─────────────────────────────────────────────────────────
 export interface Collection {
   id: number
@@ -57,6 +69,10 @@ export interface Collection {
   created_at: string
   updated_at: string
   confluence_page_id?: string
+  auth_config?: AuthConfig
+  pre_request_script?: string
+  post_request_script?: string
+  variables?: Record<string, string>
 }
 
 // ─── Folder Types ─────────────────────────────────────────────────────────────

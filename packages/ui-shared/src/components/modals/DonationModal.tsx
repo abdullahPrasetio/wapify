@@ -2,6 +2,7 @@ import React from 'react'
 import { X, Heart } from 'lucide-react'
 import { useAppStore } from '../../store/useAppStore'
 import { apiClient } from '../../api/client'
+import { getAppMode } from '../../config/appMode'
 import { toast } from 'sonner'
 import qrisImage from '../../assets/qris.jpeg'
 
@@ -11,6 +12,13 @@ export const DonationModal = (): React.JSX.Element | null => {
   if (!isDonationModalOpen) return null
 
   const handleMarkSeen = async (showToast: boolean = false) => {
+    // Wapbolt Local has no backend for this endpoint — the once-per-day gate
+    // is already handled client-side in App.tsx before the modal is opened.
+    if (getAppMode().mode === 'local') {
+      if (showToast) toast.success('Terima kasih atas dukungannya!')
+      setDonationModalOpen(false)
+      return
+    }
     try {
       const res = await apiClient.post('/api/v1/donations/mark-seen', {})
       if (res.status === 200 && showToast) {

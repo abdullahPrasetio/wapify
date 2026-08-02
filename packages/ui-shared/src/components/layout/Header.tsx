@@ -1,4 +1,4 @@
-import { ChevronDown, Play, Users, Save, Keyboard, Crown, Square } from 'lucide-react'
+import { ChevronDown, Play, Users, Save, Keyboard, Crown, Square, Folder } from 'lucide-react'
 import { useAuthStore } from '../../store/useAuthStore'
 import { useDataStore } from '../../store/useDataStore'
 import { EnvironmentModal } from '../modals/EnvironmentModal'
@@ -14,13 +14,14 @@ export const Header = (): React.JSX.Element => {
     setActiveEnvironment,
     executeActiveRequest,
     cancelActiveRequest,
-    saveActiveRequest
+    saveActiveRequest,
+    saveCollectionTab
   } = useDataStore()
 
   const [isSaving, setIsSaving] = useState(false)
 
   const activeTabRequest = tabs.find((t) => t.requestId === activeTabId)
-  const isSending = activeTabRequest?.isSending || false
+  const isSending = (activeTabRequest?.kind === 'request' && activeTabRequest.isSending) || false
   const activeEnvironment = environments.find((e) => e.id === activeEnvironmentId)
 
   const handleSend = async (): Promise<void> => {
@@ -28,8 +29,13 @@ export const Header = (): React.JSX.Element => {
   }
 
   const handleSave = async (): Promise<void> => {
+    if (!activeTabRequest) return
     setIsSaving(true)
-    await saveActiveRequest()
+    if (activeTabRequest.kind === 'collection') {
+      await saveCollectionTab(activeTabRequest.collectionId)
+    } else {
+      await saveActiveRequest()
+    }
     setTimeout(() => setIsSaving(false), 500)
   }
 
@@ -39,9 +45,13 @@ export const Header = (): React.JSX.Element => {
       <div className="flex items-center gap-4">
         {activeTabRequest ? (
           <div className="flex items-center gap-2">
-            <span className={`text-[11px] font-black ${getMethodColor(activeTabRequest.method)}`}>
-              {activeTabRequest.method}
-            </span>
+            {activeTabRequest.kind === 'request' ? (
+              <span className={`text-[11px] font-black ${getMethodColor(activeTabRequest.method)}`}>
+                {activeTabRequest.method}
+              </span>
+            ) : (
+              <Folder size={13} className="text-primary" />
+            )}
             <span className="text-sm font-medium text-text truncate max-w-xs">
               {activeTabRequest.name}
               {activeTabRequest.isDirty && (
@@ -52,7 +62,7 @@ export const Header = (): React.JSX.Element => {
               onClick={handleSave}
               disabled={isSaving}
               className="ml-2 text-muted hover:text-primary transition-colors p-1"
-              title="Save Request (Ctrl+S)"
+              title="Save (Ctrl+S)"
             >
               <Save size={14} className={isSaving ? 'animate-pulse text-primary' : ''} />
             </button>
@@ -118,7 +128,7 @@ export const Header = (): React.JSX.Element => {
         ) : (
           <button
             onClick={handleSend}
-            disabled={!activeTabRequest}
+            disabled={!activeTabRequest || activeTabRequest.kind !== 'request'}
             className="bg-primary hover:bg-primary-hover text-white px-4 py-1.5 rounded text-sm font-semibold flex items-center gap-2 transition-colors shadow-sm shadow-primary/20 disabled:opacity-50 disabled:cursor-not-allowed w-24 justify-center"
           >
             <Play size={13} fill="currentColor" />

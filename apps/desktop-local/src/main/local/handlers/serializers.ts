@@ -23,7 +23,11 @@ export function collectionToJson(row: Row): Row {
     created_at: row.created_at,
     updated_at: row.updated_at,
     confluence_page_id: row.confluence_page_id,
-    chaos_mode: !!row.chaos_mode
+    chaos_mode: !!row.chaos_mode,
+    auth_config: parseJsonColumn(row.auth_config, {}),
+    pre_request_script: row.pre_request_script,
+    post_request_script: row.post_request_script,
+    variables: parseJsonColumn(row.variables, {})
   }
 }
 

@@ -49,18 +49,18 @@ func (j *JSONBArray) Scan(value interface{}) error {
 }
 
 type User struct {
-	ID                    uint       `gorm:"primaryKey" json:"id"`
-	Email                 string     `gorm:"uniqueIndex;not null" json:"email"`
-	PasswordHash          string     `json:"-"`
-	GoogleID              *string    `gorm:"uniqueIndex;column:google_id" json:"-"`
-	Name                  string     `gorm:"not null" json:"name"`
-	IsSuperAdmin          bool       `gorm:"default:false" json:"is_super_admin"`
-	IsPremium             bool       `gorm:"default:false" json:"is_premium"`
+	ID                   uint       `gorm:"primaryKey" json:"id"`
+	Email                string     `gorm:"uniqueIndex;not null" json:"email"`
+	PasswordHash         string     `json:"-"`
+	GoogleID             *string    `gorm:"uniqueIndex;column:google_id" json:"-"`
+	Name                 string     `gorm:"not null" json:"name"`
+	IsSuperAdmin         bool       `gorm:"default:false" json:"is_super_admin"`
+	IsPremium            bool       `gorm:"default:false" json:"is_premium"`
 	PremiumSince         *time.Time `json:"premium_since"`
-	RoleSignature         string     `json:"-"`
+	RoleSignature        string     `json:"-"`
 	LastDonationPromptAt *time.Time `json:"last_donation_prompt_at"`
-	CreatedAt             time.Time  `json:"created_at"`
-	UpdatedAt             time.Time  `json:"updated_at"`
+	CreatedAt            time.Time  `json:"created_at"`
+	UpdatedAt            time.Time  `json:"updated_at"`
 }
 
 type Team struct {
@@ -98,13 +98,18 @@ type Collection struct {
 
 	ConfluencePageID string `gorm:"column:confluence_page_id" json:"confluence_page_id"`
 	ChaosMode        bool   `gorm:"column:chaos_mode;default:false" json:"chaos_mode"`
+
+	AuthConfig        JSONB  `gorm:"type:jsonb;default:'{}';column:auth_config" json:"auth_config"`
+	PreRequestScript  string `gorm:"type:text;column:pre_request_script" json:"pre_request_script"`
+	PostRequestScript string `gorm:"type:text;column:post_request_script" json:"post_request_script"`
+	Variables         JSONB  `gorm:"type:jsonb;default:'{}'" json:"variables"`
 }
 
 type Folder struct {
-	ID             uint   `gorm:"primaryKey" json:"id"`
-	Name           string `gorm:"not null" json:"name"`
-	CollectionID   uint   `gorm:"not null;column:collection_id" json:"collection_id"`
-	ParentFolderID *uint  `gorm:"column:parent_folder_id" json:"parent_folder_id"`
+	ID             uint    `gorm:"primaryKey" json:"id"`
+	Name           string  `gorm:"not null" json:"name"`
+	CollectionID   uint    `gorm:"not null;column:collection_id" json:"collection_id"`
+	ParentFolderID *uint   `gorm:"column:parent_folder_id" json:"parent_folder_id"`
 	OrderIndex     float64 `gorm:"default:0;column:order_index" json:"order_index"`
 
 	Collection   *Collection `gorm:"foreignKey:CollectionID" json:"-"`
@@ -112,14 +117,14 @@ type Folder struct {
 }
 
 type Request struct {
-	ID                uint      `gorm:"primaryKey" json:"id"`
-	Name              string    `gorm:"not null" json:"name"`
-	Description       string    `json:"description"`
-	Method            string    `gorm:"not null" json:"method"`
-	URL               string    `gorm:"not null" json:"url"`
-	Headers           JSONB     `gorm:"type:jsonb;default:'{}';column:headers" json:"headers"`
-	Body              JSONB     `gorm:"type:jsonb;default:'{}';column:body" json:"body"`
-	BodyType          string    `gorm:"column:body_type;default:raw-json" json:"body_type"`
+	ID          uint   `gorm:"primaryKey" json:"id"`
+	Name        string `gorm:"not null" json:"name"`
+	Description string `json:"description"`
+	Method      string `gorm:"not null" json:"method"`
+	URL         string `gorm:"not null" json:"url"`
+	Headers     JSONB  `gorm:"type:jsonb;default:'{}';column:headers" json:"headers"`
+	Body        JSONB  `gorm:"type:jsonb;default:'{}';column:body" json:"body"`
+	BodyType    string `gorm:"column:body_type;default:raw-json" json:"body_type"`
 	// BodyVariants menyimpan body per body_type (raw-json, form-data, x-www-form-urlencoded, dst)
 	// agar pindah tab body di editor tidak menghilangkan isi tipe lain, mirip Postman.
 	BodyVariants      JSONB     `gorm:"type:jsonb;default:'{}';column:body_variants" json:"body_variants"`
@@ -146,9 +151,9 @@ type RequestExample struct {
 	Name            string    `gorm:"not null" json:"name"`
 	RequestMethod   string    `gorm:"not null" json:"request_method"`
 	RequestURL      string    `gorm:"not null" json:"request_url"`
-	RequestHeaders JSONB    `gorm:"type:jsonb;default:'{}'" json:"request_headers"`
-	RequestBody    JSONBAny `gorm:"type:jsonb;default:'{}'" json:"request_body"`
-	ResponseStatus int      `gorm:"not null" json:"response_status"`
+	RequestHeaders  JSONB     `gorm:"type:jsonb;default:'{}'" json:"request_headers"`
+	RequestBody     JSONBAny  `gorm:"type:jsonb;default:'{}'" json:"request_body"`
+	ResponseStatus  int       `gorm:"not null" json:"response_status"`
 	ResponseHeaders JSONB     `gorm:"type:jsonb;default:'{}'" json:"response_headers"`
 	ResponseBody    string    `gorm:"type:text" json:"response_body"`
 	CreatedAt       time.Time `json:"created_at"`
@@ -261,20 +266,20 @@ type MockEndpoint struct {
 }
 
 type MockScenario struct {
-	ID              uint           `gorm:"primaryKey" json:"id"`
-	MockEndpointID  uint           `gorm:"not null;column:mock_endpoint_id" json:"mock_endpoint_id"`
-	Name            string         `gorm:"not null" json:"name"`
-	StatusCode      int            `gorm:"not null;default:200" json:"status_code"`
-	ResponseHeaders JSONB          `gorm:"type:jsonb;default:'{}'" json:"response_headers"`
-	ResponseBody    string         `gorm:"type:text;default:''" json:"response_body"`
-	Conditions      JSONBArray     `gorm:"type:jsonb;default:'[]'" json:"conditions"`
-	ResponseType    string         `gorm:"not null;default:text;column:response_type" json:"response_type"`
-	FileName        string         `gorm:"column:file_name" json:"file_name"`
-	FileBase64      string         `gorm:"type:text;column:file_base64" json:"file_base64"`
-	IsDefault       bool           `gorm:"default:false;column:is_default" json:"is_default"`
-	OrderIndex      float64        `gorm:"not null;default:0;column:order_index" json:"order_index"`
-	CreatedAt       time.Time      `json:"created_at"`
-	UpdatedAt       time.Time      `json:"updated_at"`
+	ID              uint       `gorm:"primaryKey" json:"id"`
+	MockEndpointID  uint       `gorm:"not null;column:mock_endpoint_id" json:"mock_endpoint_id"`
+	Name            string     `gorm:"not null" json:"name"`
+	StatusCode      int        `gorm:"not null;default:200" json:"status_code"`
+	ResponseHeaders JSONB      `gorm:"type:jsonb;default:'{}'" json:"response_headers"`
+	ResponseBody    string     `gorm:"type:text;default:''" json:"response_body"`
+	Conditions      JSONBArray `gorm:"type:jsonb;default:'[]'" json:"conditions"`
+	ResponseType    string     `gorm:"not null;default:text;column:response_type" json:"response_type"`
+	FileName        string     `gorm:"column:file_name" json:"file_name"`
+	FileBase64      string     `gorm:"type:text;column:file_base64" json:"file_base64"`
+	IsDefault       bool       `gorm:"default:false;column:is_default" json:"is_default"`
+	OrderIndex      float64    `gorm:"not null;default:0;column:order_index" json:"order_index"`
+	CreatedAt       time.Time  `json:"created_at"`
+	UpdatedAt       time.Time  `json:"updated_at"`
 }
 
 type SystemSetting struct {
@@ -323,4 +328,3 @@ type MockRequestLog struct {
 	LatencyMs     int       `gorm:"column:latency_ms;default:0" json:"latency_ms"`
 	CreatedAt     time.Time `json:"created_at"`
 }
-

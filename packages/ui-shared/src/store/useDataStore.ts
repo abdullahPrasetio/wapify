@@ -13,8 +13,10 @@ import type {
   RequestHistory,
   FieldValidations,
   ExtractionRule,
-  SchemaAssertion
+  SchemaAssertion,
+  AuthConfig
 } from '../types'
+export type { AuthConfig } from '../types'
 import { toast } from 'sonner'
 import moment from 'moment'
 import _ from 'lodash'
@@ -102,17 +104,6 @@ const normalizeRequest = (req: ApiRequest): ApiRequest => {
   }
 }
 
-export interface AuthConfig {
-  type: string
-  token?: string
-  username?: string
-  password?: string
-  key?: string
-  value?: string
-  addTo?: 'header' | 'query'
-  [key: string]: string | undefined
-}
-
 export interface PresenceInfo {
   user_id: number
   user_name: string
@@ -182,6 +173,7 @@ export interface Activity {
 }
 
 export interface RequestTab {
+  kind: 'request'
   requestId: number | string
   name: string
   method: string
@@ -192,6 +184,37 @@ export interface RequestTab {
   isDirty: boolean
   testResults: { name: string; status: 'passed' | 'failed'; error?: string }[]
 }
+
+export interface CollectionSettingsData {
+  name: string
+  description: string
+  confluence_page_id: string
+  auth_config: AuthConfig
+  pre_request_script: string
+  post_request_script: string
+  variables: Record<string, string>
+}
+
+export interface CollectionTab {
+  kind: 'collection'
+  requestId: string // `collection-${collectionId}` — reuses the same unifying tab key as request tabs
+  name: string
+  isDirty: boolean
+  collectionId: number
+  draft: CollectionSettingsData
+}
+
+export type TabItem = RequestTab | CollectionTab
+
+const collectionToDraft = (c: Collection): CollectionSettingsData => ({
+  name: c.name,
+  description: c.description,
+  confluence_page_id: c.confluence_page_id || '',
+  auth_config: c.auth_config || { type: 'No Auth' },
+  pre_request_script: c.pre_request_script || '',
+  post_request_script: c.post_request_script || '',
+  variables: c.variables || {}
+})
 
 export interface ResponseSnapshot {
   id: string
@@ -238,7 +261,7 @@ interface DataState {
   historyLoading: boolean
 
   // Multi-Tab System
-  tabs: RequestTab[]
+  tabs: TabItem[]
   activeTabId: number | string | null // refers to requestId
 
   // Environments (for active team)
@@ -297,11 +320,26 @@ interface DataState {
   forceCloseAllTabs: () => void
   duplicateTab: (requestId: number | string) => void
   setWorkingRequest: (update: Partial<WorkingRequest>) => void
+  openCollectionInTab: (collectionId: number, name: string) => void
+  setCollectionTabDraft: (collectionId: number, update: Partial<CollectionSettingsData>) => void
+  saveCollectionTab: (collectionId: number) => Promise<void>
 
   // CRUD Actions
   saveActiveRequest: () => Promise<void>
   createCollection: (name: string, description?: string, confluence_page_id?: string) => Promise<void>
-  updateCollection: (id: number, name: string, description: string, confluence_page_id: string) => Promise<void>
+  updateCollection: (
+    id: number,
+    name: string,
+    description: string,
+    confluence_page_id: string,
+    extra?: {
+      auth_config?: AuthConfig
+      pre_request_script?: string
+      post_request_script?: string
+      variables?: Record<string, string>
+    }
+  ) => Promise<void>
+  updateCollectionVariable: (collectionId: number, key: string, value: string) => Promise<void>
   importCollection: (jsonContent: string, mode?: 'new' | 'overwrite', confirmName?: string) => Promise<void>
   importOpenAPI: (jsonContent: string, mode?: 'new' | 'overwrite', confirmName?: string) => Promise<void>
   importInsomnia: (jsonContent: string, mode?: 'new' | 'overwrite', confirmName?: string) => Promise<void>
@@ -372,6 +410,10 @@ const replaceVariables = (text: string, variables: Record<string, string>): stri
 
   return text.replace(/\{\{(.+?)\}\}/g, (match, key) => {
     const trimmedKey = key.trim().toLowerCase()
+
+    // Postman dynamic variable — fresh random UUID per occurrence, not a lookup.
+    if (trimmedKey === '$guid') return crypto.randomUUID()
+
     const resolved = lowerVars[trimmedKey]
 
     console.log(
@@ -698,6 +740,7 @@ export const useDataStore = create<DataState>()(
           }
 
           const newTab: RequestTab = {
+            kind: 'request',
             requestId: normalizedRequest.id,
             name: normalizedRequest.name,
             method: normalizedRequest.method,
@@ -733,6 +776,7 @@ export const useDataStore = create<DataState>()(
           const normalizedDraft = normalizeRequest(initialData as ApiRequest)
 
           const newTab: RequestTab = {
+            kind: 'request',
             requestId: draftId,
             name: name,
             method: normalizedDraft.method || 'GET',
@@ -783,8 +827,9 @@ export const useDataStore = create<DataState>()(
           } as ApiRequest)
 
           const newTab: RequestTab = {
+            kind: 'request',
             requestId: exampleId,
-            name: `[Example] ${example.name}`,
+            name: example.name,
             method: example.request_method as any,
             workingRequest: {
               method: example.request_method as any,
@@ -861,7 +906,7 @@ export const useDataStore = create<DataState>()(
         duplicateTab: (requestId) => {
           const { tabs } = get()
           const tab = tabs.find((t) => t.requestId === requestId)
-          if (!tab) return
+          if (!tab || tab.kind !== 'request') return
           const draftId = `draft-${Date.now()}`
           const newTab = {
             ...tab,
@@ -880,7 +925,7 @@ export const useDataStore = create<DataState>()(
           if (!activeTabId) return
 
           const newTabs = tabs.map((tab) => {
-            if (tab.requestId === activeTabId) {
+            if (tab.requestId === activeTabId && tab.kind === 'request') {
               // Jika ada update headers, GUNAKAN seluruhnya (jangan di-merge)
               // agar header yang dihapus oleh user benar-benar hilang dari state.
               let newHeaders = update.headers ? { ...update.headers } : { ...tab.workingRequest.headers }
@@ -929,10 +974,69 @@ export const useDataStore = create<DataState>()(
             wsClient.send({ type: 'LOCK_REQUEST', request_id: activeTabId })
           }
         },
+
+        openCollectionInTab: (collectionId, name) => {
+          const { tabs, collections } = get()
+          const tabId = `collection-${collectionId}`
+          const existingTab = tabs.find((t) => t.requestId === tabId)
+          if (existingTab) {
+            set({ activeTabId: tabId })
+            return
+          }
+          const collection = collections.find((c) => c.id === collectionId)
+          const newTab: CollectionTab = {
+            kind: 'collection',
+            requestId: tabId,
+            name,
+            isDirty: false,
+            collectionId,
+            draft: collection
+              ? collectionToDraft(collection)
+              : { name, description: '', confluence_page_id: '', auth_config: { type: 'No Auth' }, pre_request_script: '', post_request_script: '', variables: {} }
+          }
+          set({ tabs: [...tabs, newTab], activeTabId: tabId })
+        },
+
+        setCollectionTabDraft: (collectionId, update) => {
+          const { tabs } = get()
+          const tabId = `collection-${collectionId}`
+          const newTabs = tabs.map((tab) => {
+            if (tab.requestId === tabId && tab.kind === 'collection') {
+              return { ...tab, draft: { ...tab.draft, ...update }, isDirty: true }
+            }
+            return tab
+          })
+          set({ tabs: newTabs })
+        },
+
+        saveCollectionTab: async (collectionId) => {
+          const { tabs } = get()
+          const tabId = `collection-${collectionId}`
+          const tab = tabs.find((t) => t.requestId === tabId)
+          if (!tab || tab.kind !== 'collection') return
+          if (!tab.draft.name.trim()) return
+
+          await get().updateCollection(collectionId, tab.draft.name, tab.draft.description, tab.draft.confluence_page_id, {
+            auth_config: tab.draft.auth_config,
+            pre_request_script: tab.draft.pre_request_script,
+            post_request_script: tab.draft.post_request_script,
+            variables: tab.draft.variables
+          })
+
+          const updated = get().collections.find((c) => c.id === collectionId)
+          set((state) => ({
+            tabs: state.tabs.map((t) =>
+              t.requestId === tabId && t.kind === 'collection'
+                ? { ...t, name: tab.draft.name, isDirty: false, draft: updated ? collectionToDraft(updated) : t.draft }
+                : t
+            )
+          }))
+        },
+
         saveActiveRequest: async () => {
           const { activeTabId, tabs } = get()
           const activeTab = tabs.find((t) => t.requestId === activeTabId)
-          if (!activeTab) return
+          if (!activeTab || activeTab.kind !== 'request') return
 
           if (typeof activeTabId === 'string' && (activeTabId.startsWith('draft-') || activeTabId.startsWith('example-'))) {
             // If it's a draft or an example, we trigger the "Save to Collection" modal via the UI component.
@@ -985,7 +1089,7 @@ export const useDataStore = create<DataState>()(
 
               // Update tab info
               const updatedTabs = tabs.map((t) => {
-                if (t.requestId === updatedReq.id) {
+                if (t.requestId === updatedReq.id && t.kind === 'request') {
                   return { ...t, name: updatedReq.name, method: updatedReq.method, isDirty: false }
                 }
                 return t
@@ -1043,12 +1147,13 @@ export const useDataStore = create<DataState>()(
           }
         },
 
-        updateCollection: async (id: number, name: string, description: string, confluence_page_id: string) => {
+        updateCollection: async (id, name, description, confluence_page_id, extra) => {
           try {
             const response = await apiClient.put(`/api/v1/collections/${id}`, {
               name,
               description,
-              confluence_page_id
+              confluence_page_id,
+              ...extra
             })
             if (response.status === 200) {
               const updated = response.data as Collection
@@ -1059,6 +1164,34 @@ export const useDataStore = create<DataState>()(
             }
           } catch {
             toast.error('Failed to update collection')
+          }
+        },
+
+        updateCollectionVariable: async (collectionId, key, value) => {
+          const collection = get().collections.find((c) => c.id === collectionId)
+          if (!collection) return
+          const variables = { ...(collection.variables || {}), [key]: value }
+          // Update is "always overwrite" for settings fields (mirrors the settings
+          // modal submitting full state) — send the collection's current auth_config
+          // and scripts back unchanged so this variable-only write doesn't wipe them.
+          try {
+            const response = await apiClient.put(`/api/v1/collections/${collectionId}`, {
+              name: collection.name,
+              description: collection.description,
+              confluence_page_id: collection.confluence_page_id || '',
+              auth_config: collection.auth_config || { type: 'No Auth' },
+              pre_request_script: collection.pre_request_script || '',
+              post_request_script: collection.post_request_script || '',
+              variables
+            })
+            if (response.status === 200) {
+              const updated = response.data as Collection
+              set((state) => ({
+                collections: state.collections.map(c => c.id === collectionId ? updated : c)
+              }))
+            }
+          } catch {
+            /* silent — mirrors updateActiveEnvironmentVariable's best-effort persistence */
           }
         },
 
@@ -1255,7 +1388,7 @@ export const useDataStore = create<DataState>()(
               if (draftTab && get().activeTabId === draftTab.requestId) {
                 // Replace draft logic
                 const newTabs = currentTabs.map(t => {
-                  if (t.requestId === draftTab.requestId) {
+                  if (t.requestId === draftTab.requestId && t.kind === 'request') {
                     return {
                       ...t,
                       requestId: normalizedReq.id,
@@ -1284,6 +1417,7 @@ export const useDataStore = create<DataState>()(
               } else {
                 // ADD NEW TAB DIRECTLY
                 const newTab: RequestTab = {
+                  kind: 'request',
                   requestId: normalizedReq.id,
                   name: normalizedReq.name,
                   method: normalizedReq.method,
@@ -1787,10 +1921,12 @@ export const useDataStore = create<DataState>()(
             activeTabId,
             environments,
             activeEnvironmentId,
-            updateActiveEnvironmentVariable
+            updateActiveEnvironmentVariable,
+            collections,
+            updateCollectionVariable
           } = get()
           const activeTab = tabs.find((t) => t.requestId === activeTabId)
-          if (!activeTab || activeTab.isSending || !activeTab.workingRequest.url) return
+          if (!activeTab || activeTab.kind !== 'request' || activeTab.isSending || !activeTab.workingRequest.url) return
 
           const addLog = (level: LogEntry['level'], message: string, details?: any) => {
             set((state) => ({
@@ -1810,11 +1946,21 @@ export const useDataStore = create<DataState>()(
 
           const { workingRequest } = activeTab
           const activeEnv = environments.find((e) => e.id === activeEnvironmentId)
+          const collectionId = typeof activeTab.requestId === 'number'
+            ? get().requests.find((r) => r.id === activeTab.requestId)?.collection_id
+            : undefined
+          const collection = collectionId !== undefined ? collections.find((c) => c.id === collectionId) : undefined
+          // collectionVars: scope terpisah dari environment (§ Collection Variables).
+          // Environment menang saat konflik key — sama seperti precedence Postman.
+          const collectionVars = { ...(collection?.variables || {}) }
           // Gunakan shallow copy agar tidak mutasi state langsung
-          const vars = { ...(activeEnv?.variables || {}) }
+          const vars = { ...collectionVars, ...(activeEnv?.variables || {}) }
+          const effectiveAuth: AuthConfig = workingRequest.auth_config?.type === 'Inherit'
+            ? (collection?.auth_config || { type: 'No Auth' })
+            : workingRequest.auth_config
 
           // --- 1. Pre-request Script Execution ---
-          if (workingRequest.pre_request_script) {
+          if (collection?.pre_request_script || workingRequest.pre_request_script) {
             try {
               const scriptLog = (level: LogEntry['level'], ...args: unknown[]) => {
                 const message = args
@@ -1839,10 +1985,11 @@ export const useDataStore = create<DataState>()(
                 collectionVariables: {
                   set: (key: string, val: unknown) => {
                     const strVal = String(val)
+                    collectionVars[key] = strVal
                     vars[key] = strVal
-                    updateActiveEnvironmentVariable(key, strVal)
+                    if (collection) updateCollectionVariable(collection.id, key, strVal)
                   },
-                  get: (key: string) => vars[key]
+                  get: (key: string) => collectionVars[key]
                 },
                 request: workingRequest,
                 variables: {
@@ -1890,15 +2037,14 @@ export const useDataStore = create<DataState>()(
 
               // Use AsyncFunction to support await in scripts
               const AsyncFunction = Object.getPrototypeOf(async function () { }).constructor
-              const fn = new AsyncFunction(
-                'wap',
-                'pm',
-                'moment',
-                '_',
-                'console',
-                workingRequest.pre_request_script
-              )
-              await fn(context.wap, context.pm, context.moment, context._, context.console)
+              const runScript = async (script: string): Promise<void> => {
+                const fn = new AsyncFunction('wap', 'pm', 'moment', '_', 'console', script)
+                await fn(context.wap, context.pm, context.moment, context._, context.console)
+              }
+
+              // Collection script runs first, before the request's own — sama urutan Postman.
+              if (collection?.pre_request_script) await runScript(collection.pre_request_script)
+              if (workingRequest.pre_request_script) await runScript(workingRequest.pre_request_script)
             } catch (err: unknown) {
               toast.error(`Pre-request Error: ${err instanceof Error ? err.message : String(err)}`)
               return
@@ -1917,7 +2063,7 @@ export const useDataStore = create<DataState>()(
           }
 
           // Inject Auth into Headers
-          const finalHeaders = injectAuth(workingRequest.headers, workingRequest.auth_config, vars)
+          const finalHeaders = injectAuth(workingRequest.headers, effectiveAuth, vars)
 
           // Substitusi variabel di Headers
           const substitutedHeaders: Record<string, string> = {}
@@ -1959,11 +2105,11 @@ export const useDataStore = create<DataState>()(
 
           // Inject Auth into URL if type is API Key and addTo is query
           if (
-            workingRequest.auth_config.type === 'API Key' &&
-            workingRequest.auth_config.addTo === 'query'
+            effectiveAuth.type === 'API Key' &&
+            effectiveAuth.addTo === 'query'
           ) {
-            const key = replaceVariables(workingRequest.auth_config.key || '', vars)
-            const value = replaceVariables(workingRequest.auth_config.value || '', vars)
+            const key = replaceVariables(effectiveAuth.key || '', vars)
+            const value = replaceVariables(effectiveAuth.value || '', vars)
             if (key && value) {
               try {
                 const urlObj = new URL(substitutedUrl)
@@ -2082,7 +2228,7 @@ export const useDataStore = create<DataState>()(
             }
 
             // --- 2. Post-request Script (Tests) Execution ---
-            if (workingRequest.post_request_script) {
+            if (collection?.post_request_script || workingRequest.post_request_script) {
               try {
                 console.log('[Wapbolt] Starting post-request script execution...')
                 const testResults: { name: string; status: 'passed' | 'failed'; error?: string }[] =
@@ -2114,10 +2260,11 @@ export const useDataStore = create<DataState>()(
                   collectionVariables: {
                     set: (key: string, val: unknown) => {
                       const strVal = String(val)
+                      collectionVars[key] = strVal
                       vars[key] = strVal
-                      updateActiveEnvironmentVariable(key, strVal)
+                      if (collection) updateCollectionVariable(collection.id, key, strVal)
                     },
-                    get: (key: string) => vars[key]
+                    get: (key: string) => collectionVars[key]
                   },
                   setEnvironmentVariable: (key: string, val: unknown) => {
                     const strVal = String(val)
@@ -2208,15 +2355,14 @@ export const useDataStore = create<DataState>()(
                 }
 
                 const AsyncFunction = Object.getPrototypeOf(async function () { }).constructor
-                const fn = new AsyncFunction(
-                  'wap',
-                  'pm',
-                  'moment',
-                  '_',
-                  'console',
-                  workingRequest.post_request_script
-                )
-                await fn(wap, wap, moment, _, mockConsole)
+                const runScript = async (script: string): Promise<void> => {
+                  const fn = new AsyncFunction('wap', 'pm', 'moment', '_', 'console', script)
+                  await fn(wap, wap, moment, _, mockConsole)
+                }
+
+                // Request's own test runs first, collection test after — sama urutan Postman.
+                if (workingRequest.post_request_script) await runScript(workingRequest.post_request_script)
+                if (collection?.post_request_script) await runScript(collection.post_request_script)
 
                 // Update tab with results (merge script results + schema assertions)
                 const allTestResults = [...testResults, ...schemaTestResults]
@@ -2317,7 +2463,7 @@ export const useDataStore = create<DataState>()(
         cancelActiveRequest: () => {
           const { tabs, activeTabId } = get()
           const activeTab = tabs.find((t) => t.requestId === activeTabId)
-          if (!activeTab?.pendingRequestId) return
+          if (activeTab?.kind !== 'request' || !activeTab.pendingRequestId) return
           apiClient.cancelRequest(activeTab.pendingRequestId)
         },
 
@@ -2342,7 +2488,7 @@ export const useDataStore = create<DataState>()(
           if (!activeTabId) return
 
           set({
-            tabs: tabs.map((t) => (t.requestId === activeTabId ? { ...t, lastResponse: null } : t))
+            tabs: tabs.map((t) => (t.requestId === activeTabId && t.kind === 'request' ? { ...t, lastResponse: null } : t))
           })
         },
 
@@ -2353,7 +2499,7 @@ export const useDataStore = create<DataState>()(
         saveExample: async (requestId: number, name: string) => {
           const { tabs } = get()
           const tab = tabs.find((t) => t.requestId === requestId)
-          if (!tab || !tab.lastResponse) {
+          if (!tab || tab.kind !== 'request' || !tab.lastResponse) {
             toast.error('No response available to save as example')
             return
           }
@@ -2389,7 +2535,7 @@ export const useDataStore = create<DataState>()(
         saveResponseSnapshot: (requestId, label) => {
           const { tabs, responseSnapshots } = get()
           const tab = tabs.find((t) => t.requestId === requestId)
-          if (!tab?.lastResponse) {
+          if (tab?.kind !== 'request' || !tab.lastResponse) {
             toast.error('No response to snapshot')
             return
           }
@@ -2458,7 +2604,8 @@ export const useDataStore = create<DataState>()(
 
         runCollection: async (collectionId, onProgress, options = {}) => {
           const { selectedIds, iterations = 1, delayMs = 0, stopOnFailure = false } = options
-          const { fetchCollectionContents, environments, activeEnvironmentId, updateActiveEnvironmentVariable } = get()
+          const { fetchCollectionContents, environments, activeEnvironmentId, updateActiveEnvironmentVariable, updateCollectionVariable } = get()
+          const collection = get().collections.find((c) => c.id === collectionId)
 
           await fetchCollectionContents(collectionId)
 
@@ -2488,7 +2635,8 @@ export const useDataStore = create<DataState>()(
           }
 
           const activeEnv = environments.find(e => e.id === activeEnvironmentId)
-          const vars = { ...(activeEnv?.variables || {}) }
+          const collectionVars = { ...(collection?.variables || {}) }
+          const vars = { ...collectionVars, ...(activeEnv?.variables || {}) }
           const results: CollectionRunResult[] = []
 
           let shouldStop = false
@@ -2506,9 +2654,12 @@ export const useDataStore = create<DataState>()(
               extraction_rules: (normalizedReq as any).extraction_rules || [],
               schema_assertions: (normalizedReq as any).schema_assertions || []
             }
+            const effectiveAuth: AuthConfig = workingRequest.auth_config?.type === 'Inherit'
+              ? (collection?.auth_config || { type: 'No Auth' })
+              : workingRequest.auth_config
 
-            // 1. Pre-request Script
-            if (workingRequest.pre_request_script) {
+            // 1. Pre-request Script (collection script first, then the request's own)
+            if (collection?.pre_request_script || workingRequest.pre_request_script) {
               try {
                 const wap = {
                   set: (key: string, val: unknown) => { vars[key] = String(val) },
@@ -2523,10 +2674,11 @@ export const useDataStore = create<DataState>()(
                   collectionVariables: {
                     set: (key: string, val: unknown) => {
                       const strVal = String(val)
+                      collectionVars[key] = strVal
                       vars[key] = strVal
-                      updateActiveEnvironmentVariable(key, strVal)
+                      if (collection) updateCollectionVariable(collection.id, key, strVal)
                     },
-                    get: (key: string) => vars[key]
+                    get: (key: string) => collectionVars[key]
                   },
                   request: workingRequest,
                   setEnv: (key: string, val: unknown) => {
@@ -2537,8 +2689,12 @@ export const useDataStore = create<DataState>()(
                 }
                 const context = { wap, pm: wap, moment, _, console }
                 const AsyncFunction = Object.getPrototypeOf(async function () { }).constructor
-                const fn = new AsyncFunction('wap', 'pm', 'moment', '_', 'console', workingRequest.pre_request_script)
-                await fn(context.wap, context.pm, context.moment, context._, context.console)
+                const runScript = async (script: string): Promise<void> => {
+                  const fn = new AsyncFunction('wap', 'pm', 'moment', '_', 'console', script)
+                  await fn(context.wap, context.pm, context.moment, context._, context.console)
+                }
+                if (collection?.pre_request_script) await runScript(collection.pre_request_script)
+                if (workingRequest.pre_request_script) await runScript(workingRequest.pre_request_script)
               } catch (err) {
                 console.error(`Runner Pre-request Error for ${req.name}:`, err)
               }
@@ -2546,7 +2702,7 @@ export const useDataStore = create<DataState>()(
 
             // Substitutions
             let substitutedUrl = replaceVariables(workingRequest.url, vars)
-            const finalHeaders = injectAuth(workingRequest.headers, workingRequest.auth_config, vars)
+            const finalHeaders = injectAuth(workingRequest.headers, effectiveAuth, vars)
             const substitutedHeaders: Record<string, string> = {}
             Object.entries(finalHeaders).forEach(([k, v]) => { substitutedHeaders[k] = replaceVariables(v, vars) })
             const substitutedBody = Array.isArray(workingRequest.body)
@@ -2603,7 +2759,7 @@ export const useDataStore = create<DataState>()(
 
               // 2. Post-request Script (Tests)
               const testResults: { name: string; status: 'passed' | 'failed'; error?: string }[] = []
-              if (workingRequest.post_request_script) {
+              if (collection?.post_request_script || workingRequest.post_request_script) {
                 try {
                   const wap = {
                     response: {
@@ -2633,10 +2789,11 @@ export const useDataStore = create<DataState>()(
                     collectionVariables: {
                       set: (key: string, val: unknown) => {
                         const strVal = String(val)
+                        collectionVars[key] = strVal
                         vars[key] = strVal
-                        updateActiveEnvironmentVariable(key, strVal)
+                        if (collection) updateCollectionVariable(collection.id, key, strVal)
                       },
-                      get: (key: string) => vars[key]
+                      get: (key: string) => collectionVars[key]
                     },
                     set: (key: string, val: unknown) => {
                       const strVal = String(val)
@@ -2650,8 +2807,13 @@ export const useDataStore = create<DataState>()(
                     }
                   }
                   const AsyncFunction = Object.getPrototypeOf(async function () { }).constructor
-                  const fn = new AsyncFunction('wap', 'pm', 'moment', '_', 'console', workingRequest.post_request_script)
-                  await fn(wap, wap, moment, _, console)
+                  const runScript = async (script: string): Promise<void> => {
+                    const fn = new AsyncFunction('wap', 'pm', 'moment', '_', 'console', script)
+                    await fn(wap, wap, moment, _, console)
+                  }
+                  // Request's own test first, collection test after — sama urutan Postman.
+                  if (workingRequest.post_request_script) await runScript(workingRequest.post_request_script)
+                  if (collection?.post_request_script) await runScript(collection.post_request_script)
                 } catch (err) {
                   console.error(`Runner Post-request Error for ${req.name}:`, err)
                 }

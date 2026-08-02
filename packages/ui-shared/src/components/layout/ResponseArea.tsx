@@ -52,7 +52,7 @@ export const ResponseArea = (): React.JSX.Element => {
 
   const activeTabRequest = tabs.find((t) => t.requestId === activeTabId)
 
-  if (!activeTabRequest) return <></>
+  if (!activeTabRequest || activeTabRequest.kind !== 'request') return <></>
 
   const workingRequest = activeTabRequest.workingRequest
 

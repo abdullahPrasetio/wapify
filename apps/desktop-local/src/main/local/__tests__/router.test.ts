@@ -102,6 +102,41 @@ describe('collections', () => {
     expect((call('GET', '/api/v1/teams/1/collections').data as unknown[]).length).toBe(0)
     expect(call('GET', `/api/v1/collections/${col.id}`).status).toBe(404)
   })
+
+  it('defaults auth_config/pre_request_script/post_request_script/variables to empty when omitted, and round-trips them on update', () => {
+    const created = call('POST', '/api/v1/teams/1/collections', { name: 'Koleksi B' })
+    const col = created.data as Row
+    expect(col).toMatchObject({
+      auth_config: {},
+      pre_request_script: '',
+      post_request_script: '',
+      variables: {}
+    })
+
+    const updated = call('PUT', `/api/v1/collections/${col.id}`, {
+      name: 'Koleksi B',
+      description: '',
+      confluence_page_id: '',
+      auth_config: { type: 'Bearer Token', token: 'abc123' },
+      pre_request_script: 'wap.collectionVariables.set("x", "1")',
+      post_request_script: 'wap.test("ok", () => {})',
+      variables: { base_url: 'https://api.example.com' }
+    })
+    expect(updated.status).toBe(200)
+    expect(updated.data).toMatchObject({
+      auth_config: { type: 'Bearer Token', token: 'abc123' },
+      pre_request_script: 'wap.collectionVariables.set("x", "1")',
+      post_request_script: 'wap.test("ok", () => {})',
+      variables: { base_url: 'https://api.example.com' }
+    })
+
+    // Persisted, not just echoed back — a fresh GET reflects the same values.
+    const detail = call('GET', `/api/v1/collections/${col.id}`)
+    expect((detail.data as { collection: Row }).collection).toMatchObject({
+      auth_config: { type: 'Bearer Token', token: 'abc123' },
+      variables: { base_url: 'https://api.example.com' }
+    })
+  })
 })
 
 describe('folders', () => {
