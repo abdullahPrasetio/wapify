@@ -550,6 +550,8 @@ interface DataState {
   deleteFolder: (id: number) => Promise<void>
   deleteRequest: (id: number) => Promise<void>
   duplicateRequest: (id: number) => Promise<void>
+  duplicateCollection: (id: number) => Promise<void>
+  duplicateFolder: (id: number) => Promise<void>
   moveRequest: (id: number, collectionId: number, folderId: number | null, orderIndex: number) => Promise<void>
   moveFolder: (id: number, collectionId: number, parentFolderId: number | null, orderIndex: number) => Promise<void>
   exportCollection: (id: number) => Promise<void>
@@ -1903,6 +1905,26 @@ export const useDataStore = create<DataState>()(
           }
         },
 
+        duplicateCollection: async (id: number) => {
+          const { activeTeamId } = get()
+          try {
+            const response = await apiClient.post(`/api/v1/collections/${id}/duplicate`, {})
+            if (response.status === 201) {
+              const newCol = response.data as Collection
+              set((state) => ({
+                collections: state.collections.some((c) => c.id === newCol.id)
+                  ? state.collections
+                  : [...state.collections, newCol]
+              }))
+              await get().fetchCollectionContents(newCol.id)
+              if (activeTeamId) await get().fetchCollections(activeTeamId)
+              toast.success('Collection duplicated')
+            }
+          } catch (err: unknown) {
+            toast.error('Failed to duplicate collection')
+          }
+        },
+
         deleteFolder: async (id: number) => {
           try {
             await apiClient.delete(`/api/v1/folders/${id}`)
@@ -1914,6 +1936,19 @@ export const useDataStore = create<DataState>()(
             if (col) get().fetchCollectionContents(col.id)
           } catch (err: unknown) {
             toast.error('Failed to delete folder')
+          }
+        },
+
+        duplicateFolder: async (id: number) => {
+          try {
+            const response = await apiClient.post(`/api/v1/folders/${id}/duplicate`, {})
+            if (response.status === 201) {
+              const newFolder = response.data as Folder
+              toast.success('Folder duplicated')
+              await get().fetchCollectionContents(newFolder.collection_id)
+            }
+          } catch (err: unknown) {
+            toast.error('Failed to duplicate folder')
           }
         },
 

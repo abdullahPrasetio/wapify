@@ -349,7 +349,8 @@ const FolderItem = ({
     createFolder,
     deleteFolder,
     deleteRequest,
-    duplicateRequest
+    duplicateRequest,
+    duplicateFolder
   } = useDataStore()
   const { setActiveView } = useAppStore()
 
@@ -382,6 +383,10 @@ const FolderItem = ({
 
   const handleDuplicateRequest = (req: ApiRequest): void => {
     duplicateRequest(req.id)
+  }
+
+  const handleDuplicateFolder = (): void => {
+    duplicateFolder(folder.id)
   }
 
   const handleSelectRequest = (req: ApiRequest): void => {
@@ -430,6 +435,7 @@ const FolderItem = ({
             items={[
               { label: 'Add Request', icon: FilePlus, onClick: handleAddRequest },
               { label: 'Add Folder', icon: FolderPlus, onClick: handleAddFolder },
+              { label: 'Duplicate Folder', icon: Copy, onClick: handleDuplicateFolder },
               { label: 'Delete Folder', icon: Trash2, onClick: handleDeleteFolder, variant: 'danger' }
             ]}
           />
@@ -496,6 +502,7 @@ const CollectionItem = ({ collection }: { collection: Collection }): React.JSX.E
     deleteCollection,
     deleteRequest,
     duplicateRequest,
+    duplicateCollection,
     exportCollection,
     openCollectionInTab
   } = useDataStore()
@@ -547,6 +554,10 @@ const CollectionItem = ({ collection }: { collection: Collection }): React.JSX.E
     duplicateRequest(req.id)
   }
 
+  const handleDuplicateCollection = (): void => {
+    duplicateCollection(collection.id)
+  }
+
   const handleSelectRequest = (req: ApiRequest): void => {
     openRequestInTab(req)
     setActiveView('request-builder')
@@ -591,6 +602,7 @@ const CollectionItem = ({ collection }: { collection: Collection }): React.JSX.E
             { label: 'View Documentation', icon: BookOpen, onClick: (): void => setShowDocs(true) },
             { label: 'Mock Server', icon: Server, onClick: (): void => setShowMockServer(true) },
             { label: 'Collection Settings', icon: Settings, onClick: handleSelectCollection },
+            { label: 'Duplicate Collection', icon: Copy, onClick: handleDuplicateCollection },
             { label: 'Export Collection', icon: Download, onClick: (): Promise<void> => exportCollection(collection.id) },
             { label: 'Delete Collection', icon: Trash2, onClick: handleDeleteCollection, variant: 'danger' }
           ]}

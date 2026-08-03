@@ -6,7 +6,8 @@ import {
   markDirty,
   notTombstonedSql,
   isTombstoned,
-  deleteWithTombstone
+  deleteWithTombstone,
+  LOCAL_USER_ID
 } from './helpers'
 import { folderToJson } from './serializers'
 
@@ -138,6 +139,96 @@ export function moveFolder(db: Database.Database, id: string, body: Row | null):
 
   const row = db.prepare('SELECT * FROM folders WHERE id = ?').get(folder.id) as Row
   return { status: 200, data: folderToJson(row) }
+}
+
+// Salin folder (opsional rename) + seluruh request langsung di dalamnya,
+// lalu rekursif ke sub-folder. Dipakai untuk "Duplicate Folder" berdiri
+// sendiri maupun sebagai building block "Duplicate Collection".
+// Mirror Go: duplicateFolderTree di backend/internal/api/folder.go.
+export function duplicateFolderTree(
+  db: Database.Database,
+  originalFolderId: number,
+  targetCollectionId: number,
+  targetParentFolderId: number | null,
+  nameSuffix: string
+): Row {
+  const original = db.prepare('SELECT * FROM folders WHERE id = ?').get(originalFolderId) as Row
+
+  const result = db
+    .prepare('INSERT INTO folders (name, collection_id, parent_folder_id, order_index) VALUES (?, ?, ?, ?)')
+    .run(`${original.name}${nameSuffix}`, targetCollectionId, targetParentFolderId, original.order_index)
+  const newFolderId = Number(result.lastInsertRowid)
+  markDirty(db, 'folder', newFolderId)
+
+  const requests = db.prepare('SELECT * FROM requests WHERE folder_id = ?').all(originalFolderId) as Row[]
+  for (const r of requests) {
+    const now = new Date().toISOString()
+    const reqResult = db
+      .prepare(
+        `INSERT INTO requests
+          (name, description, method, url, headers, body, body_type, body_variants, auth_config,
+           field_validations, collection_id, folder_id, created_by, order_index,
+           pre_request_script, post_request_script, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .run(
+        r.name,
+        r.description,
+        r.method,
+        r.url,
+        r.headers,
+        r.body,
+        r.body_type,
+        r.body_variants,
+        r.auth_config,
+        r.field_validations,
+        targetCollectionId,
+        newFolderId,
+        LOCAL_USER_ID,
+        r.order_index,
+        r.pre_request_script,
+        r.post_request_script,
+        now,
+        now
+      )
+    markDirty(db, 'request', Number(reqResult.lastInsertRowid))
+  }
+
+  const subfolders = db
+    .prepare('SELECT id FROM folders WHERE parent_folder_id = ?')
+    .all(originalFolderId) as Array<{ id: number }>
+  for (const sf of subfolders) {
+    duplicateFolderTree(db, sf.id, targetCollectionId, newFolderId, '')
+  }
+
+  return db.prepare('SELECT * FROM folders WHERE id = ?').get(newFolderId) as Row
+}
+
+export function duplicateFolder(db: Database.Database, id: string): Res {
+  const folder = findFolder(db, id)
+  if (!folder) return folderNotFound
+
+  const run = db.transaction(() =>
+    duplicateFolderTree(
+      db,
+      Number(folder.id),
+      Number(folder.collection_id),
+      folder.parent_folder_id === null || folder.parent_folder_id === undefined
+        ? null
+        : Number(folder.parent_folder_id),
+      ' Copy'
+    )
+  )
+  const newFolder = run()
+
+  db.prepare('UPDATE folders SET order_index = ? WHERE id = ?').run(
+    Number(folder.order_index) + 1,
+    newFolder.id
+  )
+  markDirty(db, 'folder', Number(newFolder.id))
+
+  const row = db.prepare('SELECT * FROM folders WHERE id = ?').get(newFolder.id) as Row
+  return { status: 201, data: folderToJson(row) }
 }
 
 export function deleteFolder(db: Database.Database, id: string): Res {

@@ -405,6 +405,61 @@ func TestDeleteCollection(t *testing.T) {
 	})
 }
 
+func TestDuplicateCollection(t *testing.T) {
+	mock, cleanup := repository.SetupTestDB()
+	defer cleanup()
+	mock.MatchExpectationsInOrder(false)
+
+	app := fiber.New()
+	app.Post("/api/v1/collections/:id/duplicate", func(c *fiber.Ctx) error {
+		c.Locals("user_id", float64(1))
+		c.Locals("is_super_admin", false)
+		return DuplicateCollection(c)
+	})
+
+	t.Run("Success", func(t *testing.T) {
+		mock.ExpectQuery("^SELECT \\* FROM \"collections\"").
+			WillReturnRows(sqlmock.NewRows([]string{"id", "team_id", "name"}).AddRow(1, 10, "Coll"))
+		mock.ExpectQuery("^SELECT \\* FROM \"team_members\"").
+			WillReturnRows(sqlmock.NewRows([]string{"id", "role"}).AddRow(1, "Editor"))
+
+		mock.ExpectBegin()
+		mock.ExpectQuery("^INSERT INTO \"collections\"").
+			WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(2))
+		mock.ExpectCommit()
+
+		mock.ExpectQuery("^SELECT \\* FROM \"requests\" WHERE collection_id").
+			WillReturnRows(sqlmock.NewRows([]string{"id"}))
+		mock.ExpectQuery("^SELECT \\* FROM \"folders\" WHERE collection_id").
+			WillReturnRows(sqlmock.NewRows([]string{"id"}))
+
+		mock.ExpectBegin()
+		mock.ExpectQuery("^INSERT INTO \"activity_logs\"").WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(1))
+		mock.ExpectCommit()
+
+		req := httptest.NewRequest("POST", "/api/v1/collections/1/duplicate", nil)
+		resp, _ := app.Test(req, -1)
+		assert.Equal(t, http.StatusCreated, resp.StatusCode)
+	})
+
+	t.Run("Not Found", func(t *testing.T) {
+		mock.ExpectQuery("^SELECT \\* FROM \"collections\"").WillReturnError(errors.New("not found"))
+		req := httptest.NewRequest("POST", "/api/v1/collections/99/duplicate", nil)
+		resp, _ := app.Test(req)
+		assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+	})
+
+	t.Run("Forbidden", func(t *testing.T) {
+		mock.ExpectQuery("^SELECT \\* FROM \"collections\"").
+			WillReturnRows(sqlmock.NewRows([]string{"id", "team_id"}).AddRow(1, 10))
+		mock.ExpectQuery("^SELECT \\* FROM \"team_members\"").WillReturnRows(sqlmock.NewRows([]string{"id"}))
+
+		req := httptest.NewRequest("POST", "/api/v1/collections/1/duplicate", nil)
+		resp, _ := app.Test(req)
+		assert.Equal(t, http.StatusForbidden, resp.StatusCode)
+	})
+}
+
 func TestImportPostman(t *testing.T) {
 	mock, cleanup := repository.SetupTestDB()
 	defer cleanup()

@@ -224,6 +224,7 @@ func SetupCollectionRoutes(app *fiber.App) {
 	app.Get("/api/v1/collections/:id", middleware.RequireAuth, GetCollection)
 	app.Put("/api/v1/collections/:id", middleware.RequireAuth, UpdateCollection)
 	app.Delete("/api/v1/collections/:id", middleware.RequireAuth, DeleteCollection)
+	app.Post("/api/v1/collections/:id/duplicate", middleware.RequireAuth, DuplicateCollection)
 }
 
 // ─── OpenAPI / Swagger Import ────────────────────────────────────────────────
@@ -997,4 +998,76 @@ func DeleteCollection(c *fiber.Ctx) error {
 	NotifyEntityUpdate(collection.TeamID, userID, "Collection", collection.Name, "delete", map[string]interface{}{"collection_id": collection.ID})
 
 	return c.JSON(fiber.Map{"message": "Collection deleted successfully"})
+}
+
+func DuplicateCollection(c *fiber.Ctx) error {
+	collectionID := c.Params("id")
+
+	var original repository.Collection
+	if err := repository.DB.First(&original, collectionID).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Collection not found", "code": "NOT_FOUND"})
+	}
+
+	if !isEditorOrAbove(c, original.TeamID) {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Forbidden", "code": "FORBIDDEN"})
+	}
+
+	rawUID, ok := c.Locals("user_id").(float64)
+	if !ok || rawUID <= 0 {
+		return c.Status(401).JSON(fiber.Map{"error": "unauthorized"})
+	}
+	userID := uint(rawUID)
+
+	newCollection := repository.Collection{
+		Name:              original.Name + " Copy",
+		Description:       original.Description,
+		TeamID:            original.TeamID,
+		CreatedByID:       &userID,
+		AuthConfig:        original.AuthConfig,
+		PreRequestScript:  original.PreRequestScript,
+		PostRequestScript: original.PostRequestScript,
+		Variables:         original.Variables,
+		ChaosMode:         original.ChaosMode,
+	}
+	if err := repository.DB.Create(&newCollection).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to duplicate collection", "code": "INTERNAL_SERVER_ERROR"})
+	}
+
+	var rootRequests []repository.Request
+	repository.DB.Where("collection_id = ? AND folder_id IS NULL", original.ID).Find(&rootRequests)
+	for _, r := range rootRequests {
+		newRequest := repository.Request{
+			Name:              r.Name,
+			Description:       r.Description,
+			Method:            r.Method,
+			URL:               r.URL,
+			Headers:           r.Headers,
+			Body:              r.Body,
+			BodyType:          r.BodyType,
+			BodyVariants:      r.BodyVariants,
+			AuthConfig:        r.AuthConfig,
+			FieldValidations:  r.FieldValidations,
+			CollectionID:      newCollection.ID,
+			FolderID:          nil,
+			CreatedByID:       &userID,
+			OrderIndex:        r.OrderIndex,
+			PreRequestScript:  r.PreRequestScript,
+			PostRequestScript: r.PostRequestScript,
+		}
+		repository.DB.Create(&newRequest)
+	}
+
+	var rootFolders []repository.Folder
+	repository.DB.Where("collection_id = ? AND parent_folder_id IS NULL", original.ID).Find(&rootFolders)
+	for _, f := range rootFolders {
+		if _, err := duplicateFolderTree(f.ID, newCollection.ID, nil, "", userID); err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to duplicate collection", "code": "INTERNAL_SERVER_ERROR"})
+		}
+	}
+
+	WSHub.BroadcastEntityUpdate(original.TeamID, "TEAM", original.TeamID)
+	LogActivity(repository.DB, original.TeamID, userID, "CREATED_COLLECTION", "COLLECTION", newCollection.ID, map[string]interface{}{"name": newCollection.Name})
+	NotifyEntityUpdate(original.TeamID, userID, "Collection", newCollection.Name, "create", map[string]interface{}{"collection_id": newCollection.ID})
+
+	return c.Status(fiber.StatusCreated).JSON(newCollection)
 }

@@ -6,14 +6,16 @@ import {
   createCollection,
   getCollection,
   updateCollection,
-  deleteCollection
+  deleteCollection,
+  duplicateCollection
 } from './handlers/collections'
 import {
   listFolders,
   createFolder,
   updateFolder,
   moveFolder,
-  deleteFolder
+  deleteFolder,
+  duplicateFolder
 } from './handlers/folders'
 import {
   listRequestsInFolder,
@@ -119,6 +121,11 @@ const routes: Array<{ method: string; pattern: RegExp; handler: RouteHandler }> 
   },
   {
     method: 'POST',
+    pattern: /^\/api\/v1\/collections\/(\d+)\/duplicate$/,
+    handler: (db, [id]) => duplicateCollection(db, id)
+  },
+  {
+    method: 'POST',
     pattern: /^\/api\/v1\/teams\/(\d+)\/import$/,
     handler: (db, [teamId], b, q) => importPostman(db, teamId, b, q)
   },
@@ -141,6 +148,11 @@ const routes: Array<{ method: string; pattern: RegExp; handler: RouteHandler }> 
     handler: (db, [id], b) => moveFolder(db, id, b)
   },
   { method: 'DELETE', pattern: /^\/api\/v1\/folders\/(\d+)$/, handler: (db, [id]) => deleteFolder(db, id) },
+  {
+    method: 'POST',
+    pattern: /^\/api\/v1\/folders\/(\d+)\/duplicate$/,
+    handler: (db, [id]) => duplicateFolder(db, id)
+  },
 
   // Requests (request.go)
   {

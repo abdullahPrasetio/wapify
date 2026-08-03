@@ -137,6 +137,39 @@ describe('collections', () => {
       variables: { base_url: 'https://api.example.com' }
     })
   })
+
+  it('duplicate copies settings, root requests and the full folder tree into a new collection', () => {
+    const created = call('POST', '/api/v1/teams/1/collections', {
+      name: 'Asli',
+      auth_config: { type: 'Bearer Token', token: 'abc' },
+      variables: { x: '1' }
+    })
+    const col = created.data as { id: number }
+    call('POST', `/api/v1/collections/${col.id}/requests`, { name: 'Root Req', method: 'GET', url: 'http://x' })
+    const folder = (
+      call('POST', `/api/v1/collections/${col.id}/folders`, { name: 'F' }).data as { id: number }
+    ).id
+    call('POST', `/api/v1/folders/${folder}/requests`, { name: 'Nested Req', method: 'GET', url: 'http://y' })
+
+    const dup = call('POST', `/api/v1/collections/${col.id}/duplicate`)
+    expect(dup.status).toBe(201)
+    const newCol = dup.data as Row
+    expect(newCol).toMatchObject({
+      name: 'Asli Copy',
+      auth_config: { type: 'Bearer Token', token: 'abc' },
+      variables: { x: '1' }
+    })
+
+    // Original untouched
+    expect((call('GET', `/api/v1/collections/${col.id}/requests`).data as unknown[]).length).toBe(2)
+
+    const newAllRequests = call('GET', `/api/v1/collections/${newCol.id}/requests`).data as Row[]
+    expect(newAllRequests.map((r) => r.name).sort()).toEqual(['Nested Req', 'Root Req'])
+    const newFolders = call('GET', `/api/v1/collections/${newCol.id}/folders`).data as Row[]
+    expect(newFolders).toMatchObject([{ name: 'F' }])
+    const newFolderRequests = call('GET', `/api/v1/folders/${(newFolders[0] as Row).id}/requests`).data as Row[]
+    expect(newFolderRequests).toMatchObject([{ name: 'Nested Req' }])
+  })
 })
 
 describe('folders', () => {
@@ -209,6 +242,36 @@ describe('folders', () => {
     expect(call('DELETE', `/api/v1/folders/${parent}`).status).toBe(200)
     expect((call('GET', `/api/v1/collections/${colId}/folders`).data as unknown[]).length).toBe(0)
     expect(call('GET', `/api/v1/requests/${reqId}`).status).toBe(404)
+  })
+
+  it('duplicate copies the folder tree (subfolders + requests) with " Copy" only on the top-level name', () => {
+    const parent = (call('POST', `/api/v1/collections/${colId}/folders`, { name: 'Induk' }).data as { id: number }).id
+    const child = (
+      call('POST', `/api/v1/collections/${colId}/folders`, { name: 'Anak', parent_folder_id: parent })
+        .data as { id: number }
+    ).id
+    call('POST', `/api/v1/folders/${parent}/requests`, { name: 'Req Root', method: 'GET', url: 'http://x' })
+    call('POST', `/api/v1/folders/${child}/requests`, { name: 'Req Child', method: 'GET', url: 'http://y' })
+
+    const dup = call('POST', `/api/v1/folders/${parent}/duplicate`)
+    expect(dup.status).toBe(201)
+    const newParent = dup.data as Row
+    expect(newParent.name).toBe('Induk Copy')
+    expect(newParent.collection_id).toBe(colId)
+
+    const allFolders = call('GET', `/api/v1/collections/${colId}/folders`).data as Row[]
+    // original parent+child + duplicated parent+child = 4
+    expect(allFolders.length).toBe(4)
+    const newChild = allFolders.find((f) => f.parent_folder_id === newParent.id)
+    expect(newChild).toMatchObject({ name: 'Anak' })
+
+    const allRequests = call('GET', `/api/v1/collections/${colId}/requests`).data as Row[]
+    expect(allRequests.length).toBe(4) // original 2 + duplicated 2, all nested under folders in this collection
+
+    const rootRequests = call('GET', `/api/v1/folders/${newParent.id}/requests`).data as Row[]
+    expect(rootRequests).toMatchObject([{ name: 'Req Root' }])
+    const childRequests = call('GET', `/api/v1/folders/${(newChild as Row).id}/requests`).data as Row[]
+    expect(childRequests).toMatchObject([{ name: 'Req Child' }])
   })
 })
 
