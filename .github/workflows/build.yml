@@ -10,6 +10,12 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     strategy:
+      # max-parallel: 1 — same race-condition fix as build-local.yml: 3 OS
+      # runners publishing to the same GitHub release tag in parallel can
+      # each try to create it (no atomic create-if-not-exists), producing
+      # duplicate draft releases. Sequential matrix means the first job
+      # creates the release, the rest find and reuse it.
+      max-parallel: 1
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
 

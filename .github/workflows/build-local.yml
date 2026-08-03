@@ -19,6 +19,14 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     strategy:
+      # max-parallel: 1 — electron-builder's GitHub publisher creates the
+      # release for this tag if it doesn't exist yet ("get or create"). With
+      # 3 OS runners publishing in parallel, all 3 can race to create it at
+      # once (GitHub's API has no atomic create-if-not-exists), producing
+      # duplicate draft releases for the same tag. Running the matrix
+      # sequentially means the first job creates the release and the other
+      # two find and reuse it.
+      max-parallel: 1
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
 
