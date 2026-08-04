@@ -38,6 +38,10 @@ interface IpcRequestConfig {
   body?: any
   body_type?: string
   requestId?: string
+  // Base URL Wapbolt yang sedang dikonfigurasi renderer (getBaseUrl()). Dipakai
+  // isWapboltApiUrl untuk membedakan API internal Wapbolt dari target arbitrary
+  // milik user yang kebetulan juga pakai path /api/v1/... (mis. localhost:3002).
+  baseUrl?: string
 }
 
 interface IpcResponse {
@@ -144,7 +148,7 @@ export function registerIpcHandlers(db: Database.Database): void {
   const localRouter = createLocalRouter(db)
 
   ipcMain.handle('wapbolt:request', async (_event, config: IpcRequestConfig) => {
-    if (isWapboltApiUrl(config.url)) {
+    if (isWapboltApiUrl(config.url, config.baseUrl)) {
       return localRouter.handle(config)
     }
     return httpExecute(config)

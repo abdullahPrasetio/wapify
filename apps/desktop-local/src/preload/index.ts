@@ -12,6 +12,7 @@ interface RequestConfig {
   body?: any
   body_type?: string
   requestId?: string
+  baseUrl?: string
 }
 
 interface IpcResponse {

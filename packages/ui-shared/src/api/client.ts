@@ -31,6 +31,7 @@ interface RequestConfig {
   body_type?: string
   skipAuth?: boolean
   requestId?: string
+  baseUrl?: string
 }
 
 // Token disimpan di memory (bukan localStorage) — lebih aman
@@ -106,7 +107,8 @@ async function ipcRequest<T>(config: RequestConfig): Promise<IpcResponse<T>> {
 
   let response = await window.api.wapboltRequest({
     ...config,
-    headers
+    headers,
+    baseUrl: getBaseUrl()
   })
 
   // Handle License Warnings
@@ -154,7 +156,8 @@ async function ipcRequest<T>(config: RequestConfig): Promise<IpcResponse<T>> {
         method: 'POST',
         url: `${getBaseUrl()}/api/v1/auth/refresh`,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refresh_token: refreshToken })
+        body: JSON.stringify({ refresh_token: refreshToken }),
+        baseUrl: getBaseUrl()
       })
 
       if (refreshResponse.status === 200) {
@@ -166,7 +169,8 @@ async function ipcRequest<T>(config: RequestConfig): Promise<IpcResponse<T>> {
         headers['Authorization'] = `Bearer ${newAuthToken}`
         response = await window.api.wapboltRequest({
           ...config,
-          headers
+          headers,
+          baseUrl: getBaseUrl()
         })
       } else {
         // Refresh failed, clear tokens and let the UI handle logout (e.g. via zustand listener or just let it fail)

@@ -7,6 +7,7 @@ interface RequestConfig {
   headers?: Record<string, string>
   body?: any
   requestId?: string
+  baseUrl?: string
 }
 
 interface IpcResponse {

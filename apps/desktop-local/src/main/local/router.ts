@@ -74,9 +74,17 @@ export interface LocalResponse {
 // arbitrary (tombol "Send") memakai URL bebas dan TIDAK ke sini — tetap
 // httpExecute (§2). Pengecualian §5.1: /api/v1/auth/* tidak pernah di-route
 // lokal — dipakai login-sekali/SyncEngine langsung ke server.
-export function isWapboltApiUrl(url: string): boolean {
+//
+// Path saja tidak cukup: target arbitrary user (mis. API sendiri di
+// localhost:3002/api/v1/...) bisa kebetulan berpola sama dan salah dianggap
+// API internal Wapbolt, lalu 501 tanpa pernah benar-benar dikirim. baseUrl
+// (getBaseUrl() dari renderer) dipakai untuk memastikan origin-nya memang
+// server Wapbolt yang sedang dikonfigurasi, bukan cuma path yang kebetulan cocok.
+export function isWapboltApiUrl(url: string, baseUrl?: string): boolean {
   try {
-    const path = new URL(url).pathname
+    const target = new URL(url)
+    if (baseUrl && target.origin !== new URL(baseUrl).origin) return false
+    const path = target.pathname
     if (path.startsWith('/api/v1/auth/')) return false
     return path.startsWith('/api/v1/')
   } catch {
