@@ -571,7 +571,7 @@ interface DataState {
   ) => Promise<CollectionRunResult[]>
 }
 
-const replaceVariables = (text: string, variables: Record<string, string>): string => {
+export const replaceVariables = (text: string, variables: Record<string, string>): string => {
   if (typeof text !== 'string') return text
 
   // Buat map versi lowercase untuk pencarian case-insensitive
@@ -599,7 +599,7 @@ const replaceVariables = (text: string, variables: Record<string, string>): stri
   })
 }
 
-const injectAuth = (
+export const injectAuth = (
   headers: Record<string, string>,
   auth: AuthConfig,
   vars: Record<string, string>
@@ -649,7 +649,7 @@ const DEFAULT_CONTENT_TYPE_BY_BODY_TYPE: Record<string, string | undefined> = {
   // per-request boundary the executor generates, not a fixed string here.
 }
 
-const withDefaultContentType = (
+export const withDefaultContentType = (
   headers: Record<string, string>,
   bodyType: string | undefined
 ): Record<string, string> => {

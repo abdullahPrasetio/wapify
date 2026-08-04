@@ -1,5 +1,13 @@
 import { useAppStore } from '../../store/useAppStore'
-import { useDataStore, AuthConfig, WorkingRequest, getDefaultContentType } from '../../store/useDataStore'
+import {
+  useDataStore,
+  AuthConfig,
+  WorkingRequest,
+  getDefaultContentType,
+  injectAuth,
+  withDefaultContentType,
+  replaceVariables
+} from '../../store/useDataStore'
 import { apiClient } from '../../api/client'
 import { useAuthStore } from '../../store/useAuthStore'
 import { KeyValueEditor } from '../ui/KeyValueEditor'
@@ -1860,6 +1868,24 @@ export const MainArea = (): React.JSX.Element => {
   const collectionName = parentCollection?.name || 'My Collection'
   const requestName = activeTabRequest.name
 
+  // Headers as they're actually sent over the wire — Auth tab config injected
+  // as a real Authorization/API-Key header, auto Content-Type filled in, and
+  // {{variables}} resolved — so "Copy as cURL"/Export Code matches reality
+  // instead of the raw Headers-tab table (which never shows the Auth tab's
+  // computed header at all).
+  const exportVars = { ...(parentCollection?.variables || {}), ...(activeEnv?.variables || {}) }
+  const exportEffectiveAuth: AuthConfig = workingRequest.auth_config?.type === 'Inherit'
+    ? (parentCollection?.auth_config || { type: 'No Auth' })
+    : workingRequest.auth_config
+  const exportHeaders = (() => {
+    const withAuth = injectAuth(workingRequest.headers, exportEffectiveAuth, exportVars)
+    const substituted: Record<string, string> = {}
+    Object.entries(withAuth).forEach(([k, v]) => {
+      substituted[k] = replaceVariables(v, exportVars)
+    })
+    return withDefaultContentType(substituted, workingRequest.body_type)
+  })()
+
   const currentPresence = presenceByRequest[activeTabRequest.requestId] || []
   const currentLock = locksByRequest[activeTabRequest.requestId]
   const isLockedByOthers = currentLock && user ? currentLock.user_id !== user.id : false
@@ -2276,8 +2302,8 @@ export const MainArea = (): React.JSX.Element => {
         onClose={() => setIsExportCodeOpen(false)}
         requestData={{
           method: workingRequest.method,
-          url: workingRequest.url,
-          headers: workingRequest.headers,
+          url: replaceVariables(workingRequest.url, exportVars),
+          headers: exportHeaders,
           body: workingRequest.body,
           body_type: workingRequest.body_type
         }}
