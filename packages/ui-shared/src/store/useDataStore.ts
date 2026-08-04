@@ -2119,23 +2119,29 @@ export const useDataStore = create<DataState>()(
               return { mode: 'raw', raw: typeof req.body === 'string' ? req.body : JSON.stringify(req.body) }
             }
 
-            const buildPostmanEvents = (req: ApiRequest) => {
+            const buildPostmanEvents = (scripts: { pre_request_script?: string; post_request_script?: string }) => {
               const events: { listen: string; script: { type: string; exec: string[] } }[] = []
-              if (req.pre_request_script?.trim()) {
+              if (scripts.pre_request_script?.trim()) {
                 events.push({
                   listen: 'prerequest',
-                  script: { type: 'text/javascript', exec: req.pre_request_script.split('\n') }
+                  script: { type: 'text/javascript', exec: scripts.pre_request_script.split('\n') }
                 })
               }
-              if (req.post_request_script?.trim()) {
+              if (scripts.post_request_script?.trim()) {
                 events.push({
                   listen: 'test',
-                  script: { type: 'text/javascript', exec: req.post_request_script.split('\n') }
+                  script: { type: 'text/javascript', exec: scripts.post_request_script.split('\n') }
                 })
               }
               return events.length > 0 ? events : undefined
             }
 
+            // Postman's native `auth` only round-trips bearer/basic/apikey/noauth.
+            // `field_validations` and the raw `auth_config` are Wapbolt-specific
+            // round-trip extensions the import side already knows how to read
+            // back (see apps/desktop-local's importPostman / Go ImportPostman) —
+            // exporting them means re-importing the file doesn't silently lose
+            // custom auth types (oauth2, digest, ...) or field validation rules.
             const requestToPostmanItem = (req: ApiRequest) => {
               const auth = buildPostmanAuth(req.auth_config as Record<string, unknown>)
               const body = buildPostmanBody(req)
@@ -2148,10 +2154,23 @@ export const useDataStore = create<DataState>()(
                   url: buildPostmanUrl(req.url),
                   description: req.description || undefined,
                   ...(auth && { auth }),
-                  ...(body && { body })
+                  ...(body && { body }),
+                  ...(req.auth_config && { auth_config: req.auth_config }),
+                  ...(req.field_validations && { field_validations: req.field_validations })
                 }
               }
               if (event) item.event = event
+              if (req.examples && req.examples.length > 0) {
+                item.response = req.examples.map((ex) => ({
+                  name: ex.name,
+                  code: ex.response_status,
+                  header: Object.entries(ex.response_headers || {}).map(([key, value]) => ({
+                    key,
+                    value: String(value)
+                  })),
+                  body: ex.response_body
+                }))
+              }
               return item
             }
 
@@ -2168,12 +2187,21 @@ export const useDataStore = create<DataState>()(
               return [...folderItems, ...requestItems]
             }
 
+            const collAuth = buildPostmanAuth(collection.auth_config as unknown as Record<string, unknown>)
+            const collEvent = buildPostmanEvents(collection)
+            const collVariable = collection.variables
+              ? Object.entries(collection.variables).map(([key, value]) => ({ key, value }))
+              : undefined
+
             const exportData = {
               info: {
                 name: collection.name,
                 description: collection.description,
                 schema: 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json'
               },
+              ...(collAuth && { auth: collAuth }),
+              ...(collEvent && { event: collEvent }),
+              ...(collVariable && collVariable.length > 0 && { variable: collVariable }),
               item: buildFolderItems(null)
             }
 
