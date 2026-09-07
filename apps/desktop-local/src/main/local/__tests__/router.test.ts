@@ -1,0 +1,758 @@
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import fs from 'fs'
+import os from 'os'
+import path from 'path'
+import type Database from 'better-sqlite3'
+import { openDb } from '../db'
+import { seedIfEmpty } from '../seed'
+import { createLocalRouter, isWapboltApiUrl, LocalRouter } from '../router'
+
+type Row = Record<string, unknown>
+
+// Fase 2 (docs §9): CRUD teams/collections/folders/requests via LocalRouter.
+// Perilaku diverifikasi terhadap semantik handler Go (team.go / collection.go /
+// folder.go / request.go), bukan asumsi.
+
+const BASE = 'http://localhost:8000'
+
+let db: Database.Database
+let router: LocalRouter
+let dbPath: string
+
+function call(method: string, urlPath: string, body?: unknown) {
+  return router.handle({
+    method,
+    url: `${BASE}${urlPath}`,
+    body: body === undefined ? undefined : JSON.stringify(body)
+  })
+}
+
+beforeEach(() => {
+  dbPath = path.join(os.tmpdir(), `wapbolt-router-test-${Date.now()}-${Math.random()}.db`)
+  db = openDb(dbPath)
+  seedIfEmpty(db)
+  router = createLocalRouter(db)
+})
+
+afterEach(() => {
+  db.close()
+  for (const suffix of ['', '-wal', '-shm']) {
+    const file = dbPath + suffix
+    if (fs.existsSync(file)) fs.rmSync(file)
+  }
+})
+
+describe('isWapboltApiUrl', () => {
+  it('routes only /api/v1 paths', () => {
+    expect(isWapboltApiUrl(`${BASE}/api/v1/teams`)).toBe(true)
+    expect(isWapboltApiUrl('https://jsonplaceholder.typicode.com/todos/1')).toBe(false)
+    expect(isWapboltApiUrl('not-a-url')).toBe(false)
+  })
+})
+
+describe('teams', () => {
+  it('lists the seeded team as an array', () => {
+    const res = call('GET', '/api/v1/teams')
+    expect(res.status).toBe(200)
+    expect(Array.isArray(res.data)).toBe(true)
+    expect(res.data).toMatchObject([{ id: 1, name: 'My Workspace', created_by: 1 }])
+  })
+
+  it('creates a team (201) and rejects empty name (400, Go message)', () => {
+    const created = call('POST', '/api/v1/teams', { name: 'Tim Baru', description: 'desc' })
+    expect(created.status).toBe(201)
+    expect(created.data).toMatchObject({ name: 'Tim Baru', description: 'desc', created_by: 1 })
+
+    const rejected = call('POST', '/api/v1/teams', { name: '' })
+    expect(rejected.status).toBe(400)
+    expect(rejected.data).toMatchObject({ error: 'Team name is required', code: 'BAD_REQUEST' })
+  })
+})
+
+describe('collections', () => {
+  it('full CRUD round-trip', () => {
+    const created = call('POST', '/api/v1/teams/1/collections', { name: 'Koleksi A', description: 'd' })
+    expect(created.status).toBe(201)
+    const col = created.data as { id: number; chaos_mode: boolean }
+    expect(col.chaos_mode).toBe(false)
+
+    const list = call('GET', '/api/v1/teams/1/collections')
+    expect(list.status).toBe(200)
+    expect((list.data as unknown[]).length).toBe(1)
+
+    const detail = call('GET', `/api/v1/collections/${col.id}`)
+    expect(detail.status).toBe(200)
+    expect(detail.data).toMatchObject({
+      collection: { id: col.id, name: 'Koleksi A' },
+      folders: [],
+      requests: []
+    })
+
+    // Semantik update Go: name kosong tidak menimpa, confluence_page_id selalu.
+    const updated = call('PUT', `/api/v1/collections/${col.id}`, {
+      name: '',
+      description: 'baru',
+      confluence_page_id: 'PAGE-1'
+    })
+    expect(updated.data).toMatchObject({ name: 'Koleksi A', description: 'baru', confluence_page_id: 'PAGE-1' })
+
+    const deleted = call('DELETE', `/api/v1/collections/${col.id}`)
+    expect(deleted.status).toBe(200)
+    expect(deleted.data).toMatchObject({ message: 'Collection deleted successfully' })
+    expect((call('GET', '/api/v1/teams/1/collections').data as unknown[]).length).toBe(0)
+    expect(call('GET', `/api/v1/collections/${col.id}`).status).toBe(404)
+  })
+
+  it('defaults auth_config/pre_request_script/post_request_script/variables to empty when omitted, and round-trips them on update', () => {
+    const created = call('POST', '/api/v1/teams/1/collections', { name: 'Koleksi B' })
+    const col = created.data as Row
+    expect(col).toMatchObject({
+      auth_config: {},
+      pre_request_script: '',
+      post_request_script: '',
+      variables: {}
+    })
+
+    const updated = call('PUT', `/api/v1/collections/${col.id}`, {
+      name: 'Koleksi B',
+      description: '',
+      confluence_page_id: '',
+      auth_config: { type: 'Bearer Token', token: 'abc123' },
+      pre_request_script: 'wap.collectionVariables.set("x", "1")',
+      post_request_script: 'wap.test("ok", () => {})',
+      variables: { base_url: 'https://api.example.com' }
+    })
+    expect(updated.status).toBe(200)
+    expect(updated.data).toMatchObject({
+      auth_config: { type: 'Bearer Token', token: 'abc123' },
+      pre_request_script: 'wap.collectionVariables.set("x", "1")',
+      post_request_script: 'wap.test("ok", () => {})',
+      variables: { base_url: 'https://api.example.com' }
+    })
+
+    // Persisted, not just echoed back — a fresh GET reflects the same values.
+    const detail = call('GET', `/api/v1/collections/${col.id}`)
+    expect((detail.data as { collection: Row }).collection).toMatchObject({
+      auth_config: { type: 'Bearer Token', token: 'abc123' },
+      variables: { base_url: 'https://api.example.com' }
+    })
+  })
+
+  it('duplicate copies settings, root requests and the full folder tree into a new collection', () => {
+    const created = call('POST', '/api/v1/teams/1/collections', {
+      name: 'Asli',
+      auth_config: { type: 'Bearer Token', token: 'abc' },
+      variables: { x: '1' }
+    })
+    const col = created.data as { id: number }
+    call('POST', `/api/v1/collections/${col.id}/requests`, { name: 'Root Req', method: 'GET', url: 'http://x' })
+    const folder = (
+      call('POST', `/api/v1/collections/${col.id}/folders`, { name: 'F' }).data as { id: number }
+    ).id
+    call('POST', `/api/v1/folders/${folder}/requests`, { name: 'Nested Req', method: 'GET', url: 'http://y' })
+
+    const dup = call('POST', `/api/v1/collections/${col.id}/duplicate`)
+    expect(dup.status).toBe(201)
+    const newCol = dup.data as Row
+    expect(newCol).toMatchObject({
+      name: 'Asli Copy',
+      auth_config: { type: 'Bearer Token', token: 'abc' },
+      variables: { x: '1' }
+    })
+
+    // Original untouched
+    expect((call('GET', `/api/v1/collections/${col.id}/requests`).data as unknown[]).length).toBe(2)
+
+    const newAllRequests = call('GET', `/api/v1/collections/${newCol.id}/requests`).data as Row[]
+    expect(newAllRequests.map((r) => r.name).sort()).toEqual(['Nested Req', 'Root Req'])
+    const newFolders = call('GET', `/api/v1/collections/${newCol.id}/folders`).data as Row[]
+    expect(newFolders).toMatchObject([{ name: 'F' }])
+    const newFolderRequests = call('GET', `/api/v1/folders/${(newFolders[0] as Row).id}/requests`).data as Row[]
+    expect(newFolderRequests).toMatchObject([{ name: 'Nested Req' }])
+  })
+})
+
+describe('folders', () => {
+  let colId: number
+
+  beforeEach(() => {
+    colId = (call('POST', '/api/v1/teams/1/collections', { name: 'K' }).data as { id: number }).id
+  })
+
+  it('creates nested folders and lists all folders of the collection', () => {
+    const parent = call('POST', `/api/v1/collections/${colId}/folders`, { name: 'Induk', order_index: 1 })
+    expect(parent.status).toBe(201)
+    const parentId = (parent.data as { id: number }).id
+
+    const child = call('POST', `/api/v1/collections/${colId}/folders`, {
+      name: 'Anak',
+      parent_folder_id: parentId
+    })
+    expect(child.data).toMatchObject({ parent_folder_id: parentId, collection_id: colId })
+
+    const list = call('GET', `/api/v1/collections/${colId}/folders`)
+    expect((list.data as unknown[]).length).toBe(2)
+  })
+
+  it('update only overwrites name when non-empty (Go semantics)', () => {
+    const id = (call('POST', `/api/v1/collections/${colId}/folders`, { name: 'X' }).data as { id: number }).id
+    expect(call('PUT', `/api/v1/folders/${id}`, { name: '' }).data).toMatchObject({ name: 'X' })
+    expect(call('PUT', `/api/v1/folders/${id}`, { name: 'Y' }).data).toMatchObject({ name: 'Y' })
+  })
+
+  it('rejects moving a folder into itself', () => {
+    const id = (call('POST', `/api/v1/collections/${colId}/folders`, { name: 'X' }).data as { id: number }).id
+    const res = call('PATCH', `/api/v1/folders/${id}/move`, {
+      collection_id: colId,
+      parent_folder_id: id
+    })
+    expect(res.status).toBe(400)
+    expect(res.data).toMatchObject({ error: 'Cannot move folder into itself' })
+  })
+
+  it('moving to another collection cascades collection_id to descendants and their requests', () => {
+    const col2 = (call('POST', '/api/v1/teams/1/collections', { name: 'K2' }).data as { id: number }).id
+    const parent = (call('POST', `/api/v1/collections/${colId}/folders`, { name: 'P' }).data as { id: number }).id
+    const child = (
+      call('POST', `/api/v1/collections/${colId}/folders`, { name: 'C', parent_folder_id: parent })
+        .data as { id: number }
+    ).id
+    call('POST', `/api/v1/folders/${child}/requests`, { name: 'R', method: 'GET', url: 'http://x' })
+
+    const moved = call('PATCH', `/api/v1/folders/${parent}/move`, { collection_id: col2, order_index: 0 })
+    expect(moved.status).toBe(200)
+
+    const foldersInCol2 = call('GET', `/api/v1/collections/${col2}/folders`).data as unknown[]
+    expect(foldersInCol2.length).toBe(2)
+    const requestsInCol2 = call('GET', `/api/v1/collections/${col2}/requests`).data as unknown[]
+    expect(requestsInCol2.length).toBe(1)
+  })
+
+  it('delete cascades to child folders and requests inside', () => {
+    const parent = (call('POST', `/api/v1/collections/${colId}/folders`, { name: 'P' }).data as { id: number }).id
+    const child = (
+      call('POST', `/api/v1/collections/${colId}/folders`, { name: 'C', parent_folder_id: parent })
+        .data as { id: number }
+    ).id
+    const reqId = (
+      call('POST', `/api/v1/folders/${child}/requests`, { name: 'R', method: 'GET', url: 'http://x' })
+        .data as { id: number }
+    ).id
+
+    expect(call('DELETE', `/api/v1/folders/${parent}`).status).toBe(200)
+    expect((call('GET', `/api/v1/collections/${colId}/folders`).data as unknown[]).length).toBe(0)
+    expect(call('GET', `/api/v1/requests/${reqId}`).status).toBe(404)
+  })
+
+  it('duplicate copies the folder tree (subfolders + requests) with " Copy" only on the top-level name', () => {
+    const parent = (call('POST', `/api/v1/collections/${colId}/folders`, { name: 'Induk' }).data as { id: number }).id
+    const child = (
+      call('POST', `/api/v1/collections/${colId}/folders`, { name: 'Anak', parent_folder_id: parent })
+        .data as { id: number }
+    ).id
+    call('POST', `/api/v1/folders/${parent}/requests`, { name: 'Req Root', method: 'GET', url: 'http://x' })
+    call('POST', `/api/v1/folders/${child}/requests`, { name: 'Req Child', method: 'GET', url: 'http://y' })
+
+    const dup = call('POST', `/api/v1/folders/${parent}/duplicate`)
+    expect(dup.status).toBe(201)
+    const newParent = dup.data as Row
+    expect(newParent.name).toBe('Induk Copy')
+    expect(newParent.collection_id).toBe(colId)
+
+    const allFolders = call('GET', `/api/v1/collections/${colId}/folders`).data as Row[]
+    // original parent+child + duplicated parent+child = 4
+    expect(allFolders.length).toBe(4)
+    const newChild = allFolders.find((f) => f.parent_folder_id === newParent.id)
+    expect(newChild).toMatchObject({ name: 'Anak' })
+
+    const allRequests = call('GET', `/api/v1/collections/${colId}/requests`).data as Row[]
+    expect(allRequests.length).toBe(4) // original 2 + duplicated 2, all nested under folders in this collection
+
+    const rootRequests = call('GET', `/api/v1/folders/${newParent.id}/requests`).data as Row[]
+    expect(rootRequests).toMatchObject([{ name: 'Req Root' }])
+    const childRequests = call('GET', `/api/v1/folders/${(newChild as Row).id}/requests`).data as Row[]
+    expect(childRequests).toMatchObject([{ name: 'Req Child' }])
+  })
+})
+
+describe('requests', () => {
+  let colId: number
+
+  beforeEach(() => {
+    colId = (call('POST', '/api/v1/teams/1/collections', { name: 'K' }).data as { id: number }).id
+  })
+
+  it('creates in collection root and lists with examples: []', () => {
+    const created = call('POST', `/api/v1/collections/${colId}/requests`, {
+      name: 'Req',
+      method: 'POST',
+      url: 'http://x',
+      headers: { 'Content-Type': 'application/json' },
+      body: { a: 1 },
+      body_type: 'raw-json'
+    })
+    expect(created.status).toBe(201)
+    expect(created.data).toMatchObject({
+      name: 'Req',
+      folder_id: null,
+      headers: { 'Content-Type': 'application/json' },
+      body: { a: 1 }
+    })
+
+    const list = call('GET', `/api/v1/collections/${colId}/requests`)
+    expect(list.status).toBe(200)
+    expect((list.data as Array<{ examples: unknown[] }>)[0].examples).toEqual([])
+  })
+
+  it('wraps array body as {"array": ...} and string body as {"raw": ...} (toJSONB port)', () => {
+    const withArray = call('POST', `/api/v1/collections/${colId}/requests`, {
+      name: 'A',
+      method: 'POST',
+      url: 'http://x',
+      body: [{ key: 'k', value: 'v', enabled: true }],
+      body_type: 'x-www-form-urlencoded'
+    })
+    expect((withArray.data as { body: unknown }).body).toEqual({
+      array: [{ key: 'k', value: 'v', enabled: true }]
+    })
+
+    const withRaw = call('POST', `/api/v1/collections/${colId}/requests`, {
+      name: 'B',
+      method: 'POST',
+      url: 'http://x',
+      body: 'plain text'
+    })
+    expect((withRaw.data as { body: unknown }).body).toEqual({ raw: 'plain text' })
+  })
+
+  it('update follows Go field-by-field semantics', () => {
+    const id = (
+      call('POST', `/api/v1/collections/${colId}/requests`, { name: 'R', method: 'GET', url: 'http://x' })
+        .data as { id: number }
+    ).id
+
+    const res = call('PUT', `/api/v1/requests/${id}`, {
+      name: '', // kosong → tidak menimpa
+      method: 'PUT',
+      body_type: '', // string kosong → tetap menimpa (semantik Go)
+      pre_request_script: 'console.log(1)'
+    })
+    expect(res.data).toMatchObject({
+      name: 'R',
+      method: 'PUT',
+      body_type: '',
+      pre_request_script: 'console.log(1)'
+    })
+  })
+
+  it('duplicate appends " Copy" and order_index + 1', () => {
+    const id = (
+      call('POST', `/api/v1/collections/${colId}/requests`, {
+        name: 'Asli',
+        method: 'GET',
+        url: 'http://x',
+        order_index: 5
+      }).data as { id: number }
+    ).id
+
+    const dup = call('POST', `/api/v1/requests/${id}/duplicate`)
+    expect(dup.status).toBe(201)
+    expect(dup.data).toMatchObject({ name: 'Asli Copy', order_index: 6 })
+  })
+
+  it('move relocates request to a folder', () => {
+    const folderId = (call('POST', `/api/v1/collections/${colId}/folders`, { name: 'F' }).data as { id: number }).id
+    const id = (
+      call('POST', `/api/v1/collections/${colId}/requests`, { name: 'R', method: 'GET', url: 'http://x' })
+        .data as { id: number }
+    ).id
+
+    const res = call('PATCH', `/api/v1/requests/${id}/move`, {
+      collection_id: colId,
+      folder_id: folderId,
+      order_index: 2
+    })
+    expect(res.data).toMatchObject({ folder_id: folderId, order_index: 2 })
+    expect((call('GET', `/api/v1/folders/${folderId}/requests`).data as unknown[]).length).toBe(1)
+  })
+
+  it('delete returns Go message and hides the request', () => {
+    const id = (
+      call('POST', `/api/v1/collections/${colId}/requests`, { name: 'R', method: 'GET', url: 'http://x' })
+        .data as { id: number }
+    ).id
+    expect(call('DELETE', `/api/v1/requests/${id}`).data).toMatchObject({
+      message: 'Request deleted successfully'
+    })
+    expect(call('GET', `/api/v1/requests/${id}`).status).toBe(404)
+  })
+})
+
+describe('sync bookkeeping (§5.2 aturan 4)', () => {
+  it('mutations mark sync_meta dirty', () => {
+    call('POST', '/api/v1/teams/1/collections', { name: 'K' })
+    const meta = db
+      .prepare("SELECT * FROM sync_meta WHERE entity = 'collection' AND dirty = 1")
+      .all()
+    expect(meta.length).toBe(1)
+  })
+
+  it('deleting a synced row writes a tombstone instead of hard delete', () => {
+    const colId = (call('POST', '/api/v1/teams/1/collections', { name: 'K' }).data as { id: number }).id
+    db.prepare("UPDATE sync_meta SET remote_id = 99 WHERE entity = 'collection' AND local_id = ?").run(colId)
+
+    call('DELETE', `/api/v1/collections/${colId}`)
+
+    // Row domain masih ada (menunggu propagasi sync), tapi tersembunyi dari API.
+    const domainRow = db.prepare('SELECT id FROM collections WHERE id = ?').get(colId)
+    expect(domainRow).toBeTruthy()
+    const meta = db
+      .prepare("SELECT deleted_at, dirty FROM sync_meta WHERE entity = 'collection' AND local_id = ?")
+      .get(colId) as { deleted_at: string | null; dirty: number }
+    expect(meta.deleted_at).toBeTruthy()
+    expect(meta.dirty).toBe(1)
+    expect((call('GET', '/api/v1/teams/1/collections').data as unknown[]).length).toBe(0)
+  })
+
+  it('deleting a never-synced row hard-deletes it', () => {
+    const colId = (call('POST', '/api/v1/teams/1/collections', { name: 'K' }).data as { id: number }).id
+    call('DELETE', `/api/v1/collections/${colId}`)
+    expect(db.prepare('SELECT id FROM collections WHERE id = ?').get(colId)).toBeUndefined()
+    expect(
+      db.prepare("SELECT * FROM sync_meta WHERE entity = 'collection' AND local_id = ?").get(colId)
+    ).toBeUndefined()
+  })
+})
+
+describe('stubs & fallthrough', () => {
+  it('activities stub returns 200 []', () => {
+    const res = call('GET', '/api/v1/teams/1/activities')
+    expect(res.status).toBe(200)
+    expect(res.data).toEqual([])
+  })
+
+  it('confluence config stub returns enabled: false', () => {
+    expect(call('GET', '/api/v1/confluence/config').data).toEqual({ enabled: false })
+  })
+
+  it('unimplemented endpoints return explicit 501', () => {
+    expect(call('GET', '/api/v1/notifications').status).toBe(501)
+  })
+})
+
+// ─── Fase 3 ─────────────────────────────────────────────────────────────────
+
+describe('environments', () => {
+  it('lists team envs plus globals (Go: team_id = ? OR is_global)', () => {
+    call('POST', '/api/v1/teams/1/environments', { name: 'Dev', variables: { host: 'x' } })
+    call('POST', '/api/v1/environments/global', { name: 'Global', variables: {} })
+
+    const res = call('GET', '/api/v1/teams/1/environments')
+    expect(res.status).toBe(200)
+    const envs = res.data as Array<{ name: string; is_global: boolean; team_id: number | null }>
+    expect(envs.length).toBe(2)
+    expect(envs.find((e) => e.name === 'Global')).toMatchObject({ is_global: true, team_id: null })
+    expect(envs.find((e) => e.name === 'Dev')).toMatchObject({ is_global: false, team_id: 1 })
+  })
+
+  it('update follows Go semantics (name non-empty, variables non-nil)', () => {
+    const id = (call('POST', '/api/v1/teams/1/environments', { name: 'E', variables: { a: '1' } })
+      .data as { id: number }).id
+    const res = call('PUT', `/api/v1/environments/${id}`, { name: '', variables: { b: '2' } })
+    expect(res.data).toMatchObject({ name: 'E', variables: { b: '2' } })
+  })
+
+  it('delete hides env and returns Go message', () => {
+    const id = (call('POST', '/api/v1/teams/1/environments', { name: 'E' }).data as { id: number }).id
+    expect(call('DELETE', `/api/v1/environments/${id}`).data).toMatchObject({
+      message: 'Environment deleted successfully'
+    })
+    expect(call('GET', `/api/v1/environments/${id}`).status).toBe(404)
+  })
+})
+
+describe('history', () => {
+  it('requires team_id query param (400) and round-trips create/list/clear', () => {
+    expect(call('GET', '/api/v1/history').status).toBe(400)
+
+    const created = call('POST', '/api/v1/history', {
+      team_id: 1,
+      request_id: 1,
+      method: 'GET',
+      url: 'http://x',
+      status_code: 200,
+      response_time: 12
+    })
+    expect(created.status).toBe(201)
+    expect(created.data).toMatchObject({ team_id: 1, user_id: 1, status_code: 200 })
+    expect((created.data as { user: { name: string } }).user).toMatchObject({ name: 'Local User' })
+
+    const list = call('GET', '/api/v1/history?team_id=1')
+    expect((list.data as unknown[]).length).toBe(1)
+
+    expect(call('DELETE', '/api/v1/history?team_id=1').data).toMatchObject({ message: 'Team history cleared' })
+    expect((call('GET', '/api/v1/history?team_id=1').data as unknown[]).length).toBe(0)
+  })
+})
+
+describe('examples', () => {
+  let reqId: number
+
+  beforeEach(() => {
+    const colId = (call('POST', '/api/v1/teams/1/collections', { name: 'K' }).data as { id: number }).id
+    reqId = (
+      call('POST', `/api/v1/collections/${colId}/requests`, { name: 'R', method: 'GET', url: 'http://x' })
+        .data as { id: number }
+    ).id
+  })
+
+  it('creates example (JSONBAny body: array allowed) and appears in request preload', () => {
+    const created = call('POST', `/api/v1/requests/${reqId}/examples`, {
+      name: 'Ex',
+      request_method: 'POST',
+      request_url: 'http://x',
+      request_body: [1, 2, 3],
+      response_status: 201,
+      response_body: 'ok'
+    })
+    expect(created.status).toBe(201)
+    expect(created.data).toMatchObject({ name: 'Ex', request_body: [1, 2, 3], response_status: 201 })
+
+    const req = call('GET', `/api/v1/requests/${reqId}`)
+    expect((req.data as { examples: unknown[] }).examples.length).toBe(1)
+  })
+
+  it('update field-by-field, delete hides from preload', () => {
+    const id = (
+      call('POST', `/api/v1/requests/${reqId}/examples`, {
+        name: 'Ex',
+        request_method: 'GET',
+        request_url: 'http://x',
+        response_status: 200
+      }).data as { id: number }
+    ).id
+
+    const updated = call('PUT', `/api/v1/examples/${id}`, { name: '', response_status: 404 })
+    expect(updated.data).toMatchObject({ name: 'Ex', response_status: 404 })
+
+    expect(call('DELETE', `/api/v1/examples/${id}`).data).toMatchObject({
+      message: 'Example deleted successfully'
+    })
+    expect((call('GET', `/api/v1/requests/${reqId}`).data as { examples: unknown[] }).examples).toEqual([])
+  })
+})
+
+describe('versions & comments', () => {
+  let reqId: number
+
+  beforeEach(() => {
+    const colId = (call('POST', '/api/v1/teams/1/collections', { name: 'K' }).data as { id: number }).id
+    reqId = (
+      call('POST', `/api/v1/collections/${colId}/requests`, {
+        name: 'R',
+        method: 'GET',
+        url: 'http://v1',
+        headers: { h: '1' }
+      }).data as { id: number }
+    ).id
+  })
+
+  it('creates a version snapshot and lists it (created_by_user preload mirrored)', () => {
+    const created = call('POST', `/api/v1/requests/${reqId}/versions`, { name: 'v1' })
+    expect(created.status).toBe(201)
+    expect(created.data).toMatchObject({ name: 'v1', method: 'GET', url: 'http://v1', headers: { h: '1' } })
+
+    const list = call('GET', `/api/v1/requests/${reqId}/versions`)
+    expect((list.data as Array<{ created_by_user: { id: number } }>)[0].created_by_user.id).toBe(1)
+  })
+
+  it('rollback restores snapshot fields onto the request', () => {
+    const versionId = (call('POST', `/api/v1/requests/${reqId}/versions`).data as { id: number }).id
+    call('PUT', `/api/v1/requests/${reqId}`, { url: 'http://changed', method: 'DELETE' })
+
+    const rolled = call('POST', `/api/v1/requests/${reqId}/versions/${versionId}/rollback`)
+    expect(rolled.status).toBe(200)
+    expect(rolled.data).toMatchObject({ url: 'http://v1', method: 'GET' })
+  })
+
+  it('comment round-trip; delete returns 204 without body (Go SendStatus)', () => {
+    const created = call('POST', `/api/v1/requests/${reqId}/comments`, { content: 'halo' })
+    expect(created.status).toBe(201)
+    expect(created.data).toMatchObject({ content: 'halo', user: { name: 'Local User' } })
+    const id = (created.data as { id: number }).id
+
+    expect((call('GET', `/api/v1/requests/${reqId}/comments`).data as unknown[]).length).toBe(1)
+
+    const deleted = call('DELETE', `/api/v1/comments/${id}`)
+    expect(deleted.status).toBe(204)
+    expect((call('GET', `/api/v1/requests/${reqId}/comments`).data as unknown[]).length).toBe(0)
+  })
+})
+
+describe('search summary', () => {
+  it('returns minimal shapes with team_id from collections join', () => {
+    const colId = (call('POST', '/api/v1/teams/1/collections', { name: 'K' }).data as { id: number }).id
+    call('POST', `/api/v1/collections/${colId}/requests`, { name: 'R', method: 'GET', url: 'http://x' })
+
+    const res = call('GET', '/api/v1/search/summary')
+    expect(res.status).toBe(200)
+    const data = res.data as { requests: Row[]; collections: Row[] }
+    expect(data.collections).toMatchObject([{ id: colId, name: 'K', team_id: 1 }])
+    expect(data.requests).toMatchObject([{ name: 'R', method: 'GET', team_id: 1, collection_id: colId }])
+  })
+})
+
+describe('import postman', () => {
+  const postmanCollection = {
+    info: { name: 'Imported Collection', description: 'from postman' },
+    item: [
+      {
+        name: 'Auth',
+        item: [
+          {
+            name: 'Login',
+            request: {
+              method: 'POST',
+              url: { raw: 'http://api.test/login' },
+              header: [{ key: 'X-Test', value: '1' }, { key: 'Authorization', value: 'should-be-skipped', disabled: true }],
+              body: { mode: 'raw', raw: '{"user":"a"}' },
+              auth_config: { type: 'Bearer', token: 'xyz' }
+            },
+            response: [{ name: 'OK', code: 200, header: [], body: '{"ok":true}' }]
+          }
+        ]
+      },
+      {
+        name: 'Root Request',
+        request: {
+          method: 'GET',
+          url: 'http://api.test/root',
+          header: []
+        }
+      }
+    ]
+  }
+
+  it('creates collection + nested folder/request/example (mode=new)', () => {
+    const res = call('POST', '/api/v1/teams/1/import', postmanCollection)
+    expect(res.status).toBe(201)
+    const { collection_id: colId } = res.data as { collection_id: number }
+    expect(colId).toBeTypeOf('number')
+
+    const detail = call('GET', `/api/v1/collections/${colId}`)
+    expect(detail.data).toMatchObject({
+      collection: { name: 'Imported Collection', description: 'from postman' },
+      folders: [{ name: 'Auth' }],
+      requests: [{ name: 'Root Request', method: 'GET', url: 'http://api.test/root' }]
+    })
+    const folderId = (detail.data as { folders: Array<{ id: number }> }).folders[0].id
+
+    const nested = call('GET', `/api/v1/folders/${folderId}/requests`)
+    expect(nested.data).toMatchObject([
+      {
+        name: 'Login',
+        method: 'POST',
+        url: 'http://api.test/login',
+        body: { user: 'a' },
+        auth_config: { type: 'Bearer', token: 'xyz' },
+        examples: [{ name: 'OK', response_status: 200, response_body: '{"ok":true}' }]
+      }
+    ])
+    // A `disabled: true` Postman header must not be imported as an active header.
+    const loginHeaders = (nested.data as Array<{ headers: Record<string, string> }>)[0].headers
+    expect(loginHeaders).toEqual({ 'X-Test': '1' })
+  })
+
+  it('rejects overwrite of a non-existent collection name (400)', () => {
+    const res = call('POST', '/api/v1/teams/1/import?mode=overwrite&confirm_name=Imported%20Collection', postmanCollection)
+    expect(res.status).toBe(400)
+    expect((res.data as { error: string }).error).toContain('not found for overwrite')
+  })
+
+  it('overwrite replaces contents but keeps the collection id, rejecting mismatched confirm_name', () => {
+    const first = call('POST', '/api/v1/teams/1/import', postmanCollection)
+    const colId = (first.data as { collection_id: number }).collection_id
+
+    const mismatch = call(
+      'POST',
+      '/api/v1/teams/1/import?mode=overwrite&confirm_name=wrong-name',
+      postmanCollection
+    )
+    expect(mismatch.status).toBe(400)
+    expect((mismatch.data as { error: string }).error).toContain('mismatch')
+
+    const changed = {
+      ...postmanCollection,
+      item: [{ name: 'Only Request', request: { method: 'GET', url: 'http://api.test/only' } }]
+    }
+    const overwritten = call(
+      'POST',
+      '/api/v1/teams/1/import?mode=overwrite&confirm_name=Imported%20Collection',
+      changed
+    )
+    expect(overwritten.status).toBe(201)
+    expect((overwritten.data as { collection_id: number }).collection_id).toBe(colId)
+
+    const detail = call('GET', `/api/v1/collections/${colId}`)
+    expect(detail.data).toMatchObject({
+      folders: [],
+      requests: [{ name: 'Only Request', url: 'http://api.test/only' }]
+    })
+  })
+
+  it('maps collection/request Authorization + collection variables + prerequest/test scripts, flagging unsupported auth', () => {
+    const withAuthAndScripts = {
+      info: { name: 'Auth Coll' },
+      auth: { type: 'bearer', bearer: [{ key: 'token', value: '{{collToken}}' }] },
+      variable: [
+        { key: 'clientid', value: 'abc' },
+        { key: 'count', value: 3 }
+      ],
+      event: [
+        { listen: 'prerequest', script: { exec: ["console.log('coll pre')"] } },
+        { listen: 'test', script: { exec: ["pm.test('coll test', () => {})"] } }
+      ],
+      item: [
+        {
+          name: 'OAuthReq',
+          request: {
+            method: 'GET',
+            url: 'http://x',
+            auth: { type: 'oauth2', oauth2: [{ key: 'accessTokenUrl', value: 'http://token' }] }
+          },
+          event: [{ listen: 'test', script: { exec: ["pm.test('req test', () => {})"] } }]
+        },
+        {
+          name: 'BasicReq',
+          request: {
+            method: 'GET',
+            url: 'http://y',
+            auth: { type: 'basic', basic: [{ key: 'username', value: 'u' }, { key: 'password', value: 'p' }] }
+          }
+        }
+      ]
+    }
+
+    const res = call('POST', '/api/v1/teams/1/import', withAuthAndScripts)
+    expect(res.status).toBe(201)
+    const { collection_id: colId, unsupported_auth_count: unsupported } = res.data as {
+      collection_id: number
+      unsupported_auth_count: number
+    }
+    expect(unsupported).toBe(1) // only the oauth2 request; collection's own bearer auth is supported
+
+    const detail = call('GET', `/api/v1/collections/${colId}`)
+    expect(detail.data).toMatchObject({
+      collection: {
+        auth_config: { type: 'Bearer Token', token: '{{collToken}}' },
+        pre_request_script: "console.log('coll pre')",
+        post_request_script: "pm.test('coll test', () => {})",
+        variables: { clientid: 'abc', count: '3' }
+      },
+      requests: [
+        { name: 'OAuthReq', auth_config: { type: 'No Auth' }, post_request_script: "pm.test('req test', () => {})" },
+        { name: 'BasicReq', auth_config: { type: 'Basic Auth', username: 'u', password: 'p' } }
+      ]
+    })
+  })
+})

@@ -93,6 +93,7 @@ interface IpcRequestConfig {
   headers?: Record<string, string>
   body?: any
   body_type?: string
+  requestId?: string
 }
 
 interface IpcResponse {
@@ -100,10 +101,23 @@ interface IpcResponse {
   headers: Record<string, string[]>
   data: unknown
   timing: number
+  cancelled?: boolean
 }
+
+// Menyimpan AbortController per requestId supaya tombol "Cancel" di renderer
+// (yang hanya bisa bicara ke main process lewat channel terpisah, karena
+// ipcRenderer.invoke tidak bisa dibatalkan sendiri dari sisi renderer) bisa
+// menghentikan axios call yang sedang berjalan di main process.
+const inFlightRequests = new Map<string, AbortController>()
+
+ipcMain.on('wapbolt:request-cancel', (_event, requestId: string) => {
+  inFlightRequests.get(requestId)?.abort()
+})
 
 ipcMain.handle('wapbolt:request', async (_event, config: IpcRequestConfig): Promise<IpcResponse> => {
   const startTime = Date.now()
+  const controller = new AbortController()
+  if (config.requestId) inFlightRequests.set(config.requestId, controller)
   try {
     let requestData: any = config.body
 
@@ -152,6 +166,7 @@ ipcMain.handle('wapbolt:request', async (_event, config: IpcRequestConfig): Prom
       headers: finalHeaders,
       timeout: 30000,
       validateStatus: () => true, // Don't throw on 4xx/500
+      signal: controller.signal,
       httpsAgent: new https.Agent({
         rejectUnauthorized: false
       })
@@ -179,6 +194,9 @@ ipcMain.handle('wapbolt:request', async (_event, config: IpcRequestConfig): Prom
     }
   } catch (error: any) {
     const timing = Date.now() - startTime
+    if (axios.isCancel(error) || error.code === 'ERR_CANCELED') {
+      return { status: 0, headers: {}, data: { error: 'Request dibatalkan' }, timing, cancelled: true }
+    }
     return {
       status: error.response?.status || 0,
       headers: {},
@@ -188,6 +206,8 @@ ipcMain.handle('wapbolt:request', async (_event, config: IpcRequestConfig): Prom
       },
       timing
     }
+  } finally {
+    if (config.requestId) inFlightRequests.delete(config.requestId)
   }
 })
 

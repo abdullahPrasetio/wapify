@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  frontend:
+    name: Typecheck & Test (desktop, desktop-local, ui-shared)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.12.0
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      # --ignore-scripts: postinstall desktop-local me-rebuild better-sqlite3
+      # utk ABI Electron; di CI vitest jalan di Node biasa, jadi cukup compile
+      # standar (dilakukan manual di step berikutnya).
+      - name: Install Dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Build better-sqlite3 (Node ABI, untuk vitest)
+        run: npm rebuild better-sqlite3
+
+      - name: Typecheck app Cloud
+        run: npm run typecheck --workspace=apps/desktop
+
+      - name: Typecheck app Local
+        run: npm run typecheck --workspace=apps/desktop-local
+
+      - name: Vitest (LocalRouter + SyncEngine)
+        run: npm test --workspace=apps/desktop-local
+
+  backend:
+    name: Go Test (backend)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+          cache-dependency-path: backend/go.sum
+
+      - name: Build
+        run: go build ./...
+        working-directory: backend
+
+      - name: Test
+        run: go test ./...
+        working-directory: backend

@@ -11,6 +11,7 @@ import (
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/waluyo/wapbolt-backend/internal/repository"
 	"gorm.io/gorm"
 )
@@ -18,6 +19,64 @@ import (
 func TestSetupCollectionRoutes(t *testing.T) {
 	app := fiber.New()
 	SetupCollectionRoutes(app)
+}
+
+func TestPostmanParamsToFields(t *testing.T) {
+	fields := postmanParamsToFields([]PostmanFormParam{
+		{Key: "grant_type", Value: "client_credentials", Type: "text"},
+		{Key: "disabled_field", Value: "x", Type: "text", Disabled: true},
+		{Key: "upload", Value: "", Type: "file"},
+	})
+
+	assert.Equal(t, []map[string]interface{}{
+		{"key": "grant_type", "value": "client_credentials", "enabled": true, "type": "text"},
+		{"key": "disabled_field", "value": "x", "enabled": false, "type": "text"},
+		{"key": "upload", "value": "", "enabled": true, "type": "file"},
+	}, fields)
+}
+
+func TestResolvePostmanBody(t *testing.T) {
+	t.Run("nil body defaults to raw-json", func(t *testing.T) {
+		body, bodyType := resolvePostmanBody(nil)
+		assert.Nil(t, body)
+		assert.Equal(t, "raw-json", bodyType)
+	})
+
+	t.Run("raw mode parses JSON", func(t *testing.T) {
+		body, bodyType := resolvePostmanBody(&PostmanBody{Mode: "raw", Raw: `{"a":1}`})
+		assert.Equal(t, map[string]interface{}{"a": float64(1)}, body)
+		assert.Equal(t, "raw-json", bodyType)
+	})
+
+	t.Run("urlencoded mode maps to KeyValueEditor rows", func(t *testing.T) {
+		body, bodyType := resolvePostmanBody(&PostmanBody{
+			Mode: "urlencoded",
+			URLEncoded: []PostmanFormParam{
+				{Key: "username", Value: "temancode", Type: "text"},
+			},
+		})
+		assert.Equal(t, "x-www-form-urlencoded", bodyType)
+		assert.Equal(t, map[string]interface{}{
+			"array": []map[string]interface{}{
+				{"key": "username", "value": "temancode", "enabled": true, "type": "text"},
+			},
+		}, body)
+	})
+
+	t.Run("formdata mode maps to KeyValueEditor rows", func(t *testing.T) {
+		body, bodyType := resolvePostmanBody(&PostmanBody{
+			Mode: "formdata",
+			FormData: []PostmanFormParam{
+				{Key: "avatar", Type: "file"},
+			},
+		})
+		assert.Equal(t, "form-data", bodyType)
+		assert.Equal(t, map[string]interface{}{
+			"array": []map[string]interface{}{
+				{"key": "avatar", "value": "", "enabled": true, "type": "file"},
+			},
+		}, body)
+	})
 }
 
 func TestListCollections(t *testing.T) {
@@ -260,6 +319,35 @@ func TestUpdateCollection(t *testing.T) {
 		resp, _ := app.Test(req)
 		assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
 	})
+
+	t.Run("Overwrites settings fields and defaults nil auth_config/variables to empty object", func(t *testing.T) {
+		mock.ExpectQuery("^SELECT \\* FROM \"collections\"").WillReturnRows(sqlmock.NewRows([]string{"id", "team_id", "name", "description"}).AddRow(1, 10, "Old", "Old Desc"))
+		mock.ExpectQuery("^SELECT \\* FROM \"team_members\"").WillReturnRows(sqlmock.NewRows([]string{"id", "role"}).AddRow(1, "Editor"))
+		mock.ExpectBegin()
+		mock.ExpectExec("^UPDATE \"collections\" SET").WillReturnResult(sqlmock.NewResult(1, 1))
+		mock.ExpectCommit()
+
+		mock.ExpectBegin()
+		mock.ExpectQuery("^INSERT INTO \"activity_logs\"").WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(1))
+		mock.ExpectCommit()
+
+		reqBody := CreateCollectionRequest{
+			Name:             "New",
+			PreRequestScript: "wap.collectionVariables.set('x', '1')",
+		}
+		body, _ := json.Marshal(reqBody)
+		req := httptest.NewRequest("PUT", "/api/v1/collections/1", bytes.NewBuffer(body))
+		req.Header.Set("Content-Type", "application/json")
+		resp, _ := app.Test(req, -1)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+		var updated repository.Collection
+		require.NoError(t, json.NewDecoder(resp.Body).Decode(&updated))
+		assert.Equal(t, "wap.collectionVariables.set('x', '1')", updated.PreRequestScript)
+		// Omitted JSONB fields normalize to {} rather than JSON null.
+		assert.Equal(t, repository.JSONB{}, updated.AuthConfig)
+		assert.Equal(t, repository.JSONB{}, updated.Variables)
+	})
 }
 
 func TestDeleteCollection(t *testing.T) {
@@ -317,6 +405,61 @@ func TestDeleteCollection(t *testing.T) {
 	})
 }
 
+func TestDuplicateCollection(t *testing.T) {
+	mock, cleanup := repository.SetupTestDB()
+	defer cleanup()
+	mock.MatchExpectationsInOrder(false)
+
+	app := fiber.New()
+	app.Post("/api/v1/collections/:id/duplicate", func(c *fiber.Ctx) error {
+		c.Locals("user_id", float64(1))
+		c.Locals("is_super_admin", false)
+		return DuplicateCollection(c)
+	})
+
+	t.Run("Success", func(t *testing.T) {
+		mock.ExpectQuery("^SELECT \\* FROM \"collections\"").
+			WillReturnRows(sqlmock.NewRows([]string{"id", "team_id", "name"}).AddRow(1, 10, "Coll"))
+		mock.ExpectQuery("^SELECT \\* FROM \"team_members\"").
+			WillReturnRows(sqlmock.NewRows([]string{"id", "role"}).AddRow(1, "Editor"))
+
+		mock.ExpectBegin()
+		mock.ExpectQuery("^INSERT INTO \"collections\"").
+			WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(2))
+		mock.ExpectCommit()
+
+		mock.ExpectQuery("^SELECT \\* FROM \"requests\" WHERE collection_id").
+			WillReturnRows(sqlmock.NewRows([]string{"id"}))
+		mock.ExpectQuery("^SELECT \\* FROM \"folders\" WHERE collection_id").
+			WillReturnRows(sqlmock.NewRows([]string{"id"}))
+
+		mock.ExpectBegin()
+		mock.ExpectQuery("^INSERT INTO \"activity_logs\"").WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(1))
+		mock.ExpectCommit()
+
+		req := httptest.NewRequest("POST", "/api/v1/collections/1/duplicate", nil)
+		resp, _ := app.Test(req, -1)
+		assert.Equal(t, http.StatusCreated, resp.StatusCode)
+	})
+
+	t.Run("Not Found", func(t *testing.T) {
+		mock.ExpectQuery("^SELECT \\* FROM \"collections\"").WillReturnError(errors.New("not found"))
+		req := httptest.NewRequest("POST", "/api/v1/collections/99/duplicate", nil)
+		resp, _ := app.Test(req)
+		assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+	})
+
+	t.Run("Forbidden", func(t *testing.T) {
+		mock.ExpectQuery("^SELECT \\* FROM \"collections\"").
+			WillReturnRows(sqlmock.NewRows([]string{"id", "team_id"}).AddRow(1, 10))
+		mock.ExpectQuery("^SELECT \\* FROM \"team_members\"").WillReturnRows(sqlmock.NewRows([]string{"id"}))
+
+		req := httptest.NewRequest("POST", "/api/v1/collections/1/duplicate", nil)
+		resp, _ := app.Test(req)
+		assert.Equal(t, http.StatusForbidden, resp.StatusCode)
+	})
+}
+
 func TestImportPostman(t *testing.T) {
 	mock, cleanup := repository.SetupTestDB()
 	defer cleanup()
@@ -330,7 +473,7 @@ func TestImportPostman(t *testing.T) {
 
 	t.Run("Success Full", func(t *testing.T) {
 		mock.ExpectQuery("^SELECT \\* FROM \"team_members\"").WillReturnRows(sqlmock.NewRows([]string{"id", "role"}).AddRow(1, "Editor"))
-		
+
 		mock.ExpectBegin()
 		mock.ExpectQuery("^INSERT INTO \"collections\"").WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(1))
 		mock.ExpectQuery("^INSERT INTO \"folders\"").WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(10))
@@ -356,6 +499,55 @@ func TestImportPostman(t *testing.T) {
 		assert.Equal(t, http.StatusCreated, resp.StatusCode)
 	})
 
+	t.Run("Auth/Variables/Scripts mapping + unsupported auth count", func(t *testing.T) {
+		mock.ExpectQuery("^SELECT \\* FROM \"team_members\"").WillReturnRows(sqlmock.NewRows([]string{"id", "role"}).AddRow(1, "Editor"))
+
+		mock.ExpectBegin()
+		mock.ExpectQuery("^INSERT INTO \"collections\"").WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(2))
+		mock.ExpectQuery("^INSERT INTO \"requests\"").WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(200))
+		mock.ExpectCommit()
+
+		mock.ExpectBegin()
+		mock.ExpectQuery("^INSERT INTO \"activity_logs\"").WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(1))
+		mock.ExpectCommit()
+
+		// Collection-level: bearer auth (supported) + variables + prerequest/test scripts.
+		// Request-level: oauth2 (unsupported — should be skipped, not silently kept as-is).
+		postmanJSON := `{
+			"info": {"name": "Auth Coll"},
+			"auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{collToken}}"}]},
+			"variable": [{"key": "clientid", "value": "abc"}, {"key": "count", "value": 3}],
+			"event": [
+				{"listen": "prerequest", "script": {"exec": ["console.log('coll pre')"]}},
+				{"listen": "test", "script": {"exec": ["pm.test('coll test', () => {})"]}}
+			],
+			"item": [
+				{
+					"name": "OAuthReq",
+					"request": {
+						"method": "GET",
+						"url": "http://x",
+						"auth": {"type": "oauth2", "oauth2": [{"key": "accessTokenUrl", "value": "http://token"}]}
+					},
+					"event": [{"listen": "test", "script": {"exec": ["pm.test('req test', () => {})"]}}]
+				}
+			]
+		}`
+
+		req := httptest.NewRequest("POST", "/api/v1/teams/1/import", bytes.NewBufferString(postmanJSON))
+		req.Header.Set("Content-Type", "application/json")
+		resp, _ := app.Test(req, -1)
+		assert.Equal(t, http.StatusCreated, resp.StatusCode)
+
+		var body struct {
+			CollectionID         uint `json:"collection_id"`
+			UnsupportedAuthCount int  `json:"unsupported_auth_count"`
+		}
+		require.NoError(t, json.NewDecoder(resp.Body).Decode(&body))
+		assert.Equal(t, uint(2), body.CollectionID)
+		assert.Equal(t, 1, body.UnsupportedAuthCount) // the oauth2 request, collection's own bearer auth is supported
+	})
+
 	t.Run("Forbidden", func(t *testing.T) {
 		mock.ExpectQuery("^SELECT \\* FROM \"team_members\"").WillReturnRows(sqlmock.NewRows([]string{"id"}))
 		req := httptest.NewRequest("POST", "/api/v1/teams/1/import", nil)
@@ -365,7 +557,7 @@ func TestImportPostman(t *testing.T) {
 
 	t.Run("BodyParser Error", func(t *testing.T) {
 		mock.ExpectQuery("^SELECT \\* FROM \"team_members\"").WillReturnRows(sqlmock.NewRows([]string{"id", "role"}).AddRow(1, "Editor"))
-		
+
 		req := httptest.NewRequest("POST", "/api/v1/teams/1/import", bytes.NewBufferString("invalid json"))
 		req.Header.Set("Content-Type", "application/json")
 		resp, _ := app.Test(req)
@@ -374,7 +566,7 @@ func TestImportPostman(t *testing.T) {
 
 	t.Run("Transaction/Create Collection Error", func(t *testing.T) {
 		mock.ExpectQuery("^SELECT \\* FROM \"team_members\"").WillReturnRows(sqlmock.NewRows([]string{"id", "role"}).AddRow(1, "Editor"))
-		
+
 		mock.ExpectBegin()
 		mock.ExpectQuery("^INSERT INTO \"collections\"").WillReturnError(errors.New("db fail"))
 		mock.ExpectRollback()
@@ -406,7 +598,8 @@ func TestProcessPostmanItems_Additional(t *testing.T) {
 					},
 				},
 			}
-			return processPostmanItems(tx, items, 1, nil, 1)
+			count := 0
+			return processPostmanItems(tx, items, 1, nil, 1, &count)
 		})
 		assert.NoError(t, err)
 	})
@@ -426,7 +619,8 @@ func TestProcessPostmanItems_Additional(t *testing.T) {
 					},
 				},
 			}
-			return processPostmanItems(tx, items, 1, nil, 1)
+			count := 0
+			return processPostmanItems(tx, items, 1, nil, 1, &count)
 		})
 		assert.NoError(t, err)
 	})
@@ -442,14 +636,12 @@ func TestProcessPostmanItems_Additional(t *testing.T) {
 					Name: "R",
 					Request: &PostmanReq{
 						Method: "POST",
-						Body: &struct {
-							Mode string `json:"mode"`
-							Raw  string `json:"raw"`
-						}{Mode: "raw", Raw: "not json"},
+						Body:   &PostmanBody{Mode: "raw", Raw: "not json"},
 					},
 				},
 			}
-			return processPostmanItems(tx, items, 1, nil, 1)
+			count := 0
+			return processPostmanItems(tx, items, 1, nil, 1, &count)
 		})
 		assert.NoError(t, err) // json.Unmarshal error is ignored in code
 	})
@@ -469,7 +661,8 @@ func TestProcessPostmanItems_Additional(t *testing.T) {
 					},
 				},
 			}
-			return processPostmanItems(tx, items, 1, nil, 1)
+			count := 0
+			return processPostmanItems(tx, items, 1, nil, 1, &count)
 		})
 		assert.Error(t, err)
 		assert.Equal(t, "recursive fail", err.Error())
@@ -482,7 +675,8 @@ func TestProcessPostmanItems_Additional(t *testing.T) {
 
 		err := repository.DB.Transaction(func(tx *gorm.DB) error {
 			items := []PostmanItem{{Name: "F", Item: []PostmanItem{{Name: "Sub"}}}}
-			return processPostmanItems(tx, items, 1, nil, 1)
+			count := 0
+			return processPostmanItems(tx, items, 1, nil, 1, &count)
 		})
 		assert.Error(t, err)
 	})
@@ -494,7 +688,8 @@ func TestProcessPostmanItems_Additional(t *testing.T) {
 
 		err := repository.DB.Transaction(func(tx *gorm.DB) error {
 			items := []PostmanItem{{Name: "R", Request: &PostmanReq{Method: "GET"}}}
-			return processPostmanItems(tx, items, 1, nil, 1)
+			count := 0
+			return processPostmanItems(tx, items, 1, nil, 1, &count)
 		})
 		assert.Error(t, err)
 	})

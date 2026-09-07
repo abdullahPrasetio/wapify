@@ -169,9 +169,19 @@ func TestChangePassword(t *testing.T) {
 		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 	})
 
+	t.Run("New Password Too Short", func(t *testing.T) {
+		// Validasi min. 8 karakter berjalan sebelum query DB apa pun.
+		reqBody := map[string]string{"old_password": "old-pass", "new_password": "short"}
+		body, _ := json.Marshal(reqBody)
+		req := httptest.NewRequest("PUT", "/change-password", bytes.NewBuffer(body))
+		req.Header.Set("Content-Type", "application/json")
+		resp, _ := app.Test(req)
+		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	})
+
 	t.Run("User Not Found", func(t *testing.T) {
 		mock.ExpectQuery("^SELECT \\* FROM \"users\"").WillReturnError(errors.New("not found"))
-		reqBody := map[string]string{"old_password": "a", "new_password": "b"}
+		reqBody := map[string]string{"old_password": "old-pass", "new_password": "new-pass-123"}
 		body, _ := json.Marshal(reqBody)
 		req := httptest.NewRequest("PUT", "/change-password", bytes.NewBuffer(body))
 		req.Header.Set("Content-Type", "application/json")
@@ -184,7 +194,7 @@ func TestChangePassword(t *testing.T) {
 		mock.ExpectQuery("^SELECT \\* FROM \"users\"").
 			WillReturnRows(sqlmock.NewRows([]string{"id", "password_hash"}).AddRow(1, string(hash)))
 
-		reqBody := map[string]string{"old_password": "WRONG", "new_password": "new"}
+		reqBody := map[string]string{"old_password": "WRONG", "new_password": "new-pass-123"}
 		body, _ := json.Marshal(reqBody)
 		req := httptest.NewRequest("PUT", "/change-password", bytes.NewBuffer(body))
 		req.Header.Set("Content-Type", "application/json")

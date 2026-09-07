@@ -488,3 +488,70 @@ func TestDeleteFolder(t *testing.T) {
 		assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
 	})
 }
+
+func TestDuplicateFolder(t *testing.T) {
+	mock, cleanup := repository.SetupTestDB()
+	defer cleanup()
+	mock.MatchExpectationsInOrder(false)
+
+	app := fiber.New()
+	app.Post("/api/v1/folders/:id/duplicate", func(c *fiber.Ctx) error {
+		c.Locals("user_id", float64(1))
+		c.Locals("is_super_admin", false)
+		return DuplicateFolder(c)
+	})
+
+	t.Run("Success", func(t *testing.T) {
+		// Handler fetch + duplicateFolderTree's own fetch of the same folder.
+		mock.ExpectQuery("^SELECT \\* FROM \"folders\"").
+			WillReturnRows(sqlmock.NewRows([]string{"id", "name", "collection_id", "parent_folder_id", "order_index"}).AddRow(1, "F", 10, nil, 0))
+		mock.ExpectQuery("^SELECT \\* FROM \"folders\"").
+			WillReturnRows(sqlmock.NewRows([]string{"id", "name", "collection_id", "parent_folder_id", "order_index"}).AddRow(1, "F", 10, nil, 0))
+
+		mock.ExpectQuery("^SELECT \\* FROM \"collections\"").
+			WillReturnRows(sqlmock.NewRows([]string{"id", "team_id"}).AddRow(10, 100))
+		mock.ExpectQuery("^SELECT \\* FROM \"team_members\"").
+			WillReturnRows(sqlmock.NewRows([]string{"id", "role"}).AddRow(1, "Editor"))
+
+		mock.ExpectBegin()
+		mock.ExpectQuery("^INSERT INTO \"folders\"").
+			WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(2))
+		mock.ExpectCommit()
+
+		mock.ExpectQuery("^SELECT \\* FROM \"requests\" WHERE folder_id").
+			WillReturnRows(sqlmock.NewRows([]string{"id"}))
+		mock.ExpectQuery("^SELECT \\* FROM \"folders\" WHERE parent_folder_id").
+			WillReturnRows(sqlmock.NewRows([]string{"id"}))
+
+		mock.ExpectBegin()
+		mock.ExpectExec("^UPDATE \"folders\"").WillReturnResult(sqlmock.NewResult(1, 1))
+		mock.ExpectCommit()
+
+		mock.ExpectBegin()
+		mock.ExpectQuery("^INSERT INTO \"activity_logs\"").WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(1))
+		mock.ExpectCommit()
+
+		req := httptest.NewRequest("POST", "/api/v1/folders/1/duplicate", nil)
+		resp, _ := app.Test(req, -1)
+		assert.Equal(t, http.StatusCreated, resp.StatusCode)
+	})
+
+	t.Run("Not Found", func(t *testing.T) {
+		mock.ExpectQuery("^SELECT \\* FROM \"folders\"").WillReturnError(errors.New("not found"))
+		req := httptest.NewRequest("POST", "/api/v1/folders/99/duplicate", nil)
+		resp, _ := app.Test(req)
+		assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+	})
+
+	t.Run("Forbidden", func(t *testing.T) {
+		mock.ExpectQuery("^SELECT \\* FROM \"folders\"").
+			WillReturnRows(sqlmock.NewRows([]string{"id", "collection_id"}).AddRow(1, 10))
+		mock.ExpectQuery("^SELECT \\* FROM \"collections\"").
+			WillReturnRows(sqlmock.NewRows([]string{"id", "team_id"}).AddRow(10, 100))
+		mock.ExpectQuery("^SELECT \\* FROM \"team_members\"").WillReturnRows(sqlmock.NewRows([]string{"id"}))
+
+		req := httptest.NewRequest("POST", "/api/v1/folders/1/duplicate", nil)
+		resp, _ := app.Test(req)
+		assert.Equal(t, http.StatusForbidden, resp.StatusCode)
+	})
+}

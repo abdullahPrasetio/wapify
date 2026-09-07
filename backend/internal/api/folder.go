@@ -18,6 +18,90 @@ func SetupFolderRoutes(app *fiber.App) {
 	app.Put("/api/v1/folders/:id", middleware.RequireAuth, UpdateFolder)
 	app.Patch("/api/v1/folders/:id/move", middleware.RequireAuth, MoveFolder)
 	app.Delete("/api/v1/folders/:id", middleware.RequireAuth, DeleteFolder)
+	app.Post("/api/v1/folders/:id/duplicate", middleware.RequireAuth, DuplicateFolder)
+}
+
+// duplicateFolderTree copies a folder (optionally renaming it) plus every request
+// directly inside it, then recurses into its sub-folders. Used both for a
+// standalone "Duplicate Folder" and as a building block for "Duplicate Collection".
+func duplicateFolderTree(originalFolderID uint, targetCollectionID uint, targetParentFolderID *uint, nameSuffix string, userID uint) (*repository.Folder, error) {
+	var original repository.Folder
+	if err := repository.DB.First(&original, originalFolderID).Error; err != nil {
+		return nil, err
+	}
+
+	newFolder := repository.Folder{
+		Name:           original.Name + nameSuffix,
+		CollectionID:   targetCollectionID,
+		ParentFolderID: targetParentFolderID,
+		OrderIndex:     original.OrderIndex,
+	}
+	if err := repository.DB.Create(&newFolder).Error; err != nil {
+		return nil, err
+	}
+
+	var requests []repository.Request
+	repository.DB.Where("folder_id = ?", original.ID).Find(&requests)
+	for _, r := range requests {
+		newRequest := repository.Request{
+			Name:              r.Name,
+			Description:       r.Description,
+			Method:            r.Method,
+			URL:               r.URL,
+			Headers:           r.Headers,
+			Body:              r.Body,
+			BodyType:          r.BodyType,
+			BodyVariants:      r.BodyVariants,
+			AuthConfig:        r.AuthConfig,
+			FieldValidations:  r.FieldValidations,
+			CollectionID:      targetCollectionID,
+			FolderID:          &newFolder.ID,
+			CreatedByID:       &userID,
+			OrderIndex:        r.OrderIndex,
+			PreRequestScript:  r.PreRequestScript,
+			PostRequestScript: r.PostRequestScript,
+		}
+		repository.DB.Create(&newRequest)
+	}
+
+	var subfolders []repository.Folder
+	repository.DB.Where("parent_folder_id = ?", original.ID).Find(&subfolders)
+	for _, sf := range subfolders {
+		if _, err := duplicateFolderTree(sf.ID, targetCollectionID, &newFolder.ID, "", userID); err != nil {
+			return nil, err
+		}
+	}
+
+	return &newFolder, nil
+}
+
+func DuplicateFolder(c *fiber.Ctx) error {
+	folderID := c.Params("id")
+	var folder repository.Folder
+	if err := repository.DB.First(&folder, folderID).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Folder not found", "code": "NOT_FOUND"})
+	}
+
+	var collection repository.Collection
+	repository.DB.First(&collection, folder.CollectionID)
+	if !isEditorOrAbove(c, collection.TeamID) {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Forbidden", "code": "FORBIDDEN"})
+	}
+
+	userID := uint(c.Locals("user_id").(float64))
+
+	newFolder, err := duplicateFolderTree(folder.ID, folder.CollectionID, folder.ParentFolderID, " Copy", userID)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to duplicate folder", "code": "INTERNAL_SERVER_ERROR"})
+	}
+	newFolder.OrderIndex = folder.OrderIndex + 1
+	repository.DB.Save(newFolder)
+
+	WSHub.BroadcastEntityUpdate(collection.TeamID, "COLLECTION", collection.ID)
+	LogActivity(repository.DB, collection.TeamID, userID, "DUPLICATED_FOLDER", "FOLDER", newFolder.ID, map[string]interface{}{"name": newFolder.Name})
+	NotifyEntityUpdate(collection.TeamID, userID, "Folder", newFolder.Name, "create", map[string]interface{}{"collection_id": collection.ID, "folder_id": newFolder.ID})
+
+	return c.Status(fiber.StatusCreated).JSON(newFolder)
 }
 
 type MoveFolderPayload struct {
