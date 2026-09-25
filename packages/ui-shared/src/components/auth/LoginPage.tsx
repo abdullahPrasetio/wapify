@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Loader2, AlertCircle, Settings, Zap, ShieldCheck, WifiOff } from 'lucide-react'
+import { Loader2, AlertCircle, Settings, Zap, ShieldCheck, WifiOff, Fingerprint } from 'lucide-react'
 import { useAuthStore } from '../../store/useAuthStore'
 import { ServerSettingsModal } from '../modals/ServerSettingsModal'
 import type { LoginResponse } from '../../types'
@@ -7,8 +7,10 @@ import { setAuthToken } from '../../api/client'
 import { getAppMode } from '../../config/appMode'
 
 export const LoginPage = (): React.JSX.Element => {
-  const { login, loginWithGoogle, continueOffline, isLoading, error, clearError } = useAuthStore()
+  const { login, loginWithGoogle, loginWithBiometric, continueOffline, isLoading, error, clearError } =
+    useAuthStore()
   const isLocalMode = getAppMode().mode === 'local'
+  const [biometricReady, setBiometricReady] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showSettings, setShowSettings] = useState(false)
@@ -24,6 +26,16 @@ export const LoginPage = (): React.JSX.Element => {
   useEffect(() => {
     window.api?.getAppVersion().then(setAppVersion)
   }, [])
+
+  // Tombol "Login dengan Touch ID" hanya tampil kalau perangkat mendukung,
+  // user sudah opt-in, DAN masih ada sesi tersimpan untuk dibuka (enabled).
+  useEffect(() => {
+    if (!isLocalMode || !window.api?.biometricStatus) return
+    window.api
+      .biometricStatus()
+      .then((s) => setBiometricReady(s.enabled))
+      .catch(() => setBiometricReady(false))
+  }, [isLocalMode])
 
   useEffect(() => {
     import('../../api/client').then(({ apiClient }) => {
@@ -175,6 +187,26 @@ export const LoginPage = (): React.JSX.Element => {
         ) : (
         <div className="bg-surface border border-border rounded-xl p-8 shadow-2xl shadow-black/30">
           <h2 className="text-lg font-semibold text-text mb-6">Sign in to your account</h2>
+
+          {/* Login cepat via Touch ID (macOS, mode local, sudah opt-in) */}
+          {biometricReady && (
+            <>
+              <button
+                type="button"
+                disabled={isLoading}
+                onClick={loginWithBiometric}
+                className="w-full flex items-center justify-center gap-2 bg-primary/10 border border-primary/40 hover:border-primary text-primary font-semibold py-2.5 rounded-lg text-sm transition-colors disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer mb-5"
+              >
+                {isLoading ? <Loader2 size={16} className="animate-spin" /> : <Fingerprint size={16} />}
+                Login dengan Touch ID
+              </button>
+              <div className="flex items-center gap-3 mb-5">
+                <div className="flex-1 h-px bg-border" />
+                <span className="text-xs text-muted">atau pakai password</span>
+                <div className="flex-1 h-px bg-border" />
+              </div>
+            </>
+          )}
 
           {/* Error Alert */}
           {error && (

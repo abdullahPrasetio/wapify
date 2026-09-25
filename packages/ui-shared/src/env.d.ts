@@ -92,6 +92,14 @@ interface WapboltAPI {
   // Hapus data lokal (§8.4) — terpisah dari logout
   localDataPendingSummary?: () => Promise<Array<{ entity: string; count: number }>>
   wipeLocalData?: () => Promise<void>
+  // Biometric (Touch ID) — macOS. Guard lokal untuk membuka sesi tersimpan.
+  biometricStatus?: () => Promise<{ available: boolean; enabled: boolean }>
+  biometricEnable?: (enable: boolean) => Promise<{ ok: boolean; error?: string }>
+  biometricLogin?: () => Promise<{
+    ok: boolean
+    session?: { serverUrl: string; user: unknown }
+    error?: string
+  }>
 }
 
 declare global {

@@ -84,7 +84,23 @@ export function getSession(db: Database.Database): SyncSession | null {
 export function clearSession(db: Database.Database): void {
   deleteRefreshToken(db)
   setState(db, 'sync_account', null)
+  // Logout mematikan biometric: refresh token yang di-guard sudah dihapus,
+  // jadi flag tidak boleh tertinggal menyala.
+  setBiometricEnabled(db, false)
   // server_url sengaja dibiarkan — prefill dialog login berikutnya.
+}
+
+// ─── Biometric (Touch ID) opt-in ────────────────────────────────────────────
+// Flag "login berikutnya boleh pakai Touch ID". Yang di-guard adalah session +
+// refresh token yang sudah tersimpan di sini; flag ini cuma menandai bahwa user
+// sudah setuju. Login biometric hanya masuk akal kalau getSession() != null.
+
+export function setBiometricEnabled(db: Database.Database, enabled: boolean): void {
+  setState(db, 'biometric_enabled', enabled ? '1' : null)
+}
+
+export function isBiometricEnabled(db: Database.Database): boolean {
+  return getState(db, 'biometric_enabled') === '1'
 }
 
 export function setLastFullSyncAt(db: Database.Database, iso: string): void {

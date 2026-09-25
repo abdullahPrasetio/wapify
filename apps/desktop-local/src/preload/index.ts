@@ -47,6 +47,22 @@ interface LoginPullResult {
   pending: PendingLocalOnlySummary[]
 }
 
+interface SyncSessionShape {
+  serverUrl: string
+  user: unknown
+}
+
+interface BiometricStatus {
+  available: boolean
+  enabled: boolean
+}
+
+interface BiometricLoginResult {
+  ok: boolean
+  session?: SyncSessionShape
+  error?: string
+}
+
 const api = {
   wapboltRequest: (config: RequestConfig): Promise<IpcResponse> => {
     return ipcRenderer.invoke('wapbolt:request', config)
@@ -66,6 +82,11 @@ const api = {
     ipcRenderer.invoke('wapbolt:save-session', session),
   getSyncSession: (): Promise<{ serverUrl: string; user: unknown } | null> =>
     ipcRenderer.invoke('wapbolt:get-session'),
+  // Biometric (Touch ID) — macOS. Guard lokal untuk membuka sesi tersimpan.
+  biometricStatus: (): Promise<BiometricStatus> => ipcRenderer.invoke('wapbolt:biometric-status'),
+  biometricEnable: (enable: boolean): Promise<{ ok: boolean; error?: string }> =>
+    ipcRenderer.invoke('wapbolt:biometric-enable', enable),
+  biometricLogin: (): Promise<BiometricLoginResult> => ipcRenderer.invoke('wapbolt:biometric-login'),
   // Sync manual (docs §6)
   syncNow: (serverUrl: string): Promise<SyncSummary> => ipcRenderer.invoke('wapbolt:sync-now', serverUrl),
   syncStatus: (): Promise<SyncStatus> => ipcRenderer.invoke('wapbolt:sync-status'),

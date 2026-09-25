@@ -12,8 +12,11 @@ import {
   getSession,
   clearSession,
   getLastFullSyncAt,
+  setBiometricEnabled,
+  isBiometricEnabled,
   SyncSession
 } from './local/sync/session'
+import { isBiometricAvailable, promptBiometric } from './biometric'
 import {
   createSyncEngine,
   listConflicts,
@@ -23,6 +26,21 @@ import {
   HttpFn
 } from './local/sync/engine'
 import { wipeLocalData } from './local/wipe'
+
+// ─── Agent HTTPS khusus sync (keep-alive, koneksi di-pool) ──────────────────
+// PENTING: engine sync menembakkan puluhan–ratusan call SEKUENSIAL (per team →
+// per collection → folders + requests). Kalau tiap call bikin https.Agent baru
+// tanpa keep-alive, tiap request membuka handshake TLS baru dan koneksi lama
+// tidak dilepas rapi. Reverse proxy / STB di depan server punya limit koneksi
+// rendah, sehingga koneksi menumpuk sampai server berhenti menerima `connect`
+// baru → handshake menggantung sampai TCP timeout OS (~75 detik: gejala
+// "connect ETIMEDOUT" di log). Satu agent keep-alive yang di-reuse menekan
+// jumlah koneksi TLS ke segelintir socket yang dipakai ulang.
+const syncHttpsAgent = new https.Agent({
+  keepAlive: true,
+  maxSockets: 4, // batasi paralelisme koneksi; engine memang sekuensial
+  rejectUnauthorized: false
+})
 
 // ─── IPC: LocalRouter vs HTTP passthrough (§2) ──────────────────────────────
 // Request ke `/api/v1/...` (Wapbolt sendiri) di-route ke LocalRouter (SQLite).
@@ -122,26 +140,86 @@ async function buildSyncHttp(db: Database.Database, serverUrl: string): Promise<
     data: { refresh_token: refreshToken },
     timeout: 15000,
     validateStatus: () => true,
-    httpsAgent: new https.Agent({ rejectUnauthorized: false })
+    httpsAgent: syncHttpsAgent
   })
   if (refreshRes.status !== 200 || !refreshRes.data?.token) {
     return { error: `Refresh token ditolak server (${refreshRes.status})` }
   }
   const accessToken = refreshRes.data.token as string
 
+  // Timeout & retry disetel longgar khusus sync: PULL menarik SELURUH isi
+  // server (bukan cuma yang baru) lewat Cloudflare Tunnel → STB, jadi satu
+  // response besar / tunnel yang sesekali tersendat gampang menembus timeout
+  // lama (30s). Retry hanya untuk kegagalan transport (timeout / network
+  // reset), bukan untuk status HTTP — status ditangani engine.
+  const SYNC_HTTP_TIMEOUT_MS = 120_000
+  const SYNC_HTTP_MAX_ATTEMPTS = 3
+
+  const isRetriableTransportError = (err: unknown): boolean => {
+    if (!axios.isAxiosError(err)) return false
+    if (err.response) return false // dapat response HTTP → bukan masalah transport
+    return (
+      err.code === 'ECONNABORTED' || // timeout axios
+      err.code === 'ETIMEDOUT' ||
+      err.code === 'ECONNRESET' ||
+      err.code === 'ECONNREFUSED' ||
+      err.code === 'EAI_AGAIN' ||
+      err.code === 'ERR_NETWORK'
+    )
+  }
+
   const http: HttpFn = async (method, path, body) => {
-    const res = await axios({
-      method: method as 'get',
-      url: `${base}${path}`,
-      data: body,
-      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-      timeout: 30000,
-      validateStatus: () => true,
-      httpsAgent: new https.Agent({ rejectUnauthorized: false })
-    })
-    return { status: res.status, data: res.data }
+    let lastErr: unknown
+    for (let attempt = 1; attempt <= SYNC_HTTP_MAX_ATTEMPTS; attempt++) {
+      const t0 = Date.now()
+      try {
+        const res = await axios({
+          method: method as 'get',
+          url: `${base}${path}`,
+          data: body,
+          headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+          timeout: SYNC_HTTP_TIMEOUT_MS,
+          validateStatus: () => true,
+          httpsAgent: syncHttpsAgent
+        })
+        log.info(`[sync] ${method} ${path} → ${res.status} (${Date.now() - t0}ms, attempt ${attempt})`)
+        return { status: res.status, data: res.data }
+      } catch (err) {
+        lastErr = err
+        const elapsed = Date.now() - t0
+        const message = err instanceof Error ? err.message : String(err)
+        if (isRetriableTransportError(err) && attempt < SYNC_HTTP_MAX_ATTEMPTS) {
+          const backoff = 1000 * attempt // 1s, 2s
+          log.warn(
+            `[sync] ${method} ${path} GAGAL (transport) setelah ${elapsed}ms: ${message} — retry ${attempt + 1}/${SYNC_HTTP_MAX_ATTEMPTS} dalam ${backoff}ms`
+          )
+          await new Promise((r) => setTimeout(r, backoff))
+          continue
+        }
+        log.error(`[sync] ${method} ${path} GAGAL setelah ${elapsed}ms (attempt ${attempt}): ${message}`)
+        throw err
+      }
+    }
+    // Tidak tercapai secara logika, tapi jaga-jaga agar tipe balikan aman.
+    throw lastErr
   }
   return http
+}
+
+// Ubah error mentah (mis. "timeout of 120000ms exceeded" dari axios) menjadi
+// pesan yang bisa dipahami user. Sync PULL menarik seluruh isi server lewat
+// Cloudflare Tunnel → STB, jadi timeout biasanya berarti data server besar /
+// koneksi tersendat, bukan salah user.
+function describeSyncError(err: unknown): string {
+  if (axios.isAxiosError(err)) {
+    if (err.code === 'ECONNABORTED' || /timeout/i.test(err.message)) {
+      return 'Sync melebihi batas waktu — koneksi ke server lambat atau data server terlalu besar. Coba lagi; kalau tetap gagal, hubungi admin.'
+    }
+    if (!err.response) {
+      return 'Tidak bisa terhubung ke server. Periksa koneksi internet dan URL server, lalu coba lagi.'
+    }
+  }
+  return err instanceof Error ? err.message : 'Sync gagal'
 }
 
 export function registerIpcHandlers(db: Database.Database): void {
@@ -161,10 +239,78 @@ export function registerIpcHandlers(db: Database.Database): void {
   ipcMain.handle('wapbolt:set-token', (_e, token: string) => saveRefreshToken(db, token))
   ipcMain.handle('wapbolt:get-token', () => getRefreshToken(db))
   ipcMain.handle('wapbolt:delete-token', () => {
+    // Kalau biometric aktif, logout TIDAK boleh menghapus refresh token/sesi —
+    // justru itu gunanya: setelah logout, user masuk lagi cepat via Touch ID.
+    // Sesi yang di-guard tetap disimpan; renderer cukup keluar dari state auth.
+    // Untuk benar-benar melupakan akun, user pakai "Nonaktifkan Touch ID" atau
+    // "Hapus Data Lokal".
+    if (isBiometricEnabled(db)) {
+      log.info('[biometric] logout: sesi dipertahankan untuk login Touch ID berikutnya')
+      return
+    }
     clearSession(db)
   })
   ipcMain.handle('wapbolt:save-session', (_e, session: SyncSession) => saveSession(db, session))
   ipcMain.handle('wapbolt:get-session', () => getSession(db))
+
+  // ─── Biometric (Touch ID) — macOS ─────────────────────────────────────────
+  // Guard lokal untuk membuka session yang sudah tersimpan tanpa mengetik ulang
+  // password. Tidak menyimpan password; refresh token tetap di safeStorage.
+  ipcMain.handle('wapbolt:biometric-status', () => {
+    // available: perangkat mendukung Touch ID & sudah dikonfigurasi.
+    // enabled: user sudah opt-in DAN masih ada session tersimpan untuk dibuka.
+    const available = isBiometricAvailable()
+    const enabled = available && isBiometricEnabled(db) && getSession(db) !== null
+    return { available, enabled }
+  })
+
+  // Aktif/nonaktifkan opt-in. Saat mengaktifkan, minta Touch ID sekali sebagai
+  // konfirmasi bahwa user memang pemilik sidik jari di perangkat ini.
+  ipcMain.handle('wapbolt:biometric-enable', async (_e, enable: boolean) => {
+    if (!enable) {
+      setBiometricEnabled(db, false)
+      return { ok: true }
+    }
+    if (!isBiometricAvailable()) {
+      return { ok: false, error: 'Touch ID tidak tersedia di perangkat ini' }
+    }
+    if (getSession(db) === null) {
+      return { ok: false, error: 'Belum ada sesi login untuk diamankan dengan Touch ID' }
+    }
+    try {
+      await promptBiometric('mengaktifkan login dengan Touch ID')
+      setBiometricEnabled(db, true)
+      log.info('[biometric] diaktifkan')
+      return { ok: true }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Verifikasi Touch ID gagal'
+      log.warn(`[biometric] enable dibatalkan/gagal: ${message}`)
+      return { ok: false, error: message }
+    }
+  })
+
+  // Login via Touch ID: verifikasi lalu kembalikan session tersimpan. Renderer
+  // memakai session ini persis seperti hasil rehydrate (getSyncSession).
+  ipcMain.handle('wapbolt:biometric-login', async () => {
+    if (!isBiometricEnabled(db)) {
+      return { ok: false, error: 'Login Touch ID belum diaktifkan' }
+    }
+    const session = getSession(db)
+    if (session === null) {
+      // Session hilang (mis. logout di tempat lain) — matikan flag biar konsisten.
+      setBiometricEnabled(db, false)
+      return { ok: false, error: 'Sesi tidak ditemukan. Silakan login dengan password.' }
+    }
+    try {
+      await promptBiometric('masuk ke Wapbolt Local')
+      log.info('[biometric] login sukses')
+      return { ok: true, session }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Verifikasi Touch ID gagal'
+      log.warn(`[biometric] login gagal/dibatalkan: ${message}`)
+      return { ok: false, error: message }
+    }
+  })
 
   // ─── Sync (§6) ────────────────────────────────────────────────────────────
   ipcMain.handle('wapbolt:sync-now', async (_e, serverUrl: string) => {
@@ -181,15 +327,22 @@ export function registerIpcHandlers(db: Database.Database): void {
       )
       return result
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Sync gagal'
-      log.error(`[sync] error: ${message}`)
-      return { pulled: 0, pushed: 0, conflicts: 0, errors: [message] }
+      const raw = err instanceof Error ? err.message : String(err)
+      log.error(`[sync] error: ${raw}`)
+      return { pulled: 0, pushed: 0, conflicts: 0, errors: [describeSyncError(err)] }
     }
   })
 
   ipcMain.handle('wapbolt:sync-status', () => {
+    // Hitung HANYA row yang benar-benar akan dipush oleh engine. Harus selaras
+    // dengan filter di pushEntity/pushTombstones — kalau tidak, badge "Sync
+    // Now" menampilkan angka yang tak pernah bisa nol:
+    //   - excluded_from_sync = 1 → user pilih "simpan lokal saja" (§8.3),
+    //     sengaja tidak akan pernah dipush.
+    // Tombstone (deleted_at IS NOT NULL) tetap dihitung karena masih perlu
+    // dikirim sebagai DELETE ke server.
     const dirty = db
-      .prepare('SELECT COUNT(*) as n FROM sync_meta WHERE dirty = 1')
+      .prepare('SELECT COUNT(*) as n FROM sync_meta WHERE dirty = 1 AND excluded_from_sync = 0')
       .get() as { n: number }
     const conflicts = db
       .prepare('SELECT COUNT(*) as n FROM sync_conflicts WHERE resolved_at IS NULL')
@@ -223,9 +376,12 @@ export function registerIpcHandlers(db: Database.Database): void {
       log.info(`[sync] login-pull selesai, pending pra-login: ${JSON.stringify(pending)}`)
       return { pullSummary: { pulled: 0, pushed: 0, conflicts: 0, errors: [] }, pending }
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Pull gagal'
-      log.error(`[sync] login-pull error: ${message}`)
-      return { pullSummary: { pulled: 0, pushed: 0, conflicts: 0, errors: [message] }, pending: [] }
+      const raw = err instanceof Error ? err.message : String(err)
+      log.error(`[sync] login-pull error: ${raw}`)
+      return {
+        pullSummary: { pulled: 0, pushed: 0, conflicts: 0, errors: [describeSyncError(err)] },
+        pending: []
+      }
     }
   })
 
@@ -245,9 +401,9 @@ export function registerIpcHandlers(db: Database.Database): void {
         await engine.push()
         return { pushed: 0, errors: [] }
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Push gagal'
-        log.error(`[sync] login-finish push error: ${message}`)
-        return { pushed: 0, errors: [message] }
+        const raw = err instanceof Error ? err.message : String(err)
+        log.error(`[sync] login-finish push error: ${raw}`)
+        return { pushed: 0, errors: [describeSyncError(err)] }
       }
     }
   )

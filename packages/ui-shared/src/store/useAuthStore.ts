@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { subscribeWithSelector } from 'zustand/middleware'
-import { apiClient, setAuthToken, getBaseUrl } from '../api/client'
+import { apiClient, setAuthToken, getBaseUrl, setBaseUrl } from '../api/client'
 import { getAppMode } from '../config/appMode'
 import type { User, LoginResponse } from '../types'
 
@@ -42,6 +42,18 @@ export interface PendingSyncConsentItem {
   count: number
 }
 
+// True kalau perangkat mendukung Touch ID tapi user belum opt-in — dipakai
+// untuk memutuskan apakah menawarkan dialog "aktifkan Touch ID" setelah login.
+async function shouldOfferBiometricEnroll(): Promise<boolean> {
+  if (getAppMode().mode !== 'local' || !window.api?.biometricStatus) return false
+  try {
+    const status = await window.api.biometricStatus()
+    return status.available && !status.enabled
+  } catch {
+    return false
+  }
+}
+
 interface AuthState {
   user: User | null
   token: string | null
@@ -53,12 +65,17 @@ interface AuthState {
   // keputusan user push-atau-tidak. App.tsx menampilkan dialog consent
   // sebagai overlay selama field ini terisi.
   pendingSyncConsent: PendingSyncConsentItem[] | null
+  // Non-null true saat login lokal sukses di macOS ber-Touch ID yang belum
+  // opt-in — App menampilkan dialog tawaran "aktifkan Touch ID" sebagai overlay.
+  pendingBiometricEnroll: boolean
 
   login: (email: string, password: string) => Promise<void>
   loginWithGoogle: () => Promise<void>
+  loginWithBiometric: () => Promise<void>
   handleGoogleCallback: (token: string, refreshToken: string) => Promise<void>
   continueOffline: () => void
   resolveSyncConsent: (decision: 'push' | 'exclude') => Promise<void>
+  resolveBiometricEnroll: (enable: boolean) => Promise<void>
   logout: () => Promise<void>
   rehydrateAuth: () => Promise<void>
   refreshUser: () => Promise<void>
@@ -74,6 +91,7 @@ export const useAuthStore = create<AuthState>()(
   isRehydrating: true,
   error: null,
   pendingSyncConsent: null,
+  pendingBiometricEnroll: false,
 
   login: async (email: string, password: string) => {
     set({ isLoading: true, error: null })
@@ -97,6 +115,8 @@ export const useAuthStore = create<AuthState>()(
         // yang ditanya cuma arah push.
         if (getAppMode().mode === 'local' && window.api?.saveSyncSession && window.api?.syncLoginPull) {
           await window.api.saveSyncSession({ serverUrl: getBaseUrl(), user })
+          // Sesi sudah tersimpan → boleh cek apakah menawarkan Touch ID.
+          const offerBiometric = await shouldOfferBiometricEnroll()
           try {
             const { pullSummary, pending } = await window.api.syncLoginPull(getBaseUrl())
             if (pullSummary.errors.length > 0) {
@@ -108,11 +128,19 @@ export const useAuthStore = create<AuthState>()(
               isAuthenticated: true,
               isLoading: false,
               error: null,
-              pendingSyncConsent: pending.length > 0 ? pending : null
+              pendingSyncConsent: pending.length > 0 ? pending : null,
+              pendingBiometricEnroll: offerBiometric
             })
           } catch (err) {
             console.error('[Auth] Initial pull gagal:', err)
-            set({ user: sessionToUser(user), token, isAuthenticated: true, isLoading: false, error: null })
+            set({
+              user: sessionToUser(user),
+              token,
+              isAuthenticated: true,
+              isLoading: false,
+              error: null,
+              pendingBiometricEnroll: offerBiometric
+            })
           }
           return
         }
@@ -149,6 +177,37 @@ export const useAuthStore = create<AuthState>()(
     })
   },
 
+  // Login via Touch ID (macOS, mode local). Membuka sesi yang SUDAH tersimpan
+  // (refresh token di-guard main process) tanpa mengetik ulang password. Tidak
+  // ada network di sini — identik pola dengan rehydrateAuth mode local.
+  loginWithBiometric: async () => {
+    if (!window.api?.biometricLogin) {
+      set({ error: 'Touch ID tidak tersedia' })
+      return
+    }
+    set({ isLoading: true, error: null })
+    try {
+      const res = await window.api.biometricLogin()
+      if (!res.ok || !res.session) {
+        set({ isLoading: false, error: res.error ?? 'Login Touch ID gagal' })
+        return
+      }
+      // Terapkan server URL dari sesi tersimpan supaya sync berikutnya menuju
+      // server yang benar.
+      if (res.session.serverUrl) setBaseUrl(res.session.serverUrl)
+      set({
+        user: sessionToUser(res.session.user as Partial<User>),
+        token: null,
+        isAuthenticated: true,
+        isLoading: false,
+        error: null
+      })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Login Touch ID gagal'
+      set({ isLoading: false, error: message })
+    }
+  },
+
   // §8.3: user memutuskan nasib data pra-login setelah dialog consent tampil.
   resolveSyncConsent: async (decision: 'push' | 'exclude') => {
     if (!window.api?.syncLoginFinish) {
@@ -167,12 +226,38 @@ export const useAuthStore = create<AuthState>()(
     }
   },
 
+  // User menjawab dialog tawaran Touch ID setelah login. enable=true → main
+  // process minta Touch ID sekali sebagai konfirmasi lalu simpan flag opt-in.
+  resolveBiometricEnroll: async (enable: boolean) => {
+    if (!enable || !window.api?.biometricEnable) {
+      set({ pendingBiometricEnroll: false })
+      return
+    }
+    try {
+      const res = await window.api.biometricEnable(true)
+      if (!res.ok && res.error) {
+        console.warn('[Auth] Aktivasi Touch ID gagal:', res.error)
+      }
+    } catch (err) {
+      console.error('[Auth] Gagal mengaktifkan Touch ID:', err)
+    } finally {
+      set({ pendingBiometricEnroll: false })
+    }
+  },
+
   logout: async () => {
     setAuthToken(null)
     if (window.api?.deleteToken) {
       await window.api.deleteToken()
     }
-    set({ user: null, token: null, isAuthenticated: false, error: null, pendingSyncConsent: null })
+    set({
+      user: null,
+      token: null,
+      isAuthenticated: false,
+      error: null,
+      pendingSyncConsent: null,
+      pendingBiometricEnroll: false
+    })
   },
 
   rehydrateAuth: async () => {

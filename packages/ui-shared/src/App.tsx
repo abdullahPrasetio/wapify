@@ -7,6 +7,7 @@ import { initWebSocketIntegration, wsClient } from './api/websocket'
 import { Key, AlertCircle, RefreshCw, WifiOff } from 'lucide-react'
 import { DonationModal } from './components/modals/DonationModal'
 import { SyncConsentDialog } from './components/auth/SyncConsentDialog'
+import { BiometricEnrollDialog } from './components/auth/BiometricEnrollDialog'
 import { apiClient } from './api/client'
 import { useAppStore } from './store/useAppStore'
 import { getAppMode } from './config/appMode'
@@ -291,6 +292,7 @@ function App(): React.JSX.Element {
       <AppLayout />
       <DonationModal />
       <SyncConsentDialog />
+      <BiometricEnrollDialog />
     </>
   )
 }
